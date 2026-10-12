@@ -1,6 +1,6 @@
 {
   "name": "@tangen/knowledge",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "description": "Knowledge (RAG) for Tangen CMS \u2014 embeddings, semantic search, ask-with-citations. Optional: install only when you enable knowledge.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

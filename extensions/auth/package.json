@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-auth",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Site users for a Tangen site: email and password, one-time codes by email or SMS, SSO (Google, GitHub, any OpenID Connect provider), anonymous sessions, profile fields, and the admin to manage them",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

@@ -1,6 +1,6 @@
 {
   "name": "@tangen/porter",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Porter - data movement for Tangen CMS: promote, export/import bundles, remote transfer. A porter carries your goods safely between places.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

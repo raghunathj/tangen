@@ -1,6 +1,6 @@
 {
   "name": "@tangen/db",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "description": "Database client and system schema (Drizzle + postgres.js) for the Tangen headless CMS",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

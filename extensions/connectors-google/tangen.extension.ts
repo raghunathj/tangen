@@ -22,7 +22,7 @@ import { GOOGLE_OAUTH_CONNECTOR, GOOGLE_PROVIDER, GOOGLE_SEARCH_CONSOLE_SERVICE,
 export default defineExtension({
   id: 'google',
   name: 'Google',
-  version: '0.3.9',
+  version: '0.3.10',
   // Provenance, shown on Settings > Extensions.
   author: 'Tangen',
   homepage: 'https://tangen.app',

@@ -1,6 +1,6 @@
 {
   "name": "@tangen/admin",
-  "version": "0.1.337",
+  "version": "0.2.0",
   "type": "module",
   "description": "The Tangen Admin application - the content editing UI a Tangen project serves",
   "homepage": "https://github.com/raghunathj/tangen#readme",

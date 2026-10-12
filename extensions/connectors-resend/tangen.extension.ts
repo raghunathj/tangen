@@ -21,7 +21,7 @@ import { RESEND_CONNECTOR, RESEND_EMAIL_SERVICE, RESEND_PROVIDER } from './src/c
 export default defineExtension({
   id: 'resend',
   name: 'Resend',
-  version: '0.1.0',
+  version: '0.1.1',
   // Provenance, shown on Settings > Extensions.
   author: 'Tangen',
   homepage: 'https://tangen.app',

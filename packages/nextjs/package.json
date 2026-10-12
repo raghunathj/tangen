@@ -1,6 +1,6 @@
 {
   "name": "@tangen/nextjs",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "Next.js integration helpers for Tangen \u2014 draft-mode preview handler",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

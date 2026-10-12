@@ -1,6 +1,6 @@
 {
   "name": "@tangen/types",
-  "version": "0.1.95",
+  "version": "0.2.0",
   "description": "Type definitions and config helpers for the Tangen headless CMS",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

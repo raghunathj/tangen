@@ -1,6 +1,6 @@
 {
   "name": "@tangen/cms",
-  "version": "0.1.167",
+  "version": "0.2.0",
   "description": "Tangen — code-first headless CMS. Single-import facade for site developers: defineWorkspace, defineObjectType, field, and route helpers.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

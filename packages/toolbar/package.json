@@ -1,6 +1,6 @@
 {
   "name": "@tangen/toolbar",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Floating Tangen toolbar for site frontends - page vitals, SDK request timings, console capture and edit-this-page. Optional: install only on sites that want the dev toolbar.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

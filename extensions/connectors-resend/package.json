@@ -1,6 +1,6 @@
 {
   "name": "@tangen/connectors-resend",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The Resend connector pack for Tangen: an email sending connection an operator manages, a verified-domain picker, a typed email service, a Flow action and a form destination. Tangen ships no connectors of its own - install the providers you use",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

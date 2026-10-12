@@ -1,6 +1,6 @@
 {
   "name": "@tangen/logging",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "description": "Structured logging with redaction, used across the Tangen platform. Internal to the platform",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

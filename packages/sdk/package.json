@@ -1,6 +1,6 @@
 {
   "name": "@tangen/sdk",
-  "version": "0.1.44",
+  "version": "0.1.45",
   "description": "TypeScript SDK for querying content, globals, and search from a Tangen CMS API",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

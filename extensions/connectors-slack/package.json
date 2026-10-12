@@ -1,6 +1,6 @@
 {
   "name": "@tangen/connectors-slack",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "The Slack connector pack for Tangen: one Slack workspace connection by OAuth or by bot token, channel picking, a typed chat service and a Flow action. Tangen ships no connectors of its own - install the providers you use",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

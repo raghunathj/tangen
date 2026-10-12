@@ -1,6 +1,6 @@
 {
   "name": "@tangen/astro",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Astro integration for Tangen - SSR timings middleware for the Tangen Toolbar",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

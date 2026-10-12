@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ui",
-  "version": "0.1.112",
+  "version": "0.2.0",
   "description": "Shared UI component library for Tangen admin and apps",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

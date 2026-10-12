@@ -1,6 +1,6 @@
 {
   "name": "@tangen/schema",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "description": "Schema definition helpers (defineType, fields) for Tangen content models",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

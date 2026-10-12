@@ -1,6 +1,6 @@
 {
   "name": "@tangen/icons",
-  "version": "0.0.25",
+  "version": "0.0.26",
   "description": "The icon set the Tangen Admin renders. Internal to the platform",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

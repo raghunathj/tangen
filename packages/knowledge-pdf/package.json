@@ -1,6 +1,6 @@
 {
   "name": "@tangen/knowledge-pdf",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "PDF text extraction for the Tangen knowledge base \u2014 plugs into KnowledgeConfig.extractors. Install only if you index PDF documents.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

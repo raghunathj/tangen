@@ -23,7 +23,7 @@ import { SMTP_CONNECTOR, SMTP_EMAIL_SERVICE, SMTP_PROVIDER } from './src/contrac
 export default defineExtension({
   id: 'smtp',
   name: 'SMTP',
-  version: '0.1.0',
+  version: '0.1.1',
   // Provenance, shown on Settings > Extensions.
   author: 'Tangen',
   homepage: 'https://tangen.app',

@@ -20,7 +20,7 @@ import { SLACK_CHAT_SERVICE, SLACK_OAUTH_CONNECTOR, SLACK_PROVIDER, SLACK_TOKEN_
 export default defineExtension({
   id: 'slack',
   name: 'Slack',
-  version: '0.1.6',
+  version: '0.1.7',
   // Provenance, shown on Settings > Extensions.
   author: 'Tangen',
   homepage: 'https://tangen.app',

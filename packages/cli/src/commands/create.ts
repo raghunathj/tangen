@@ -276,8 +276,14 @@ export const helloRoute: CustomRoute = {
  * (cms / api / admin / cli) move together, so one range covers them: a new
  * project takes patch and minor updates and never a major without a
  * deliberate edit. See docs/public-contract.md.
+ *
+ * On a 0.x line a MINOR is where a breaking change belongs, so `^0.1` does
+ * not admit `0.2.0` and this constant moves with the line. It went to `^0.2`
+ * for the 0.2.0 release (the Gateway enforcing CORS and rate limits).
+ * `scripts/release.test.ts` fails with the exact mismatch when it is stale,
+ * which is why `release:version` ends by running the release guards.
  */
-export const PLATFORM_RANGE = '^0.1'
+export const PLATFORM_RANGE = '^0.2'
 
 export function scaffoldPackageJson(opts: WorkspaceScaffoldOptions): string {
   return JSON.stringify(
