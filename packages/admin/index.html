@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      tangen:config - the runtime configuration of this Admin, read when the
+      page loads so ONE build serves any host. Empty: the Admin uses its own
+      origin for the API, which is right whenever the API is behind the same
+      proxy. Split domains: rewrite this one line when you serve it - no
+      rebuild - e.g. content='{"apiUrl":"https://api.acme.com"}'. A hosting
+      page may instead set window.__TANGEN_CONFIG__ before the bundle loads.
+      Never a secret: everything here is public.
+    -->
+    <meta name="tangen:config" content="" />
+    <title>Tangen CMS</title>
+    <!--
+      tangen theme, before first paint: the stored preference (light | dark |
+      system) decides whether the dark scope is on the root BEFORE the bundle
+      loads, so there is no light flash. lib/theme.ts reads the same key and
+      takes over from here. Studio applies its own scope later, alone.
+    -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('tangen-theme')
+          var dark = m === 'dark' || ((m === null || m === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+          // Scrollbars are hidden unless the member asked for classic ones
+          // (lib/scrollbars.ts reads the same key).
+          if (localStorage.getItem('tangen-scrollbars') === 'classic') document.documentElement.classList.add('classic-scrollbar')
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

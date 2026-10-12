@@ -1,0 +1,53 @@
+{
+  "name": "@tangen/ext-seo",
+  "version": "0.1.180",
+  "description": "Production SEO for a Tangen site: metadata, canonical URLs, robots, sitemaps, redirects and structured data",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "extensions/seo"
+  },
+  "files": [
+    "src",
+    "!**/__tests__/**",
+    "!**/*.test.ts",
+    "tangen.extension.ts"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tangen.extension": "./tangen.extension.ts",
+    "./hooks": "./src/hooks.ts",
+    "./server": "./src/server.ts",
+    "./contract": "./src/contract.ts",
+    "./client": "./src/client.ts",
+    "./nextjs": "./src/nextjs.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@tangen/cms": "*",
+    "@tangen/icons": "*",
+    "@tangen/ui": "*",
+    "react": "*",
+    "@tangen/sdk": "*"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1"
+  },
+  "devDependencies": {
+    "@tangen/cms": "workspace:^",
+    "@tangen/extension-testkit": "workspace:*",
+    "@tangen/ui": "workspace:^",
+    "@types/react": "^18.3.3",
+    "clsx": "^2.1.1",
+    "bun-types": "^1.1.0",
+    "react": "^18.3.1",
+    "@tangen/icons": "workspace:^",
+    "react-router-dom": "^7.18.0",
+    "@tangen/sdk": "workspace:^"
+  }
+}

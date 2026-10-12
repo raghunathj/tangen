@@ -1,0 +1,50 @@
+{
+  "name": "@tangen/realtime-react",
+  "version": "0.1.2",
+  "description": "React bindings for @tangen/realtime - a provider, useRealtime, useRealtimeStatus, useRealtimeEvent, usePresence and usePresenceSelector. Selector-based, so a component re-renders only when its slice changes; never a second transport.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/realtime-react"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target browser --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tangen/realtime": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-test-renderer": "18.3.0",
+    "react": "^18.3.1",
+    "react-test-renderer": "18.3.1"
+  }
+}

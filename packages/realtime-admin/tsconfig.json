@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@tangen/realtime": ["../realtime/src/index.ts"],
+      "@tangen/realtime-react": ["../realtime-react/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*"]
+}

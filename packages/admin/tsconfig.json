@@ -1,0 +1,45 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "paths": {
+      "@tangen/types": [
+        "../../packages/types/src/index.ts"
+      ],
+      "@tangen/sdk": [
+        "../../packages/sdk/src/index.ts"
+      ],
+      "@/*": [
+        "./*"
+      ],
+      "virtual:tangen/app-ui-registry": [
+        "./test-stubs/app-ui-registry.ts"
+      ],
+      "virtual:tangen/extension-panels": [
+        "./test-stubs/extension-panels.ts"
+      ],
+      "virtual:tangen/field-type-ui": [
+        "./test-stubs/field-type-ui.ts"
+      ]
+    },
+    "allowJs": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "app",
+    ".next"
+  ]
+}

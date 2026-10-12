@@ -1,0 +1,423 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Tangen",
+  "description": "Tangen is a code-first, AI-native headless CMS. Model content as TypeScript, query it with TangenQL, and build with a typed SDK.",
+  "logo": {
+    "light": "/logo/tangen-on-light.svg",
+    "dark": "/logo/tangen-on-dark.svg"
+  },
+  "colors": {
+    "primary": "#4F46E5",
+    "light": "#818CF8",
+    "dark": "#4338CA"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Getting Started",
+        "groups": [
+          {
+            "group": "Learn",
+            "pages": [
+              "learn/index",
+              "learn/quick-start"
+            ]
+          },
+          {
+            "group": "Build the Enterprise Website",
+            "pages": [
+              "learn/enterprise-website/index",
+              "learn/enterprise-website/create-the-project",
+              "learn/enterprise-website/model-the-site",
+              "learn/enterprise-website/page-blocks",
+              "learn/enterprise-website/globals-and-navigation",
+              "learn/enterprise-website/media-and-relations",
+              "learn/enterprise-website/seed-and-publish",
+              "learn/enterprise-website/querying",
+              "learn/enterprise-website/frontend-routes",
+              "learn/enterprise-website/localization",
+              "learn/enterprise-website/forms",
+              "learn/enterprise-website/flow",
+              "learn/enterprise-website/deployments",
+              "learn/enterprise-website/production",
+              "learn/enterprise-website/seo"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Build with Tangen",
+        "groups": [
+          {
+            "group": "Build with Tangen",
+            "pages": [
+              "build/index"
+            ]
+          },
+          {
+            "group": "Getting started",
+            "pages": [
+              "build/getting-started/index",
+              "build/getting-started/project-structure",
+              "build/getting-started/configuration",
+              "build/getting-started/generated-types",
+              "build/getting-started/schema-workflow"
+            ]
+          },
+          {
+            "group": "Content modeling",
+            "pages": [
+              "build/content-modeling/index",
+              "build/content-modeling/content-types",
+              "build/content-modeling/choosing-fields",
+              "build/content-modeling/structuring-content",
+              "build/content-modeling/relations",
+              "build/content-modeling/links",
+              "build/content-modeling/localization"
+            ]
+          },
+          {
+            "group": "Content",
+            "pages": [
+              "build/content/index",
+              "build/content/publishing",
+              "build/content/scheduling",
+              "build/content/writing",
+              "build/content/preview"
+            ]
+          },
+          {
+            "group": "Globals",
+            "pages": [
+              "build/globals/index"
+            ]
+          },
+          {
+            "group": "Querying",
+            "pages": [
+              "build/querying/index",
+              "build/querying/first-query",
+              "build/querying/filtering",
+              "build/querying/pagination",
+              "build/querying/relations",
+              "build/querying/sdk",
+              "build/querying/troubleshooting"
+            ]
+          },
+          {
+            "group": "Frontend",
+            "pages": [
+              "build/frontend/index",
+              "build/media/index"
+            ]
+          },
+          {
+            "group": "Capabilities",
+            "pages": [
+              "build/localization/index",
+              "build/auth/index",
+              "build/search/index"
+            ]
+          },
+          {
+            "group": "Ship it",
+            "pages": [
+              "build/deployments/index",
+              "build/performance/index",
+              "build/testing/index"
+            ]
+          },
+          {
+            "group": "Cache & performance",
+            "pages": [
+              "build/performance/cache"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Extensions",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "extensions/index"
+            ]
+          },
+          {
+            "group": "Forms",
+            "pages": [
+              "extensions/forms/index",
+              "extensions/forms/submissions"
+            ]
+          },
+          {
+            "group": "Flow",
+            "pages": [
+              "extensions/flow/index",
+              "extensions/flow/getting-started",
+              "extensions/flow/concepts",
+              "extensions/flow/triggers",
+              "extensions/flow/logic",
+              "extensions/flow/actions",
+              "extensions/flow/runs",
+              "extensions/flow/forms-integration",
+              "extensions/flow/security"
+            ]
+          },
+          {
+            "group": "SEO",
+            "pages": [
+              "extensions/seo/index"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Extend Tangen",
+        "groups": [
+          {
+            "group": "Extend Tangen",
+            "pages": [
+              "extend/index"
+            ]
+          },
+          {
+            "group": "Getting started",
+            "pages": [
+              "extend/introduction/index",
+              "extend/introduction/what-is-an-extension",
+              "extend/introduction/first-extension",
+              "extend/introduction/structure"
+            ]
+          },
+          {
+            "group": "The contract",
+            "pages": [
+              "extend/contract/index",
+              "extend/contract/manifest",
+              "extend/contract/lifecycle",
+              "extend/contract/capabilities",
+              "extend/contract/versioning"
+            ]
+          },
+          {
+            "group": "Configuration and data",
+            "pages": [
+              "extend/data/index",
+              "extend/data/configuration",
+              "extend/data/secrets",
+              "extend/data/migrations",
+              "extend/data/extension-data"
+            ]
+          },
+          {
+            "group": "Contributions",
+            "pages": [
+              "extend/contributions/index",
+              "extend/contributions/server",
+              "extend/contributions/routes",
+              "extend/contributions/admin",
+              "extend/contributions/fields",
+              "extend/contributions/permissions",
+              "extend/contributions/observability"
+            ]
+          },
+          {
+            "group": "Development and shipping",
+            "pages": [
+              "extend/shipping/index",
+              "extend/shipping/local-development",
+              "extend/shipping/cli",
+              "extend/shipping/testing",
+              "extend/shipping/distribution"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "extend/configuration"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "extend/cross-extension",
+              "extend/flow-contributions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Develop & Operate",
+        "groups": [
+          {
+            "group": "Operate Tangen",
+            "pages": [
+              "operate/index"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "operate/deployment/index",
+              "operate/deployment/scenarios"
+            ]
+          },
+          {
+            "group": "Running Tangen",
+            "pages": [
+              "operate/production"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Reference",
+            "pages": [
+              "reference/index"
+            ]
+          },
+          {
+            "group": "Contracts",
+            "pages": [
+              "reference/public-contract",
+              "reference/configuration",
+              "reference/environment-variables",
+              "reference/deployments"
+            ]
+          },
+          {
+            "group": "Content",
+            "pages": [
+              "reference/fields",
+              "reference/link",
+              "reference/preview",
+              "reference/knowledge"
+            ]
+          },
+          {
+            "group": "Querying",
+            "pages": [
+              "reference/tangenql",
+              "reference/sdk",
+              "reference/delivery-api",
+              "reference/graphql"
+            ]
+          },
+          {
+            "group": "Access",
+            "pages": [
+              "reference/authentication",
+              "reference/permissions"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "reference/cli",
+              "reference/errors"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "reference/extension-manifest",
+              "reference/extension-lifecycle",
+              "reference/flow",
+              "reference/flow-contract"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "AI Agents",
+        "groups": [
+          {
+            "group": "AI Agents",
+            "pages": [
+              "ai/index"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Resources",
+        "groups": [
+          {
+            "group": "Resources",
+            "pages": [
+              "resources/index"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "seo": {
+    "indexing": "navigable"
+  },
+  "search": {
+    "prompt": "Search the Tangen documentation"
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  },
+  "redirects": [
+    {
+      "source": "/build/forms",
+      "destination": "/extensions/forms"
+    },
+    {
+      "source": "/build/forms/index",
+      "destination": "/extensions/forms"
+    },
+    {
+      "source": "/build/seo",
+      "destination": "/extensions/seo"
+    },
+    {
+      "source": "/build/seo/index",
+      "destination": "/extensions/seo"
+    },
+    {
+      "source": "/reference/environments",
+      "destination": "/reference/deployments"
+    },
+    {
+      "source": "/build/environments",
+      "destination": "/build/deployments"
+    },
+    {
+      "source": "/build/environments/index",
+      "destination": "/build/deployments"
+    },
+    {
+      "source": "/learn/enterprise-website/environments",
+      "destination": "/learn/enterprise-website/deployments"
+    }
+  ],
+  "footer": {
+    "socials": {
+      "website": "https://tangen.app"
+    }
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "tangen.app",
+        "href": "https://tangen.app"
+      }
+    ]
+  }
+}

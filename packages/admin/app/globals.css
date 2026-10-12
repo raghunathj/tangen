@@ -1,0 +1,609 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/forms" { strategy: "class" };
+@source "../../ui/src/**/*.{ts,tsx}";
+/* Package extensions render inside the admin — scan their pages so Tailwind
+   generates the classes they use (e.g. the flows builder's w-[340px]). */
+@source "../../../extensions/**/*.{ts,tsx}";
+/* npm-shipped extensions (consumer installs): the admin lives in
+   node_modules/@tangen/admin, siblings are node_modules/@tangen/ext-* */
+@source "../../ext-*/src/**/*.{ts,tsx}";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Semantic design tokens (UI V2, tasks/ui-v2-spec.md §1-§7) ──────────
+   The theming layer: utilities like text-fg / bg-surface / border-border
+   resolve through these variables, so dark mode (and any future palette)
+   is a VARIABLE swap - never a markup edit. New admin code must use the
+   semantic utilities, not literal palette steps (the token-contract test
+   ratchets that). Values live as plain custom properties on :root/.dark and
+   are referenced from @theme inline so the .dark overrides win at runtime.
+
+   V2 principles carried by the values themselves:
+   - text, borders and interaction tints are ALPHA over a near-neutral base,
+     so one value reads right on every surface tier in both themes;
+   - four surface tiers (canvas < surface < raised) with floating surfaces
+     one step lighter in BOTH themes, so elevation is lightness plus one
+     soft shadow rather than a border;
+   - indigo is intent only: primary action, focus, checked, links. */
+:root {
+  /* text - the base is a near-neutral cool black; the alpha is the tier */
+  /* Calibrated to the benchmark's neutral ramp (tasks/ui-v2-calibration.md):
+     black at 85 / 75 / 60 / 50%. The 50% tier is decorative only - it is
+     3.9:1 on the page, so readable text stops at the 60% tier. */
+  --tg-fg:               oklch(0 0 0 / 0.85);
+  --tg-fg-muted:         oklch(0 0 0 / 0.75);
+  --tg-fg-subtle:        oklch(0 0 0 / 0.60);
+  --tg-fg-faint:         oklch(0 0 0 / 0.50);
+  --tg-fg-inverted:      #ffffff;
+  /* surfaces */
+  --tg-canvas:           oklch(0.9702 0 0);             /* the shell ground: sidebar, rails */
+  --tg-surface:          oklch(0.9851 0 0);             /* pages, the editor document */
+  --tg-surface-raised:   #ffffff;                       /* popovers, menus, dialogs, inputs */
+  --tg-surface-sunken:   oklch(0.9401 0 0);             /* wells, code, inset areas */
+  --tg-surface-hover:    oklch(0 0 0 / 0.04);
+  --tg-surface-selected: oklch(0 0 0 / 0.06);
+  --tg-surface-overlay:  oklch(0 0 0 / 0.12);           /* the dialog scrim */
+  --tg-surface-inverted: oklch(0.1591 0 0);
+  /* The settings page and its cards (the benchmark, 2026-09-08): a white page,
+     a card a hair darker on it. In the dark ramp the card is a hair LIGHTER. */
+  --tg-page:             #ffffff;
+  --tg-card:             #fcfcfc;
+  /* lines - 1px always; strength is alpha */
+  --tg-border-subtle:    oklch(0 0 0 / 0.06);
+  --tg-border:           oklch(0 0 0 / 0.12);
+  --tg-border-strong:    oklch(0 0 0 / 0.16);
+  --tg-border-prominent: oklch(0 0 0 / 0.25);
+  /* accent (brand indigo, for intent) */
+  --tg-accent:           var(--color-indigo-600);
+  --tg-accent-strong:    var(--color-indigo-700);
+  --tg-accent-fg:        var(--color-indigo-600);
+  --tg-accent-muted:     color-mix(in oklab, var(--color-indigo-500) 11%, transparent);
+  --tg-accent-subtle:    color-mix(in oklab, var(--color-indigo-500) 6%, transparent);
+  --tg-accent-contrast:  #ffffff;
+  --tg-focus:            color-mix(in oklab, var(--color-indigo-500) 60%, transparent);
+  --tg-focus-border:     var(--color-indigo-500);
+  /* status - solid, text-on-tint, tint */
+  --tg-success:          var(--color-emerald-600);
+  --tg-success-fg:       var(--color-emerald-700);
+  --tg-success-muted:    color-mix(in oklab, var(--color-emerald-500) 11%, transparent);
+  --tg-warning:          var(--color-amber-600);
+  --tg-warning-fg:       var(--color-amber-800);
+  --tg-warning-muted:    color-mix(in oklab, var(--color-amber-500) 12%, transparent);
+  --tg-danger:           var(--color-red-600);
+  --tg-danger-fg:        var(--color-red-700);
+  --tg-danger-muted:     color-mix(in oklab, var(--color-red-500) 10%, transparent);
+  --tg-info:             var(--color-blue-600);
+  --tg-info-fg:          var(--color-blue-700);
+  --tg-info-muted:       color-mix(in oklab, var(--color-blue-500) 10%, transparent);
+  /* elevation - a hairline ring plus ONE soft shadow; dark raises the alpha */
+  --tg-shadow-raised:    0 1px 3px oklch(0 0 0 / 0.04);
+  /* The ladder (Lightfield, 2026-09-12): tooltip < popover (menus, selects) < dialog < sheet; each a step deeper. */
+  --tg-shadow-tooltip:   0 0 0 1px oklch(0 0 0 / 0.06), 0 2px 8px oklch(0 0 0 / 0.08);
+  --tg-shadow-popover:   0 0 0 1px var(--tg-border-subtle), 0 6px 18px oklch(0 0 0 / 0.06);
+  --tg-shadow-dialog:    0 0 0 1px var(--tg-border-subtle), 0 8px 24px oklch(0 0 0 / 0.06);
+  --tg-shadow-sheet:     0 0 0 1px var(--tg-border-subtle), 0 12px 40px oklch(0 0 0 / 0.10);
+  /* ── Geometry ───────────────────────────────────────────────────────────
+     Shape, not colour. Defined HERE as the admin's defaults so every one of
+     them resolves outside Studio too: an undefined custom property does not
+     fall back to a sane value, it falls back to nothing, which is how `g-*`
+     once produced black borders across the app. */
+  --tg-row-h:        2.75rem;   /* 44px - a list row (the benchmark's ROW_HEIGHT) */
+  --tg-control-h:    2rem;      /* 32px - inputs, selects, form buttons */
+  --tg-control-h-sm: 1.5rem;    /* 24px - bar and row controls */
+  --tg-nav-item-h:   2rem;      /* 32px - sidebar items */
+  --tg-header-h:     2.75rem;   /* 44px - sidebar header, page header */
+  --tg-sidebar-w:    250px;     /* the resizable sidebar's width (160 to 280) */
+  --tg-text-label:   0.75rem;   /* 12px */
+  --tg-text-control: 0.8125rem; /* 13px - the default UI size */
+  --tg-radius-xs:    0.1875rem; /* 3px - chips, key hints */
+  --tg-radius-sm:    0.25rem;   /* 4px - checkboxes, small badges */
+  --tg-radius-control: 0.375rem;/* 6px - buttons, inputs, nav and menu items */
+  --tg-radius-lg:    0.5rem;    /* 8px - cards, popovers, menus */
+  --tg-radius-xl:    0.75rem;   /* 12px - dialogs, sheets */
+  --tg-panel-gap:    0px;       /* panels butt together in the admin */
+  --tg-panel-radius: 0px;       /* and square, flush to the shell */
+  --tg-z-sticky: 10; --tg-z-rail: 20; --tg-z-header: 30; --tg-z-popover: 65;
+  --tg-z-sheet: 50; --tg-z-dialog: 60; --tg-z-toast: 70; --tg-z-tooltip: 80;
+  /* motion - short, on state, never on chrome layout */
+  --tg-motion-fast: 50ms;       /* a tint answering a hover */
+  --tg-motion:      150ms;      /* reveal, popover, tab */
+  --tg-motion-slow: 200ms;      /* the sidebar width */
+  --tg-ease:        cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Dark is a designed table, not an inversion: lightness compresses, borders
+   and text go to white alpha, indigo lifts two steps so it holds contrast,
+   shadows deepen. Nothing is pure black. */
+.dark {
+  color-scheme: dark;
+  --tg-fg:               oklch(1 0 0 / 0.85);
+  --tg-fg-muted:         oklch(1 0 0 / 0.75);
+  --tg-fg-subtle:        oklch(1 0 0 / 0.60);
+  --tg-fg-faint:         oklch(1 0 0 / 0.50);
+  --tg-fg-inverted:      oklch(0.20 0 0);
+  --tg-canvas:           oklch(0.18 0 0);               /* sidebar: one step below the page (the token contract) */
+  --tg-surface:          oklch(0.195 0 0);              /* the page */
+  --tg-surface-raised:   oklch(0.24 0 0);               /* popovers, dialogs, inputs */
+  --tg-surface-sunken:   oklch(0.255 0 0);              /* wells are LIGHTER than the page in the dark ramp */
+  --tg-surface-hover:    oklch(1 0 0 / 0.04);
+  --tg-surface-selected: oklch(1 0 0 / 0.06);
+  --tg-surface-overlay:  oklch(0 0 0 / 0.50);
+  --tg-surface-inverted: oklch(0.96 0 0);
+  --tg-page:             #171717;
+  --tg-card:             #1c1c1c;
+  --tg-border-subtle:    oklch(1 0 0 / 0.09);
+  --tg-border:           oklch(1 0 0 / 0.14);
+  --tg-border-strong:    oklch(1 0 0 / 0.20);
+  --tg-border-prominent: oklch(1 0 0 / 0.30);
+  /* The primary action is the same solid indigo with a white label as in
+     light (the user, 2026-09-12: indigo-400 with an indigo-950 label read as
+     one flat lavender block, the label lost in it). White on indigo-600 is
+     6.5:1, and the saturated fill stands off the near-black page on its own;
+     hover lifts one step (indigo-500, still 4.6:1). Links and focus keep the
+     lighter steps that hold contrast on a dark ground. */
+  --tg-accent:           var(--color-indigo-600);
+  --tg-accent-strong:    var(--color-indigo-500);
+  --tg-accent-fg:        var(--color-indigo-300);
+  --tg-accent-muted:     color-mix(in oklab, var(--color-indigo-400) 20%, transparent);
+  --tg-accent-subtle:    color-mix(in oklab, var(--color-indigo-400) 11%, transparent);
+  --tg-accent-contrast:  #ffffff;
+  --tg-focus:            color-mix(in oklab, var(--color-indigo-400) 65%, transparent);
+  --tg-focus-border:     var(--color-indigo-400);
+  --tg-success:          var(--color-emerald-400);
+  --tg-success-fg:       var(--color-emerald-300);
+  --tg-success-muted:    color-mix(in oklab, var(--color-emerald-400) 16%, transparent);
+  --tg-warning:          var(--color-amber-400);
+  --tg-warning-fg:       var(--color-amber-300);
+  --tg-warning-muted:    color-mix(in oklab, var(--color-amber-400) 16%, transparent);
+  --tg-danger:           var(--color-red-400);
+  --tg-danger-fg:        var(--color-red-300);
+  --tg-danger-muted:     color-mix(in oklab, var(--color-red-400) 16%, transparent);
+  --tg-info:             var(--color-blue-400);
+  --tg-info-fg:          var(--color-blue-300);
+  --tg-info-muted:       color-mix(in oklab, var(--color-blue-400) 16%, transparent);
+  --tg-shadow-raised:    0 1px 3px oklch(0 0 0 / 0.6);
+  --tg-shadow-tooltip:   0 0 0 1px oklch(1 0 0 / 0.10), 0 2px 8px oklch(0 0 0 / 0.6);
+  --tg-shadow-popover:   0 0 0 1px var(--tg-border), 0 6px 18px oklch(0 0 0 / 0.75);
+  --tg-shadow-dialog:    0 0 0 1px var(--tg-border), 0 8px 24px oklch(0 0 0 / 0.75);
+  --tg-shadow-sheet:     0 0 0 1px var(--tg-border), 0 12px 40px oklch(0 0 0 / 0.8);
+}
+
+/* ── The Studio skin ──────────────────────────────────────────────────────
+   NOT a preference: there is no toggle and nothing to remember. Studio's
+   full-viewport takeover wears this so entering it reads as changing TOOLS
+   rather than changing pages.
+
+   It is DARK, and it is deliberately NOT the admin's `.dark`. Studio is a
+   design tool that sits next to Webflow; the admin's dark mode is a reading
+   preference for a content tool. Different jobs, different palettes - the
+   scope test asserts at least one surface actually differs, or this class
+   would just be dark mode wearing another name.
+
+   Applied ALONE, never alongside `dark`: a user who set the admin to dark is
+   left exactly as found, and Studio depends on nothing they chose (the
+   theme store refuses to add `.dark` while `.studio` is present).
+
+   Mechanically it is the same scope-class swap `.dark` uses, over the same
+   semantic tokens, so FieldControl, the media picker and every dialog adapt
+   with zero forked components.
+
+   Completeness is load-bearing: a token this scope forgets falls back to the
+   :root LIGHT value and turns a panel white mid-builder.
+   studio-scope.test.ts asserts parity with `.dark`. */
+.studio {
+  color-scheme: dark;
+  /* text - Webflow's near-white on near-black, not the admin's grays */
+  --tg-fg:               #f2f2f3;
+  --tg-fg-muted:         #a9abb0;
+  --tg-fg-subtle:        #8a8c92;
+  --tg-fg-faint:         #5f6167;
+  --tg-fg-inverted:      #16171a;
+  /* surfaces - panels sit ABOVE the workspace, the canvas ground below it */
+  --tg-canvas:           #202225;
+  --tg-surface:          #2b2d31;
+  --tg-surface-raised:   #35373c;
+  --tg-surface-sunken:   #16171a;
+  --tg-page:             #2b2d31;
+  --tg-card:             #303237;
+  --tg-surface-hover:    #3a3d43;
+  --tg-surface-selected: #43464d;
+  --tg-surface-overlay:  rgb(0 0 0 / 0.6);
+  --tg-surface-inverted: #f2f2f3;
+  /* lines - low contrast, or a dark tool turns into a wireframe */
+  --tg-border-subtle:    #33363b;
+  --tg-border:           #3c3f45;
+  --tg-border-strong:    #55585f;
+  --tg-border-prominent: #6b6e75;
+  /* accent - Webflow blue, distinct from the admin indigo AND from dark mode */
+  --tg-accent:           #2b7cff;
+  --tg-accent-strong:    #1a6bf0;
+  --tg-accent-fg:        #7fb0ff;
+  --tg-accent-muted:     #1e3a63;
+  --tg-accent-subtle:    #1a2c4a;
+  --tg-accent-contrast:  #ffffff;
+  --tg-focus:            rgb(43 124 255 / 0.7);
+  --tg-focus-border:     #2b7cff;
+  /* status - lifted for legibility on dark, never the light-theme values */
+  --tg-success:          #3ecf8e;
+  --tg-success-fg:       #6fe0ab;
+  --tg-success-muted:    #16342a;
+  --tg-warning:          #e0b341;
+  --tg-warning-fg:       #ecc86e;
+  --tg-warning-muted:    #382e15;
+  --tg-danger:           #f2555a;
+  --tg-danger-fg:        #f78a8d;
+  --tg-danger-muted:     #3a1c1f;
+  --tg-info:             #4d9dff;
+  --tg-info-fg:          #8ec0ff;
+  --tg-info-muted:       #16294a;
+  --tg-shadow-raised:    0 1px 2px rgb(0 0 0 / 0.4);
+  --tg-shadow-tooltip:   0 0 0 1px rgb(255 255 255 / 0.10), 0 2px 8px rgb(0 0 0 / 0.5);
+  --tg-shadow-popover:   0 0 0 1px var(--tg-border), 0 6px 18px rgb(0 0 0 / 0.5);
+  --tg-shadow-dialog:    0 0 0 1px var(--tg-border), 0 12px 32px rgb(0 0 0 / 0.6);
+  --tg-shadow-sheet:     0 0 0 1px var(--tg-border), 0 16px 48px rgb(0 0 0 / 0.65);
+  /* ── Geometry ───────────────────────────────────────────────────────────
+     What actually separates a builder from an admin form. The palette above
+     changes the hue; THIS changes the shape - roughly twice the density in
+     the same rail. Every name here is redefined from :root, never invented,
+     so nothing can resolve to nothing. */
+  --tg-row-h:        1.75rem;   /* 28px */
+  --tg-control-h:    1.75rem;
+  --tg-control-h-sm: 1.5rem;
+  --tg-nav-item-h:   1.75rem;
+  --tg-header-h:     2.25rem;   /* 36px - Webflow's chrome is compact */
+  --tg-sidebar-w:    250px;
+  --tg-text-label:   0.6875rem; /* 11px */
+  --tg-text-control: 0.75rem;   /* 12px */
+  --tg-radius-xs:    0.1875rem;
+  --tg-radius-sm:    0.25rem;
+  --tg-radius-control: 0.375rem;
+  --tg-radius-lg:    0.5rem;
+  --tg-radius-xl:    0.75rem;
+  /* FLUSH, not floating (reversed 2026-08-20). Panels butt directly together
+     the way Webflow's do - the workspace is the canvas, not a mat the panels
+     sit on. The tokens stay so the mechanism survives the decision. */
+  --tg-panel-gap:    0px;
+  --tg-panel-radius: 0px;
+  --tg-z-sticky: 10; --tg-z-rail: 20; --tg-z-header: 30; --tg-z-popover: 65;
+  --tg-z-sheet: 50; --tg-z-dialog: 60; --tg-z-toast: 70; --tg-z-tooltip: 80;
+  --tg-motion-fast: 100ms;      /* a control answering a click */
+  --tg-motion:      160ms;      /* a panel or selection moving */
+  --tg-motion-slow: 240ms;
+  --tg-ease:        cubic-bezier(0.2, 0, 0, 1);
+}
+
+@theme inline {
+  --color-fg:               var(--tg-fg);
+  --color-fg-muted:         var(--tg-fg-muted);
+  --color-fg-subtle:        var(--tg-fg-subtle);
+  --color-fg-faint:         var(--tg-fg-faint);
+  --color-fg-inverted:      var(--tg-fg-inverted);
+  --color-canvas:           var(--tg-canvas);
+  --color-surface:          var(--tg-surface);
+  --color-surface-raised:   var(--tg-surface-raised);
+  --color-surface-sunken:   var(--tg-surface-sunken);
+  --color-surface-hover:    var(--tg-surface-hover);
+  --color-surface-selected: var(--tg-surface-selected);
+  --color-surface-overlay:  var(--tg-surface-overlay);
+  --color-surface-inverted: var(--tg-surface-inverted);
+  --color-page:             var(--tg-page);
+  --color-card:             var(--tg-card);
+  --color-border-subtle:    var(--tg-border-subtle);
+  --color-border:           var(--tg-border);
+  --color-border-strong:    var(--tg-border-strong);
+  --color-border-prominent: var(--tg-border-prominent);
+  --color-accent:           var(--tg-accent);
+  --color-accent-strong:    var(--tg-accent-strong);
+  --color-accent-fg:        var(--tg-accent-fg);
+  --color-accent-muted:     var(--tg-accent-muted);
+  --color-accent-subtle:    var(--tg-accent-subtle);
+  --color-accent-contrast:  var(--tg-accent-contrast);
+  --color-focus:            var(--tg-focus);
+  --color-focus-border:     var(--tg-focus-border);
+  --color-success:          var(--tg-success);
+  --color-success-fg:       var(--tg-success-fg);
+  --color-success-muted:    var(--tg-success-muted);
+  --color-warning:          var(--tg-warning);
+  --color-warning-fg:       var(--tg-warning-fg);
+  --color-warning-muted:    var(--tg-warning-muted);
+  --color-danger:           var(--tg-danger);
+  --color-danger-fg:        var(--tg-danger-fg);
+  --color-danger-muted:     var(--tg-danger-muted);
+  --color-info:             var(--tg-info);
+  --color-info-fg:          var(--tg-info-fg);
+  --color-info-muted:       var(--tg-info-muted);
+  /* elevation and shape as utilities: shadow-raised, shadow-popover,
+     shadow-dialog, rounded-control */
+  --shadow-raised:          var(--tg-shadow-raised);
+  --shadow-tooltip:         var(--tg-shadow-tooltip);
+  --shadow-popover:         var(--tg-shadow-popover);
+  --shadow-dialog:          var(--tg-shadow-dialog);
+  --shadow-sheet:           var(--tg-shadow-sheet);
+  --radius-control:         var(--tg-radius-control);
+}
+
+/* Motion as utilities so a component never picks its own duration. */
+@utility motion-fast { transition-duration: var(--tg-motion-fast); transition-timing-function: var(--tg-ease); }
+@utility motion { transition-duration: var(--tg-motion); transition-timing-function: var(--tg-ease); }
+@utility motion-slow { transition-duration: var(--tg-motion-slow); transition-timing-function: var(--tg-ease); }
+
+@theme {
+  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-gray-925: #050814;
+
+  /* ── The UI type scale (spec §5): weight and colour carry hierarchy
+     before size. Each step pairs its own line-height; titles carry weight
+     and tracking too, so `text-title` is one class, not three. */
+  --text-ui-2xs: 0.6875rem;  --text-ui-2xs--line-height: 0.875rem; --text-ui-2xs--font-weight: 500;
+  --text-ui-xs:  0.75rem;    --text-ui-xs--line-height: 1rem;
+  --text-ui-sm:  0.8125rem;  --text-ui-sm--line-height: 1.125rem; --text-ui-sm--letter-spacing: 0.0025em;
+  --text-ui:     0.875rem;   --text-ui--line-height: 1.25rem;
+  --text-ui-lg:  0.9375rem;  --text-ui-lg--line-height: 1.375rem;
+  --text-title-sm: 0.9375rem; --text-title-sm--line-height: 1.25rem;  --text-title-sm--font-weight: 500;
+  --text-title:    1.0625rem; --text-title--line-height: 1.375rem;   --text-title--font-weight: 500; --text-title--letter-spacing: -0.005em;
+  --text-title-lg: 1.5rem;    --text-title-lg--line-height: 1.9375rem; --text-title-lg--font-weight: 500; --text-title-lg--letter-spacing: -0.0125em;
+  --text-display:  1.75rem;   --text-display--line-height: 2.25rem;  --text-display--font-weight: 500; --text-display--letter-spacing: -0.015em;
+
+  --animate-hide: hide var(--tg-motion) var(--tg-ease);
+  --animate-slide-down-and-fade: slideDownAndFade var(--tg-motion) var(--tg-ease);
+  --animate-slide-left-and-fade: slideLeftAndFade var(--tg-motion) var(--tg-ease);
+  --animate-slide-up-and-fade: slideUpAndFade var(--tg-motion) var(--tg-ease);
+  --animate-slide-right-and-fade: slideRightAndFade var(--tg-motion) var(--tg-ease);
+  --animate-accordion-open: accordionOpen var(--tg-motion) var(--tg-ease);
+  --animate-accordion-close: accordionClose var(--tg-motion) var(--tg-ease);
+  --animate-dialog-overlay-show: dialogOverlayShow var(--tg-motion) var(--tg-ease);
+  --animate-dialog-content-show: dialogContentShow var(--tg-motion) var(--tg-ease);
+  --animate-drawer-slide-left-and-fade: drawerSlideLeftAndFade var(--tg-motion) var(--tg-ease);
+  --animate-drawer-slide-right-and-fade: drawerSlideRightAndFade var(--tg-motion) ease-in;
+
+  @keyframes hide {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes slideDownAndFade {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideLeftAndFade {
+    from { opacity: 0; transform: translateX(6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes slideUpAndFade {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideRightAndFade {
+    from { opacity: 0; transform: translateX(-6px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes accordionOpen {
+    from { height: 0px; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordionClose {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0px; }
+  }
+  @keyframes dialogOverlayShow {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes dialogContentShow {
+    from { opacity: 0; transform: translate(-50%, -45%) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @keyframes drawerSlideLeftAndFade {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes drawerSlideRightAndFade {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(100%); }
+  }
+}
+
+html {
+  color-scheme: light;
+  height: 100%;
+}
+
+body {
+  height: 100%;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Strip native OS chrome — borders/rings are handled per-component */
+input, select, textarea, button {
+  appearance: none;
+  outline: none;
+}
+
+/* Restore native checkbox/radio rendering (appearance: none leaves them
+   invisible); accent-* utilities color them per component. */
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: auto;
+  outline: revert;
+}
+
+/* Restore chevron lost by appearance: none */
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='%236b7280'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px;
+}
+
+::selection {
+  background-color: var(--tg-accent-muted);
+}
+
+/* ── Scrollbars (calibration: "hidden, still scrollable") ─────────────────
+   Every scroll container hides its scrollbar; wheel, trackpad and keyboard
+   scrolling are untouched (the browser lane asserts it). `.native-scrollbar`
+   opts one container back in with a thin 35% thumb, and the `classic`
+   preference (html.classic-scrollbar) turns every container native. */
+*:not(.native-scrollbar):not(.classic-scrollbar *)::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+* { scrollbar-width: none; }
+::-webkit-scrollbar-corner { background: transparent; }
+.native-scrollbar, .classic-scrollbar * { scrollbar-width: thin; scrollbar-color: oklch(0 0 0 / 0.35) transparent; }
+.dark .native-scrollbar, .dark.classic-scrollbar * { scrollbar-color: oklch(1 0 0 / 0.35) transparent; }
+.native-scrollbar::-webkit-scrollbar, .classic-scrollbar *::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+.native-scrollbar::-webkit-scrollbar-thumb, .classic-scrollbar *::-webkit-scrollbar-thumb { background: oklch(0 0 0 / 0.35); border-radius: 4px; }
+.dark .native-scrollbar::-webkit-scrollbar-thumb, .dark.classic-scrollbar *::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 0.35); }
+
+/* ── Richtext (Tiptap) editor content styles ─────────────────────────────── */
+.tiptap { outline: none; }
+.tiptap > * + * { margin-top: 0.5em; }
+.tiptap p { line-height: 1.65; }
+.tiptap h1 { font-size: 1.6em; font-weight: 700; line-height: 1.25; margin-top: 1em; }
+.tiptap h2 { font-size: 1.35em; font-weight: 700; line-height: 1.3; margin-top: 0.9em; }
+.tiptap h3 { font-size: 1.15em; font-weight: 600; line-height: 1.35; margin-top: 0.85em; }
+.tiptap h4 { font-size: 1em; font-weight: 600; line-height: 1.4; margin-top: 0.8em; }
+.tiptap h5 { font-size: 0.9em; font-weight: 600; margin-top: 0.75em; }
+.tiptap h6 { font-size: 0.85em; font-weight: 600; color: #6b7280; margin-top: 0.75em; }
+.tiptap ul { list-style-type: disc; padding-left: 1.5em; }
+.tiptap ol { list-style-type: decimal; padding-left: 1.5em; }
+.tiptap li { margin: 0.2em 0; line-height: 1.6; }
+.tiptap li::marker { color: #9ca3af; }
+.tiptap blockquote {
+  border-left: 3px solid #d1d5db;
+  padding: 0.25em 0 0.25em 1em;
+  color: #6b7280;
+  font-style: italic;
+  margin: 0.75em 0;
+}
+.tiptap code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: #f3f4f6;
+  color: #6d28d9;
+  padding: 0.1em 0.35em;
+  border-radius: 0.25em;
+}
+.tiptap pre {
+  background: #1e1b4b;
+  color: #c7d2fe;
+  padding: 1em 1.25em;
+  border-radius: 0.5em;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+.tiptap pre code { background: none; color: inherit; padding: 0; font-size: 0.875em; }
+.tiptap hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.25em 0; }
+.tiptap a { color: #4f46e5; text-decoration: underline; cursor: pointer; }
+.tiptap a:hover { color: #4338ca; }
+.tiptap strong { font-weight: 700; }
+.tiptap em { font-style: italic; }
+.tiptap s { text-decoration: line-through; color: #9ca3af; }
+.tiptap u { text-decoration: underline; }
+.tiptap img { max-width: 100%; height: auto; border-radius: 0.375em; display: block; margin: 0.5em 0; }
+.tiptap img.ProseMirror-selectednode { outline: 2px solid #6366f1; border-radius: 0.375em; }
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to   { height: var(--radix-accordion-content-height); }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to   { height: 0; }
+}
+
+/* Toasts rise into the bottom-right stack and settle (Lightfield, 2026-09-12). */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
+/* Opt a specific element back into pointer events when an ancestor uses pointer-events-none
+   (e.g. accordion toggles inside a read-only version preview). */
+.preview-clickable { pointer-events: auto; }
+
+/* ── Gen AI entry button — slow rotating gradient border to draw the eye ────── */
+@property --genai-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes genai-rotate {
+  to { --genai-angle: 360deg; }
+}
+
+.genai-border {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    conic-gradient(from var(--genai-angle), #6366f1, #a78bfa, #ec4899, #8b5cf6, #6366f1) border-box;
+  animation: genai-rotate 3.5s linear infinite;
+}
+
+.genai-border:hover {
+  animation-duration: 1.2s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .genai-border { animation: none; }
+}
+
+/* ── Date picker calendar (react-day-picker, scoped via classNames.root) ────
+   The benchmark's picker (2026-09-08): the caption and the nav are drawn by
+   the component itself, weekdays are two letters, the days are 36px cells,
+   the chosen day a solid accent square, today an accent numeral, the days of
+   the neighbouring months faint. */
+.rdp-custom {
+  --rdp-accent-color: var(--tg-accent);
+  --rdp-accent-background-color: var(--tg-accent-muted);
+  --rdp-today-color: var(--tg-accent-fg);
+  --rdp-day-width: 2.25rem;
+  --rdp-day-height: 2.25rem;
+  --rdp-day_button-width: 2.25rem;
+  --rdp-day_button-height: 2.25rem;
+  --rdp-day_button-border-radius: 6px;
+  font-size: 0.8125rem;
+}
+.rdp-custom .rdp-custom-caption { display: none; }
+/* The grid fills the popover: seven equal columns, every numeral centred in its cell */
+.rdp-custom .rdp-months, .rdp-custom .rdp-month { width: 100%; max-width: none; }
+.rdp-custom .rdp-month_grid { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.rdp-custom .rdp-weekday, .rdp-custom .rdp-day { text-align: center; padding: 0; }
+.rdp-custom .rdp-day_button { margin: 0 auto; }
+.rdp-custom .rdp-weekday { font-size: 0.8125rem; font-weight: 400; color: var(--tg-fg-subtle); text-transform: none; height: 2rem; }
+.rdp-custom .rdp-day_button { border: none; font-size: 0.8125rem; }
+.rdp-custom .rdp-day:not(.rdp-selected) .rdp-day_button:hover:not(:disabled) { background: var(--tg-surface-hover); }
+.rdp-custom .rdp-outside .rdp-day_button { color: var(--tg-fg-faint); opacity: 1; }
+/* Today: an accent numeral, nothing more */
+.rdp-custom .rdp-today:not(.rdp-selected) .rdp-day_button { color: var(--tg-accent-fg); font-weight: 600; }
+/* Selected: the accent square (the base accent, the one the primary button wears), white numeral */
+.rdp-custom .rdp-selected { font-size: inherit; }
+.rdp-custom .rdp-selected .rdp-day_button { background: var(--tg-accent); border: none; box-shadow: none; color: var(--tg-accent-contrast, #fff); font-weight: 600; }
+/* Disabled: faded out, cursor tells the rest */
+.rdp-custom .rdp-disabled:not(.rdp-selected) { opacity: 0.35; }
+
+/* Motion is a token, so honouring prefers-reduced-motion is ONE rule rather
+   than an audit of every transition. A builder is a tool people sit in all
+   day; motion sickness is not a styling preference. */
+@media (prefers-reduced-motion: reduce) {
+  :root, .studio {
+    --tg-motion-fast: 0ms;
+    --tg-motion:      0ms;
+    --tg-motion-slow: 0ms;
+  }
+}

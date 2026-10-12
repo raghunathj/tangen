@@ -1,0 +1,42 @@
+{
+  "name": "@tangen/schema",
+  "version": "0.1.42",
+  "description": "Schema definition helpers (defineType, fields) for Tangen content models",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/schema"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tangen/types": "workspace:^"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  }
+}

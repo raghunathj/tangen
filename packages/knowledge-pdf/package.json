@@ -1,0 +1,39 @@
+{
+  "name": "@tangen/knowledge-pdf",
+  "version": "0.1.20",
+  "description": "PDF text extraction for the Tangen knowledge base \u2014 plugs into KnowledgeConfig.extractors. Install only if you index PDF documents.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/knowledge-pdf"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "unpdf": "^0.12.1",
+    "@tangen/knowledge": "workspace:^"
+  }
+}

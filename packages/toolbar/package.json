@@ -1,0 +1,55 @@
+{
+  "name": "@tangen/toolbar",
+  "version": "0.1.10",
+  "description": "Floating Tangen toolbar for site frontends - page vitals, SDK request timings, console capture and edit-this-page. Optional: install only on sites that want the dev toolbar.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/toolbar"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./react": {
+        "types": "./dist/react.d.ts",
+        "import": "./dist/react.js",
+        "default": "./dist/react.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts ./src/react.ts --outdir dist --target browser --format esm --packages external --splitting --banner \"'use client';\" && bun build ./src/global.ts --outfile dist/toolbar.global.js --target browser --format iife --minify && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tangen/sdk": "workspace:^",
+    "web-vitals": "^6.0.1"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18"
+  }
+}

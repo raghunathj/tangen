@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@tangen/realtime": [
+        "../realtime/dist/index.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "src/**/__tests__/**"
+  ]
+}

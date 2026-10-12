@@ -1,0 +1,348 @@
+/**
+ * File Name: styles.css
+ * Purpose: The Builder Kit runtime stylesheet - default values for EVERY
+ *          --tg-* token slot in the phase 2 contract, plus the minimal
+ *          layout and visual rules the widgets rely on. Every visual value
+ *          goes through var(); a site rebrands by overriding the custom
+ *          properties, never the rules.
+ *
+ * Author: Raghunath J
+ * License: MIT
+ *
+ * Dependencies/Notes: No Tailwind, no external fonts (system stack), no
+ *          CSS-in-JS. Site-EXTENDED token slots need only their custom
+ *          properties defined by the site: widgets reference token slots
+ *          both as classes (default slots styled below) and as inline
+ *          var(--tg-*) references, so extended slots resolve without extra
+ *          site CSS rules.
+ */
+
+:root {
+  /* palette: default | muted | brand | accent | inverse */
+  --tg-bg-default: #ffffff;
+  --tg-fg-default: #18181b;
+  --tg-bg-muted: #f4f4f5;
+  --tg-fg-muted: #27272a;
+  --tg-bg-brand: #4338ca;
+  --tg-fg-brand: #ffffff;
+  --tg-bg-accent: #eef2ff;
+  --tg-fg-accent: #3730a3;
+  --tg-bg-inverse: #18181b;
+  --tg-fg-inverse: #fafafa;
+
+  /* space: none | xs | sm | md | lg | xl */
+  --tg-space-none: 0px;
+  --tg-space-xs: 0.5rem;
+  --tg-space-sm: 1rem;
+  --tg-space-md: 2rem;
+  --tg-space-lg: 4rem;
+  --tg-space-xl: 6rem;
+
+  /* type: sm | base | lg | xl | 2xl | 3xl */
+  --tg-text-sm: 0.875rem;
+  --tg-text-base: 1rem;
+  --tg-text-lg: 1.25rem;
+  --tg-text-xl: 1.5rem;
+  --tg-text-2xl: 2rem;
+  --tg-text-3xl: 2.75rem;
+
+  /* radius: none | sm | md | full */
+  --tg-radius-none: 0px;
+  --tg-radius-sm: 0.25rem;
+  --tg-radius-md: 0.75rem;
+  --tg-radius-full: 9999px;
+
+  /* width: narrow | normal | wide | full */
+  --tg-width-narrow: 40rem;
+  --tg-width-normal: 64rem;
+  --tg-width-wide: 80rem;
+  --tg-width-full: 100%;
+
+  /* runtime plumbing (not a contract token family) */
+  --tg-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --tg-line: 1.6;
+  --tg-btn-fg-on-brand: #ffffff;
+}
+
+/* ---- section ---- */
+.tg-section {
+  font-family: var(--tg-font);
+  line-height: var(--tg-line);
+}
+.tg-bg-default { background-color: var(--tg-bg-default); color: var(--tg-fg-default); }
+.tg-bg-muted { background-color: var(--tg-bg-muted); color: var(--tg-fg-muted); }
+.tg-bg-brand { background-color: var(--tg-bg-brand); color: var(--tg-fg-brand); }
+.tg-bg-accent { background-color: var(--tg-bg-accent); color: var(--tg-fg-accent); }
+.tg-bg-inverse { background-color: var(--tg-bg-inverse); color: var(--tg-fg-inverse); }
+
+.tg-pad-none { padding-top: var(--tg-space-none); padding-bottom: var(--tg-space-none); }
+.tg-pad-xs { padding-top: var(--tg-space-xs); padding-bottom: var(--tg-space-xs); }
+.tg-pad-sm { padding-top: var(--tg-space-sm); padding-bottom: var(--tg-space-sm); }
+.tg-pad-md { padding-top: var(--tg-space-md); padding-bottom: var(--tg-space-md); }
+.tg-pad-lg { padding-top: var(--tg-space-lg); padding-bottom: var(--tg-space-lg); }
+.tg-pad-xl { padding-top: var(--tg-space-xl); padding-bottom: var(--tg-space-xl); }
+
+.tg-section__inner {
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--tg-space-sm);
+  padding-right: var(--tg-space-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tg-space-sm);
+}
+.tg-width-narrow { max-width: var(--tg-width-narrow); }
+.tg-width-normal { max-width: var(--tg-width-normal); }
+.tg-width-wide { max-width: var(--tg-width-wide); }
+.tg-width-full { max-width: var(--tg-width-full); }
+
+/* ---- container (WF-T12): a centred box on the width scale; its children
+   stack like a section's, and a class's --content rules reach them. ---- */
+.tg-container {
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tg-space-sm);
+}
+
+/* ---- grid (WF-T12): equal columns that wrap. The counts come from the
+   element's custom properties (set by the widget from its props); the
+   breakpoints are the kit's: mobile below 48rem, tablet to 64rem. A
+   designer's class on the content element beats these, by source order. ---- */
+.tg-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--tg-grid-cols-mobile, 1), minmax(0, 1fr));
+}
+@media (min-width: 48rem) {
+  .tg-grid { grid-template-columns: repeat(var(--tg-grid-cols-tablet, 2), minmax(0, 1fr)); }
+}
+@media (min-width: 64rem) {
+  .tg-grid { grid-template-columns: repeat(var(--tg-grid-cols, 3), minmax(0, 1fr)); }
+}
+
+/* ---- link (WF-T12): one anchor. Inherits its colour so a class or the
+   `a` tag default decides; the underline is the honest default. ---- */
+.tg-link { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+
+/* ---- rich text (WF-T12): a long-form body. Measure and paragraph rhythm
+   only; the headings, paragraphs, links and items are Style Parts. ---- */
+.tg-richtext { max-width: 65ch; }
+.tg-richtext > p { margin: 0 0 0.75em; }
+.tg-richtext > h1, .tg-richtext > h2, .tg-richtext > h3, .tg-richtext > h4 { margin: 1.25em 0 0.5em; line-height: 1.2; }
+.tg-richtext > :first-child { margin-top: 0; }
+.tg-richtext > :last-child { margin-bottom: 0; }
+
+/* ---- list (WF-T12): a ul/ol of li. The marker stays the browser's; the
+   item is the Style Part a designer reaches. ---- */
+.tg-list { margin: 0; padding-left: 1.25em; }
+.tg-list__item { margin: 0.25em 0; }
+
+/* ---- div (WF-T12): the bare box. Nothing here on purpose - a designer's
+   class is the whole of it; min-width keeps it shrinkable in flex rows. ---- */
+.tg-div { min-width: 0; }
+
+/* ---- row ---- */
+.tg-row { display: grid; grid-template-columns: 1fr; }
+.tg-gap-none { gap: var(--tg-space-none); }
+.tg-gap-xs { gap: var(--tg-space-xs); }
+.tg-gap-sm { gap: var(--tg-space-sm); }
+.tg-gap-md { gap: var(--tg-space-md); }
+.tg-gap-lg { gap: var(--tg-space-lg); }
+.tg-gap-xl { gap: var(--tg-space-xl); }
+.tg-valign-top { align-items: start; }
+.tg-valign-center { align-items: center; }
+.tg-valign-bottom { align-items: end; }
+.tg-col { min-width: 0; display: flex; flex-direction: column; gap: var(--tg-space-sm); }
+
+@media (min-width: 48rem) {
+  .tg-row--2 { grid-template-columns: 1fr 1fr; }
+  .tg-row--3 { grid-template-columns: 1fr 1fr 1fr; }
+  .tg-row--13-23 { grid-template-columns: 1fr 2fr; }
+  .tg-row--23-13 { grid-template-columns: 2fr 1fr; }
+}
+
+/* v2: stackOn deviations from the default (stack on mobile).
+   tablet = stay stacked through tablet widths; never = columns at all widths. */
+@media (min-width: 48rem) and (max-width: 63.999rem) {
+  .tg-row.tg-stack-tablet { grid-template-columns: 1fr; }
+}
+.tg-stack-never.tg-row--2 { grid-template-columns: 1fr 1fr; }
+.tg-stack-never.tg-row--3 { grid-template-columns: 1fr 1fr 1fr; }
+.tg-stack-never.tg-row--13-23 { grid-template-columns: 1fr 2fr; }
+.tg-stack-never.tg-row--23-13 { grid-template-columns: 2fr 1fr; }
+
+/* ── kit.loop ─────────────────────────────────────────────────────────────
+   Dynamic listings. Mobile-first like .tg-row: one column until 48rem, then
+   the chosen count. .tg-loop--list always stacks. */
+.tg-loop { display: grid; grid-template-columns: 1fr; }
+.tg-loop--list { grid-template-columns: 1fr; }
+.tg-loop-item { min-width: 0; }
+.tg-loop-pages { display: none; }
+
+@media (min-width: 48rem) {
+  .tg-loop--grid.tg-loop-cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .tg-loop--grid.tg-loop-cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .tg-loop--grid.tg-loop-cols-4 { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* v2: per-breakpoint visibility (hideOn). !important on purpose - hiding
+   must beat any widget's own display. Breakpoints match the row stacking
+   seams: mobile < 48rem, tablet 48-64rem, desktop >= 64rem. */
+@media (max-width: 47.999rem) {
+  .tg-hide-mobile { display: none !important; }
+}
+@media (min-width: 48rem) and (max-width: 63.999rem) {
+  .tg-hide-tablet { display: none !important; }
+}
+@media (min-width: 64rem) {
+  .tg-hide-desktop { display: none !important; }
+}
+
+/* ── Creative (freeform) overrides ────────────────────────────────────────
+   Studio's one deliberate relaxation of the token-only line. Shadow is a
+   closed preset set so no raw shadow value ever reaches CSS; hover rides
+   custom properties because :hover cannot be expressed inline. */
+.tg-shadow-sm { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); }
+.tg-shadow-md { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+.tg-shadow-lg { box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12); }
+
+.tg-has-hover { transition: background-color 120ms ease, color 120ms ease; }
+.tg-has-hover:hover {
+  background-color: var(--tg-hover-bg, inherit);
+  color: var(--tg-hover-fg, inherit);
+}
+
+/* ---- shared alignment ---- */
+.tg-align-left { text-align: left; }
+.tg-align-center { text-align: center; }
+.tg-align-right { text-align: right; }
+
+/* ---- heading + text (type ramp) ---- */
+.tg-heading { margin: 0; font-weight: 650; letter-spacing: -0.015em; line-height: 1.15; }
+.tg-text { max-width: 65ch; }
+.tg-align-center.tg-text, .tg-text.tg-align-center { margin-left: auto; margin-right: auto; }
+.tg-text > p { margin: 0 0 0.75em; }
+.tg-text > p:last-child { margin-bottom: 0; }
+.tg-text-sm { font-size: var(--tg-text-sm); }
+.tg-text-base { font-size: var(--tg-text-base); }
+.tg-text-lg { font-size: var(--tg-text-lg); }
+.tg-text-xl { font-size: var(--tg-text-xl); }
+.tg-text-2xl { font-size: var(--tg-text-2xl); }
+.tg-text-3xl { font-size: var(--tg-text-3xl); }
+
+/* ---- image ---- */
+.tg-image { margin: 0; }
+.tg-image__img { display: block; max-width: 100%; height: auto; }
+.tg-radius-none { border-radius: var(--tg-radius-none); }
+.tg-radius-sm { border-radius: var(--tg-radius-sm); }
+.tg-radius-md { border-radius: var(--tg-radius-md); }
+.tg-radius-full { border-radius: var(--tg-radius-full); }
+
+/* ---- buttons ---- */
+.tg-buttons { display: flex; flex-wrap: wrap; gap: var(--tg-space-xs); }
+.tg-buttons.tg-align-center { justify-content: center; }
+.tg-buttons.tg-align-right { justify-content: flex-end; }
+.tg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--tg-font);
+  font-weight: 550;
+  text-decoration: none;
+  border: 1px solid transparent;
+  border-radius: var(--tg-radius-sm);
+  cursor: pointer;
+}
+.tg-btn--primary { background-color: var(--tg-bg-brand); color: var(--tg-btn-fg-on-brand); }
+.tg-btn--secondary { background-color: transparent; color: var(--tg-bg-brand); border-color: var(--tg-bg-brand); }
+.tg-btn--ghost { background-color: transparent; color: var(--tg-bg-brand); }
+.tg-btn--sm { font-size: var(--tg-text-sm); padding: 0.375rem 0.75rem; }
+.tg-btn--md { font-size: var(--tg-text-base); padding: 0.5rem 1.125rem; }
+.tg-btn--lg { font-size: var(--tg-text-lg); padding: 0.75rem 1.5rem; }
+
+/* ---- spacer + divider ---- */
+.tg-space-none { height: var(--tg-space-none); }
+.tg-space-xs { height: var(--tg-space-xs); }
+.tg-space-sm { height: var(--tg-space-sm); }
+.tg-space-md { height: var(--tg-space-md); }
+.tg-space-lg { height: var(--tg-space-lg); }
+.tg-space-xl { height: var(--tg-space-xl); }
+.tg-divider { border: 0; border-top: 1px solid currentColor; opacity: 0.15; margin: var(--tg-space-sm) 0; }
+
+/* ---- video ---- */
+.tg-video { position: relative; width: 100%; }
+.tg-aspect--16-9 { aspect-ratio: 16 / 9; }
+.tg-aspect--4-3 { aspect-ratio: 4 / 3; }
+.tg-aspect--1-1 { aspect-ratio: 1 / 1; }
+.tg-video__media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: var(--tg-radius-sm);
+  background-color: var(--tg-bg-inverse);
+}
+
+/* ---- icon list ---- */
+.tg-icon-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--tg-space-sm);
+}
+@media (min-width: 48rem) {
+  .tg-icon-list.tg-cols-2 { grid-template-columns: 1fr 1fr; }
+  .tg-icon-list.tg-cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+}
+.tg-icon-list__item { display: flex; gap: var(--tg-space-xs); align-items: flex-start; }
+.tg-icon-list__icon { flex: none; color: var(--tg-bg-brand); }
+.tg-icon { width: 1.5rem; height: 1.5rem; }
+.tg-icon-list__title { margin: 0; font-weight: 600; }
+.tg-icon-list__body { margin: 0.25rem 0 0; font-size: var(--tg-text-sm); opacity: 0.8; }
+
+/* ---- accordion ---- */
+.tg-accordion { display: flex; flex-direction: column; }
+.tg-accordion__item { border-bottom: 1px solid rgba(0, 0, 0, 0.12); }
+.tg-accordion__title {
+  cursor: pointer;
+  font-weight: 600;
+  padding: var(--tg-space-xs) 0;
+  list-style: none;
+}
+.tg-accordion__title::-webkit-details-marker { display: none; }
+.tg-accordion__title::after { content: '+'; float: right; opacity: 0.5; }
+.tg-accordion__item[open] > .tg-accordion__title::after { content: '\2212'; }
+.tg-accordion__body { padding: 0 0 var(--tg-space-xs); }
+
+/* ---- form ---- */
+.tg-form--placeholder {
+  border: 1px dashed rgba(0, 0, 0, 0.25);
+  border-radius: var(--tg-radius-md);
+  padding: var(--tg-space-sm);
+  font-family: var(--tg-font);
+}
+.tg-form__label {
+  margin: 0;
+  font-size: var(--tg-text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}
+.tg-form__slug { margin: 0.25rem 0 0; font-weight: 600; }
+.tg-form__hint { margin: 0.25rem 0 0; font-size: var(--tg-text-sm); opacity: 0.7; }
+
+/* ---- unknown-block placeholder (preview aid) ---- */
+.tg-unknown {
+  border: 1px dashed rgba(0, 0, 0, 0.35);
+  border-radius: var(--tg-radius-sm);
+  padding: var(--tg-space-xs) var(--tg-space-sm);
+  font-family: var(--tg-font);
+  font-size: var(--tg-text-sm);
+  opacity: 0.7;
+}

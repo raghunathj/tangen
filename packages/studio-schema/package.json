@@ -1,0 +1,35 @@
+{
+  "name": "@tangen/studio-schema",
+  "version": "0.1.1",
+  "description": "The canonical Tangen Studio contract - page/block/component schema, style values, style properties, tokens and breakpoints. Depends on nothing: every other Studio package reads this, so it can never depend upward.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/studio-schema"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  }
+}

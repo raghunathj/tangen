@@ -1,0 +1,40 @@
+{
+  "name": "@tangen/studio",
+  "version": "0.1.1",
+  "description": "DEPRECATED compatibility shim - re-exports @tangen/studio-schema, @tangen/studio-compiler and @tangen/studio-runtime. Import from those directly in new code.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/studio"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tangen/studio-schema": "workspace:^",
+    "@tangen/studio-compiler": "workspace:^",
+    "@tangen/studio-runtime": "workspace:^"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@tangen/types": ["../types/dist/index.d.ts"],
+      "@tangen/schema": ["../schema/dist/index.d.ts"],
+      "@tangen/helpers": ["../helpers/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/__tests__/**"]
+}

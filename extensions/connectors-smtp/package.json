@@ -1,0 +1,40 @@
+{
+  "name": "@tangen/connectors-smtp",
+  "version": "0.1.0",
+  "description": "The SMTP connector pack for Tangen: send email through any SMTP server as a connection an operator manages, with a typed email service, a Flow action and a form destination. Tangen ships no connectors of its own - install the providers you use",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "extensions/connectors-smtp"
+  },
+  "files": [
+    "src",
+    "!**/__tests__/**",
+    "!**/*.test.ts",
+    "tangen.extension.ts"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts",
+    "./tangen.extension": "./tangen.extension.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "nodemailer": "^9.0.1"
+  },
+  "peerDependencies": {
+    "@tangen/cms": "*"
+  },
+  "devDependencies": {
+    "@tangen/cms": "workspace:^",
+    "@tangen/extension-testkit": "workspace:*",
+    "@types/nodemailer": "^8.0.1",
+    "bun-types": "^1.1.0"
+  }
+}

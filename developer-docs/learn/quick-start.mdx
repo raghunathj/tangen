@@ -1,0 +1,325 @@
+---
+title: Quick Start
+description: From nothing to a running Tangen with one content type, published content, and a typed query rendering on your own page.
+audience: site-developer
+type: tutorial
+status: stable
+package: "@tangen/cms"
+lastVerified: 2026-09-01
+verification: executable
+verifiedBy: stage-e-quick-start
+---
+
+# Quick Start
+
+About 15 minutes. At the end you will have Tangen running, one content type you
+defined, a published article, and your own code rendering it.
+
+## Before you start
+
+| you need | why |
+|---|---|
+| **Bun** | Tangen runs on Bun |
+| **PostgreSQL**, reachable, and an empty database | Tangen stores content in Postgres. There is no file-backed mode |
+
+Create the database first:
+
+```bash
+createdb my_blog
+```
+
+Ports: the API uses **3000** and the Admin **3001** by default. Both are set in
+the `.env` the scaffold writes, so change them there if something else has them.
+
+## 1. Create the project
+
+```bash
+bunx @tangen/cli create my-blog \
+  --name "My Blog" \
+  --db "postgres://localhost:5432/my_blog"
+```
+
+```text
+✓  Workspace "My Blog" created
+
+Next steps:
+  1.  cd my-blog
+  2.  Create the database tables
+      npx tangen bootstrap development
+```
+
+`--db` is checked before anything is written, so a wrong connection string fails
+here rather than three steps later.
+
+```bash
+cd my-blog
+bun install
+```
+
+<Warning>
+Check the install output. If any `@tangen/*` package failed to resolve, stop and
+fix that first - the scaffold reports success even when its install step could
+not fetch a package, and every later step will fail confusingly.
+</Warning>
+
+## 2. The files that matter
+
+Four, out of everything the scaffold wrote:
+
+```text
+app/
+├── tangen.config.ts                     the CLI anchor
+├── config/                              feature config (mail, storage, ai, ...)
+├── content-objects/index.ts             the barrel of your content types
+└── workspaces/my-blog/workspace.config.ts
+.env                                     DATABASE_URL, PORT, JWT_SECRET
+```
+
+`app/config/` is **how the server runs**. `app/content-objects/` is **what your
+content looks like**. Everything else can wait -
+[Project structure](/build/getting-started/project-structure) has the rest.
+
+## 3. Create the tables
+
+```bash
+bun run tangen bootstrap
+```
+
+```text
+~  Content tables
+✓  Bootstrap complete.
+```
+
+This creates Tangen's own tables in your database. You run it once per
+deployment, before the first push.
+
+**Why this is not part of `create`.** `tangen create` writes files and installs
+dependencies; it touches no database. Bootstrap is the first thing that does, so
+it is the step that fails loudly if your connection string is wrong - which is
+much easier to read here than three steps later. `tangen dev` also migrates on
+boot, so a project you start before you push will already have these tables; you
+still need this command for **staging and production**, where you never run
+`tangen dev`.
+
+## 4. Define a content type
+
+```bash
+bun run tangen add object article
+```
+
+That writes `app/content-objects/article/schema.ts` and adds it to the barrel.
+Open it and give it two fields:
+
+```ts app/content-objects/article/schema.ts
+import { defineObjectType, field } from '@tangen/cms'
+
+export default defineObjectType({
+  name: 'article',
+  label: 'Article',
+  fields: {
+    summary: field.textarea({ label: 'Summary' }),
+    body: field.richtext({ label: 'Body' }),
+  },
+})
+```
+
+The field's **name is the key**, and each builder takes one object.
+
+<Note>
+You do not declare `title`, `slug`, `status` or the timestamps. Every content
+type already has them, and declaring one is an error that names the field.
+</Note>
+
+Check it before you touch the database:
+
+```bash
+bun run tangen check
+```
+
+```text
+○  Type-checking schema files...  ✓  Schema types OK
+```
+
+## 5. Push the schema
+
+```bash
+bun run tangen push
+```
+
+```text
+~  Content tables
+     + article: create table
+~  Indexes
+     + article: scope index
+     + article: slug uniqueness
+
+✓  content tables → generated/content-tables.ts
+✓  types → generated/tangen-types.d.ts (1 content types)
+✓  Schema applied to "development"
+```
+
+**Push prints its plan before it applies anything.** Read it - it is the last
+point at which a mistake is cheap. Removing a field later needs an explicit
+approval, and production refuses destructive changes outright.
+
+It also wrote `app/generated/tangen-types.d.ts`. That file is why your query in
+step 8 is typed without a generic. Commit it, never edit it, and re-run
+`tangen types` if your editor falls behind.
+[More on generated types](/build/getting-started/generated-types).
+
+## 6. Start Tangen
+
+```bash
+bun run dev
+```
+
+```text
+[api]    workers   scheduler · webhooks · forms
+[admin]  ready
+```
+
+The API is on `http://localhost:3000` and the Admin on `http://localhost:3001`.
+
+```bash
+curl http://localhost:3000/api/health
+# {"status":"ok","version":"…"}
+```
+
+## 7. Add content
+
+Open **`http://localhost:3001`**. The first visit asks you to create the owner
+account - email, password, done.
+
+Then: **Content → Article → New**.
+
+- **Title**: `Hello Tangen`
+- **Slug**: `hello-tangen`
+- **Summary**: `My first article.`
+
+Save, then **Publish**.
+
+<Check>
+Article appears in the sidebar, and your item shows as **published** rather than
+draft.
+</Check>
+
+The distinction matters for the next step: a read returns **published** content
+only. A draft is invisible to your site until somebody publishes it.
+
+## 8. Query it
+
+Create a key the frontend can use. In the Admin: **Settings → API keys → New**,
+label it `Quick Start`, grant **objects: read**, and copy the key - it is shown
+once.
+
+```bash
+bun add @tangen/sdk
+```
+
+```ts app/read.ts
+import { createClient } from '@tangen/sdk'
+
+const tangen = createClient({
+  apiUrl: process.env.TANGEN_API_URL!,
+  apiKey: process.env.TANGEN_API_KEY!,
+})
+
+const { data } = await tangen
+  .objects('article')
+  .props(['id', 'title', 'slug', 'summary'])
+  .limit(10)
+  .get()
+
+for (const article of data) {
+  console.log(`<article><h1>${article.title}</h1><p>${article.summary ?? ''}</p></article>`)
+}
+```
+
+`objects('article')` is typed from the file push generated: the name is a
+literal union, so `objects('articel')` is a compile error, and `data` is
+`Article[]`.
+
+<Note>
+Put it under `app/`. The scaffolded `tsconfig.json` includes `app` and nothing
+else, so a file at the project root gets none of the generated typing - it
+still runs, it just stops catching your typos.
+</Note>
+
+## 9. Render it
+
+```bash
+TANGEN_API_URL=http://localhost:3000 \
+TANGEN_API_KEY=tgn_your_key_here \
+bun app/read.ts
+```
+
+```html
+<article><h1>Hello Tangen</h1><p>My first article.</p></article>
+```
+
+<Check>
+Your published article is there, and any draft is not. That is the whole loop:
+schema you wrote, content someone published, typed data, your own output.
+</Check>
+
+Put that same query in a page component and you have a website. Tangen serves
+the content; the routes, markup and styling are yours.
+
+## If you code with an AI agent
+
+`tangen create` already wrote the agent files into your project - you saw them
+scroll past. The one that matters is the **Tangen Agent Skill**:
+
+```text
+skills/tangen-developer/SKILL.md      the skill itself
+.claude/skills/…                      a discovery stub for tools that look there
+AGENTS.md · CLAUDE.md · GEMINI.md     the guardrails
+```
+
+The skill is a procedure, not a copy of these pages: it tells an agent to look
+before it touches, find the page that owns a contract at
+[docs.tangen.app](https://docs.tangen.app), and prove the result against a
+running server.
+
+Two commands keep it current:
+
+```bash
+tangen ai init          # write the agent files into a project that has none
+tangen skills update    # refresh them after upgrading @tangen/cli
+```
+
+`ai init` is for an **existing** project, or one scaffolded with `--no-ai`. A
+fresh `tangen create` has already done it. `skills update` overwrites the
+`tangen-*` skills and leaves any skill of your own alone.
+
+More in [AI Agents](/ai).
+
+## What you just used
+
+| | where to go deeper |
+|---|---|
+| a content type in TypeScript | [Content modeling](/build/content-modeling) |
+| `tangen push` and its plan | [The schema workflow](/build/getting-started/schema-workflow) |
+| generated types | [Generated types](/build/getting-started/generated-types) |
+| draft and published | [Drafts and publishing](/build/content/publishing) |
+| the query | [TangenQL](/reference/tangenql) · [Using the SDK](/build/querying/sdk) |
+| the API key | [Permissions](/reference/permissions) |
+
+Then: [Globals](/build/globals) for site settings and navigation ·
+[Localization](/build/localization) · [Forms](/extensions/forms) ·
+[Search](/build/search) · [Extend Tangen](/extend) ·
+[Deploying](/operate/deployment).
+
+## If something went wrong
+
+| symptom | cause |
+|---|---|
+| `could not connect to --db` | Postgres is not running, or the database does not exist. `createdb my_blog` |
+| `A database that was never migrated has no registry` | you skipped step 3. Run `tangen bootstrap` |
+| `field "slug" is built in` | you declared `title`, `slug` or `status`. Remove it |
+| the query returns `[]` | the article is still a draft, or the key was issued on another deployment |
+| your editor does not know `Article` | run `bun run tangen types` |
+| a `@tangen/*` package failed to resolve | re-run `bun install` and read the output |
+
+More: [Query troubleshooting](/build/querying/troubleshooting) ·
+[Errors](/reference/errors).

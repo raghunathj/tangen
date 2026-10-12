@@ -1,0 +1,30 @@
+{
+  "name": "@tangen/logging",
+  "version": "0.0.23",
+  "description": "Structured logging with redaction, used across the Tangen platform. Internal to the platform",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/logging"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@logtape/logtape": "^0.9.0",
+    "@tangen/types": "workspace:^"
+  },
+  "files": [
+    "src",
+    "!**/__tests__/**",
+    "!**/*.test.ts"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./src/index.ts"
+  }
+}

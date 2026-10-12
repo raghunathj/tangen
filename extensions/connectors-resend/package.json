@@ -1,0 +1,36 @@
+{
+  "name": "@tangen/connectors-resend",
+  "version": "0.1.0",
+  "description": "The Resend connector pack for Tangen: an email sending connection an operator manages, a verified-domain picker, a typed email service, a Flow action and a form destination. Tangen ships no connectors of its own - install the providers you use",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "extensions/connectors-resend"
+  },
+  "files": [
+    "src",
+    "!**/__tests__/**",
+    "!**/*.test.ts",
+    "tangen.extension.ts"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts",
+    "./tangen.extension": "./tangen.extension.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@tangen/cms": "*"
+  },
+  "devDependencies": {
+    "@tangen/cms": "workspace:^",
+    "@tangen/extension-testkit": "workspace:*",
+    "bun-types": "^1.1.0"
+  }
+}

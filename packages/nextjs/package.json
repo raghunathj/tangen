@@ -1,0 +1,53 @@
+{
+  "name": "@tangen/nextjs",
+  "version": "0.1.22",
+  "description": "Next.js integration helpers for Tangen \u2014 draft-mode preview handler",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/nextjs"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tangen/sdk": "workspace:^"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^18"
+  }
+}

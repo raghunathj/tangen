@@ -1,0 +1,44 @@
+{
+  "name": "@tangen/studio-runtime",
+  "version": "0.1.1",
+  "description": "The framework-neutral Tangen Studio runtime - the visual-edit overlay and the admin/site message protocol. No framework dependency, so a React, Vue or Astro site can all support click-in-preview.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/studio-runtime"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./interactions-tier2": "./src/interactions-tier2.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./interactions-tier2": {
+        "types": "./dist/interactions-tier2.d.ts",
+        "import": "./dist/interactions-tier2.js",
+        "default": "./dist/interactions-tier2.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts ./src/interactions-tier2.ts --outdir dist --target browser --format esm --splitting --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  }
+}

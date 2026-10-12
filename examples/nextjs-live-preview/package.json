@@ -1,0 +1,32 @@
+{
+  "name": "tangen-nextjs-live-preview",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A Next.js front-end for a Tangen site (pages + posts) demonstrating live preview (Tier 1 draft rendering + Tier 2 live editing). The preview contract is plain REST + postMessage, so the same approach ports to Nuxt, SvelteKit, Astro, Remix, or anything.",
+  "scripts": {
+    "predev": "bun scripts/link-workspace.ts",
+    "dev": "next dev -p 4321",
+    "prebuild": "bun scripts/link-workspace.ts",
+    "build": "next build",
+    "start": "next start -p 4321",
+    "link:workspace": "bun scripts/link-workspace.ts"
+  },
+  "dependencies": {
+    "@tangen/sdk": "^0.1.22",
+    "@tangen/realtime": "workspace:*",
+    "@tangen/realtime-react": "workspace:*",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@tangen/studio-react": "workspace:*",
+    "@tangen/studio": "workspace:*",
+    "@tangen/studio-runtime": "workspace:*",
+    "@tangen/studio-compiler": "workspace:*",
+    "@tangen/studio-schema": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}

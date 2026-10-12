@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [
+      "bun-types",
+      "react"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/kit": [
+        "../../packages/admin/kit/index.ts"
+      ],
+      "@/kit/*": [
+        "../../packages/admin/kit/*"
+      ],
+      "@/components/*": [
+        "../../packages/admin/components/*"
+      ],
+      "@/lib/*": [
+        "../../packages/admin/lib/*"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "tangen.extension.ts"
+  ]
+}

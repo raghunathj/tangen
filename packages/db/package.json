@@ -1,0 +1,71 @@
+{
+  "name": "@tangen/db",
+  "version": "0.1.53",
+  "description": "Database client and system schema (Drizzle + postgres.js) for the Tangen headless CMS",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/db"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./migrate": "./src/migrate.ts",
+    "./content-tables": "./src/content-tables.ts",
+    "./custom-tables": "./src/custom-tables-loader.ts",
+    "./schema-kit": "./src/schema-kit.ts",
+    "./reconcile": "./src/reconcile.ts"
+  },
+  "files": [
+    "src",
+    "!src/**/__tests__/**",
+    "!src/**/*.test.ts",
+    "drizzle",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./src/index.ts",
+    "exports": {
+      ".": {
+        "default": "./src/index.ts"
+      },
+      "./migrate": {
+        "default": "./src/migrate.ts"
+      },
+      "./content-tables": {
+        "default": "./src/content-tables.ts"
+      },
+      "./custom-tables": {
+        "default": "./src/custom-tables-loader.ts"
+      },
+      "./schema-kit": {
+        "default": "./src/schema-kit.ts"
+      },
+      "./reconcile": {
+        "default": "./src/reconcile.ts"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "db:gin-indexes": "bun --env-file=../../.env run src/sql/apply-gin-indexes.ts",
+    "db:generate": "bun --env-file=../../.env drizzle-kit generate",
+    "db:migrate": "bun --env-file=../../.env run src/migrate.ts",
+    "db:reconcile": "bun --env-file=../../.env run src/reconcile.ts",
+    "db:studio": "bun --env-file=../../.env drizzle-kit studio",
+    "seed:skeleton": "bun --env-file=../../.env run src/seed/skeleton.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.4",
+    "@tangen/types": "workspace:^"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.21.4"
+  }
+}

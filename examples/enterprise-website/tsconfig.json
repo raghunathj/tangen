@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": [
+      "node",
+      "bun"
+    ]
+  },
+  "include": [
+    "app",
+    "web",
+    "scripts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

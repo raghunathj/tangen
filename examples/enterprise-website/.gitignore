@@ -1,0 +1,9 @@
+.env
+node_modules/
+dist/
+.turbo/
+*.log
+
+# Generated: derived TS types regenerate on push (ignore); the content-tables
+# registry (app/generated/content-tables.ts) IS committed - it's your schema.
+app/generated/*.d.ts

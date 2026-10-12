@@ -1,0 +1,58 @@
+{
+  "name": "@tangen/cms",
+  "version": "0.1.167",
+  "description": "Tangen — code-first headless CMS. Single-import facade for site developers: defineWorkspace, defineObjectType, field, and route helpers.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/tangen"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "cms",
+    "headless-cms",
+    "tangen"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@tangen/cli": "workspace:^",
+    "@tangen/ext-flows": "workspace:^",
+    "@tangen/ext-seo": "workspace:^",
+    "@tangen/helpers": "workspace:^",
+    "@tangen/schema": "workspace:^",
+    "@tangen/types": "workspace:^",
+    "@tangen/ext-notes": "workspace:^",
+    "@tangen/ext-forms": "workspace:^",
+    "@tangen/ext-auth": "workspace:^"
+  },
+  "bin": {
+    "tangen": "./bin/tangen.js"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  }
+}

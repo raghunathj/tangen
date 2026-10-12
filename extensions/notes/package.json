@@ -1,0 +1,42 @@
+{
+  "name": "@tangen/ext-notes",
+  "version": "0.1.2",
+  "description": "Editor notes for Tangen: internal, per-entry notes for the people who work on the content - never delivered to a site",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "extensions/notes"
+  },
+  "files": [
+    "src",
+    "!**/__tests__/**",
+    "!**/*.test.ts",
+    "tangen.extension.ts"
+  ],
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tangen.extension": "./tangen.extension.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@tangen/cms": "*",
+    "@tangen/icons": "*",
+    "@tangen/ui": "*",
+    "react": "*"
+  },
+  "devDependencies": {
+    "@tangen/cms": "workspace:^",
+    "@tangen/icons": "workspace:^",
+    "@tangen/ui": "workspace:^",
+    "@types/react": "^18.3.3",
+    "bun-types": "^1.1.0",
+    "react": "^18.3.1",
+    "@tangen/extension-testkit": "workspace:*"
+  }
+}

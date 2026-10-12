@@ -1,0 +1,12 @@
+-- Extension-provisioned content types (2026-08-26): a registry row remembers
+-- WHO declared it.
+--
+-- Nullable, and NULL means what it always meant: the site's own code declares
+-- this type, so `tangen push` may offer to drop it (with --confirm) when the
+-- code stops declaring it. A non-null value names the extension that provides
+-- the type, and buys the row one guarantee - a diff never turns it into a
+-- DROP_TYPE. An extension that is removed, disabled, or simply stops declaring
+-- the type leaves an ORPHAN: the table and its rows stay, push says so, doctor
+-- says so. A site takes ownership by declaring the same name in its own
+-- schema, which clears this column, and only then can drop it the ordinary way.
+ALTER TABLE "object_types" ADD COLUMN IF NOT EXISTS "provided_by" text;

@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["react"],
+    "paths": {
+      "@tangen/types":  ["../../packages/types/src/index.ts"],
+      "@tangen/cms":    ["../../packages/tangen/src/index.ts"],
+      "@tangen/ui":     ["../../packages/ui/src/index.ts"],
+      "@tangen/icons":  ["../../packages/icons/src/index.ts"],
+      "@tangen/schema": ["../../packages/schema/src/index.ts"],
+      "@/*":            ["../../packages/admin/*"],
+      "react-router-dom": ["../../packages/admin/node_modules/react-router-dom"],
+      "react-router":   ["../../packages/admin/node_modules/react-router"]
+    }
+  },
+  "include": ["src", "tangen.extension.ts"]
+}

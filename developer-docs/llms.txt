@@ -1,0 +1,164 @@
+# Tangen
+
+> Tangen is a code-first headless CMS. You model content in TypeScript, push
+> the schema to a database, and read it over a typed SDK or REST. This is the
+> developer documentation: every page is checked against the running platform,
+> and each one records whether its claims were proven by execution or by
+> reading the source.
+
+Append `.md` to any page URL for its Markdown source. The whole corpus in one
+file is at https://docs.tangen.app/llms-full.txt.
+
+These docs describe the current Tangen release line.
+
+## Start here
+
+- [Quick Start](https://docs.tangen.app/learn/quick-start.md): From nothing to a running Tangen with one content type, published content, and a typed query rendering on your own page.
+- [Build the Enterprise Website](https://docs.tangen.app/learn/enterprise-website.md): A fourteen-chapter tutorial that builds a realistic multilingual B2B site on Tangen, composing every capability a real project uses.
+- [Content modeling](https://docs.tangen.app/build/content-modeling.md): Designing content types, choosing fields, and modeling relationships and navigation.
+- [Querying](https://docs.tangen.app/build/querying.md): Reading content with the SDK and TangenQL - lists, single objects, filters, relations and paging.
+- [Globals](https://docs.tangen.app/build/globals.md): Site-wide singletons - settings, navigation, SEO defaults - and how to query them.
+- [Forms](https://docs.tangen.app/extensions/forms.md): Defining forms in code or the Admin, rendering them, and handling submissions.
+- [Flow](https://docs.tangen.app/extensions/flow.md): Automations that run when something happens - a form submitted, content published, a schedule elapsing.
+- [Your first extension](https://docs.tangen.app/extend/introduction/first-extension.md): The smallest extension that installs, runs and can be verified.
+- [Deploying Tangen](https://docs.tangen.app/operate/deployment.md): Deploying Tangen to production: what runs, what to configure, the secrets you need, and the `tangen start` command that serves the API.
+- [Reference](https://docs.tangen.app/reference.md): The complete supported Tangen contracts: packages, configuration, fields, TangenQL, the SDK, the CLI, auth, permissions, errors and extensions.
+
+## Getting Started
+
+- [Learn](https://docs.tangen.app/learn.md): Sequential tutorials that build something real, from an empty directory to a running site.
+- [Quick Start](https://docs.tangen.app/learn/quick-start.md): From nothing to a running Tangen with one content type, published content, and a typed query rendering on your own page.
+- [Build the Enterprise Website](https://docs.tangen.app/learn/enterprise-website.md): A fourteen-chapter tutorial that builds a realistic multilingual B2B site on Tangen, composing every capability a real project uses.
+- [Create the project](https://docs.tangen.app/learn/enterprise-website/create-the-project.md): Scaffold Northwind Systems, create its database, and get the API, admin and a health check answering.
+- [Model the site](https://docs.tangen.app/learn/enterprise-website/model-the-site.md): Eight content types that follow the information architecture, and why each one exists.
+- [Build reusable page blocks](https://docs.tangen.app/learn/enterprise-website/page-blocks.md): Six components an editor stacks into a page, and the difference between a component and a block.
+- [Add Globals and navigation](https://docs.tangen.app/learn/enterprise-website/globals-and-navigation.md): Four Globals for site-wide content, including a menu an editor owns, and how to wire them into the workspace.
+- [Add media and relationships](https://docs.tangen.app/learn/enterprise-website/media-and-relations.md): Upload real assets, reference them from content, and relate types to each other.
+- [Seed and publish content](https://docs.tangen.app/learn/enterprise-website/seed-and-publish.md): Enough content to render the whole site, and the draft-to-published rule that explains an empty frontend.
+- [Query with TangenQL and the SDK](https://docs.tangen.app/learn/enterprise-website/querying.md): A delivery key, and the six queries this site actually needs.
+- [Build dynamic frontend routes](https://docs.tangen.app/learn/enterprise-website/frontend-routes.md): Thirteen routes driven by CMS slugs, a block renderer, and media on the page.
+- [Add localization](https://docs.tangen.app/learn/enterprise-website/localization.md): English, French and German, per-field, with the republish rule that catches everyone.
+- [Add contact and demo forms](https://docs.tangen.app/learn/enterprise-website/forms.md): Two forms, rendered from a public schema and submitted without a credential.
+- [Automate demo requests with Flow](https://docs.tangen.app/learn/enterprise-website/flow.md): Route a demo request by company size, branching on what the visitor actually submitted.
+- [Deployments and permissions](https://docs.tangen.app/learn/enterprise-website/deployments.md): A staging deployment with the same schema and none of the data, and which credential each actor uses.
+- [Cache and production](https://docs.tangen.app/learn/enterprise-website/production.md): What caching does to a read, and running the site in production mode with no build step.
+- [SEO](https://docs.tangen.app/learn/enterprise-website/seo.md): One resolveUrl function drives canonical URLs, OpenGraph, a sitemap with hreflang, and a robots policy that differs by deployment role.
+## Build with Tangen
+
+- [Build with Tangen](https://docs.tangen.app/build.md): Everything you need to build an application on Tangen: modeling content, querying it, and shipping it.
+- [Getting started](https://docs.tangen.app/build/getting-started.md): Project structure, configuration, generated types and the schema workflow.
+- [Project structure](https://docs.tangen.app/build/getting-started/project-structure.md): What each directory in a Tangen project is for, and which files you edit.
+- [Configuring a project](https://docs.tangen.app/build/getting-started/configuration.md): Which config file to reach for, what the deployment supplies, and where secrets go.
+- [Generated types](https://docs.tangen.app/build/getting-started/generated-types.md): What the CLI generates, when, where it lives, and why your queries are typed without generics.
+- [The schema workflow](https://docs.tangen.app/build/getting-started/schema-workflow.md): check, diff, push - and how to read the plan before you apply it.
+- [Content modeling](https://docs.tangen.app/build/content-modeling.md): Designing content types, choosing fields, and modeling relationships and navigation.
+- [Content types](https://docs.tangen.app/build/content-modeling/content-types.md): Defining a content type, what the system gives you, and what to put in it.
+- [Choosing a field](https://docs.tangen.app/build/content-modeling/choosing-fields.md): Which of the 28 field types fits, and the ones people reach for wrongly.
+- [Structuring content](https://docs.tangen.app/build/content-modeling/structuring-content.md): Groups, repeaters and components: which one to use for nested and repeating content, and how a component differs from a block on a page.
+- [Relations](https://docs.tangen.app/build/content-modeling/relations.md): Connecting content types, one and many, and what it costs to read them.
+- [Links and navigation](https://docs.tangen.app/build/content-modeling/links.md): Modeling destinations that survive a slug change, and resolving them to URLs in your app.
+- [Modeling for localization](https://docs.tangen.app/build/content-modeling/localization.md): Deciding which fields translate, before you have translations.
+- [Content](https://docs.tangen.app/build/content.md): Creating, editing, publishing, scheduling and previewing content.
+- [Drafts and publishing](https://docs.tangen.app/build/content/publishing.md): Draft and published status: why a newly created entry is invisible to the Delivery API until it is published, and what a reader sees.
+- [Scheduling](https://docs.tangen.app/build/content/scheduling.md): Publishing at a future time, and what happens when that time arrives.
+- [Writing content from code](https://docs.tangen.app/build/content/writing.md): Creating and updating objects, and not overwriting somebody else's edit.
+- [Preview](https://docs.tangen.app/build/content/preview.md): Showing draft content on your frontend without leaking it.
+- [Globals](https://docs.tangen.app/build/globals.md): Site-wide singletons - settings, navigation, SEO defaults - and how to query them.
+- [Querying](https://docs.tangen.app/build/querying.md): Reading content with the SDK and TangenQL - lists, single objects, filters, relations and paging.
+- [Your first query](https://docs.tangen.app/build/querying/first-query.md): Creating a client and reading a list and a single object.
+- [Filtering and sorting](https://docs.tangen.app/build/querying/filtering.md): Narrowing a result set with operators and boolean groups, and ordering it.
+- [Pagination](https://docs.tangen.app/build/querying/pagination.md): Offset paging, cursors, and when to skip the count.
+- [Querying relations](https://docs.tangen.app/build/querying/relations.md): Expanding related content with depth, and keeping the cost down.
+- [Using the SDK](https://docs.tangen.app/build/querying/sdk.md): Configuring the client, cancelling requests, handling errors, and what the SDK does not do.
+- [Query troubleshooting](https://docs.tangen.app/build/querying/troubleshooting.md): Reading a TangenQL refusal and finding the cause.
+- [Frontend integration](https://docs.tangen.app/build/frontend.md): Connecting a frontend to Tangen - fetching, routing, rendering, caching and errors.
+- [Media](https://docs.tangen.app/build/media.md): Uploading, reading and rendering media, and what transforms are available.
+- [Localization](https://docs.tangen.app/build/localization.md): Configuring locales, localizing content and globals, querying, fallbacks and routing.
+- [Site authentication](https://docs.tangen.app/build/auth.md): Accounts for your site's users through the Site users extension, and calling its REST endpoints.
+- [Search](https://docs.tangen.app/build/search.md): Adding search to your site - what is indexed, how you query it, and its limits.
+- [Deployments in practice](https://docs.tangen.app/build/deployments.md): Developing on one deployment, taking schema and content to the next, and staying safe in production.
+- [Performance](https://docs.tangen.app/build/performance.md): Caching, query cost, and finding what makes a page slow.
+- [Testing your application](https://docs.tangen.app/build/testing.md): What to test around a Tangen site, and what not to.
+- [Cache lifecycle](https://docs.tangen.app/build/performance/cache.md): What a read costs the second time, what publishing invalidates, and what you have to do about it.
+## Extensions
+
+- [Extensions](https://docs.tangen.app/extensions.md): Using the extensions that ship with Tangen - Forms, Flow, SEO: what each one does, and the three separate steps between a package being available and a feature being on.
+- [Forms](https://docs.tangen.app/extensions/forms.md): Defining forms in code or the Admin, rendering them, and handling submissions.
+- [Reading submissions](https://docs.tangen.app/extensions/forms/submissions.md): Who may read a form submission, and the narrow accessor that resolves one by id.
+- [Flow](https://docs.tangen.app/extensions/flow.md): Automations that run when something happens - a form submitted, content published, a schedule elapsing.
+- [Getting started with Flow](https://docs.tangen.app/extensions/flow/getting-started.md): Build a flow that runs, read its run log, and reference one node's output from another.
+- [Data and expressions](https://docs.tangen.app/extensions/flow/concepts.md): The scope a flow sees, how one node reads another's output, and what happens when a path is missing.
+- [Triggers](https://docs.tangen.app/extensions/flow/triggers.md): What can start a flow, what each kind puts on the trigger scope, and what that means for security.
+- [Logic nodes](https://docs.tangen.app/extensions/flow/logic.md): Condition, switch, transform, loop and wait - the nodes that decide and shape rather than call.
+- [Actions](https://docs.tangen.app/extensions/flow/actions.md): The built-in actions, the code sandbox, HTTP and its network guard, and calling one flow from another.
+- [Runs, retries and failures](https://docs.tangen.app/extensions/flow/runs.md): What a run records, when Flow retries, how a failure is reported, and how to test a flow without doing anything.
+- [Forms and Flow](https://docs.tangen.app/extensions/flow/forms-integration.md): Branching a flow on what somebody submitted, and what the platform deliberately does not put on the event bus.
+- [Flow security and retention](https://docs.tangen.app/extensions/flow/security.md): Where submitted values can end up, what the sandbox does and does not guarantee, and how long a run is kept.
+- [SEO](https://docs.tangen.app/extensions/seo.md): Sitemaps, canonical URLs, OpenGraph metadata and a robots policy per deployment role: what Tangen holds for SEO, what your application owns, and how the bundled SEO extension is installed and configured.
+## Extend Tangen
+
+- [Extend Tangen](https://docs.tangen.app/extend.md): Writing and publishing your own Tangen extension: the manifest, the lifecycle, server and Admin contributions, extension-owned data, testing and distribution.
+- [Getting started](https://docs.tangen.app/extend/introduction.md): Concepts, your first extension, and how one is structured.
+- [What is an extension?](https://docs.tangen.app/extend/introduction/what-is-an-extension.md): What an extension can contribute, when to build one, and what is not an extension.
+- [Your first extension](https://docs.tangen.app/extend/introduction/first-extension.md): The smallest extension that installs, runs and can be verified.
+- [Extension structure](https://docs.tangen.app/extend/introduction/structure.md): The files an extension has, which are required, and what each one is for.
+- [The contract](https://docs.tangen.app/extend/contract.md): Manifest, lifecycle, capabilities and versioning.
+- [Writing a manifest](https://docs.tangen.app/extend/contract/manifest.md): Authoring a manifest that installs, with the decisions that matter.
+- [The lifecycle in practice](https://docs.tangen.app/extend/contract/lifecycle.md): Declare, package, publish, install, enable, upgrade, disable, uninstall: what an extension author must do, and must not do, at each of the eleven stages.
+- [Capabilities and dependencies](https://docs.tangen.app/extend/contract/capabilities.md): Declaring what you need, and designing for on, off and unavailable.
+- [Versioning and compatibility](https://docs.tangen.app/extend/contract/versioning.md): Versioning an extension, upgrading it, and staying compatible with Tangen.
+- [Configuration and data](https://docs.tangen.app/extend/data.md): Options, secrets, migrations and storage.
+- [Configuration](https://docs.tangen.app/extend/data/configuration.md): Declaring options an operator sets, and reading them safely at runtime.
+- [Secrets](https://docs.tangen.app/extend/data/secrets.md): API keys and other credentials an extension reads: declaring them by name, reading their values from the environment, and not leaking them.
+- [Migrations](https://docs.tangen.app/extend/data/migrations.md): Owning tables safely - when migrations run, and the rules that never bend.
+- [Extension data](https://docs.tangen.app/extend/data/extension-data.md): The extension store, and per-object data that follows publication.
+- [Contributions](https://docs.tangen.app/extend/contributions.md): Every supported server and Admin surface.
+- [Server contributions](https://docs.tangen.app/extend/contributions/server.md): Every supported server-side surface an extension can contribute.
+- [Server routes](https://docs.tangen.app/extend/contributions/routes.md): Adding HTTP endpoints from an extension: member, key and public routes, their request context, capabilities and error handling.
+- [Admin contributions](https://docs.tangen.app/extend/contributions/admin.md): Every supported way an extension adds UI to the Admin - pages, panels, navigation and dashboard widgets.
+- [Custom field types](https://docs.tangen.app/extend/contributions/fields.md): Adding a field type by inheriting a built-in primitive.
+- [Permissions and security](https://docs.tangen.app/extend/contributions/permissions.md): Declaring capabilities, gating routes and pages, and the boundaries you must not cross.
+- [Observability](https://docs.tangen.app/extend/contributions/observability.md): Logging from an extension with ctx.log, and how that differs from audit, telemetry and the Performance Monitor - which is which, and what you may write to.
+- [Development and shipping](https://docs.tangen.app/extend/shipping.md): The local loop, testing, and distribution.
+- [Local development](https://docs.tangen.app/extend/shipping/local-development.md): The CLI loop for building an extension against a real project.
+- [Extension CLI](https://docs.tangen.app/extend/shipping/cli.md): The commands that manage an extension's lifecycle.
+- [Testing an extension](https://docs.tangen.app/extend/shipping/testing.md): What to test, and the lifecycle paths people forget.
+- [Packaging and distribution](https://docs.tangen.app/extend/shipping/distribution.md): Packaging and publishing an extension to npm: the package.json shape, the exports every published extension needs, and how a project installs it.
+- [Extension options](https://docs.tangen.app/extend/configuration.md): How a project configures your extension, what ctx.options carries, and why options are workspace-scoped while activation is not.
+- [Cross-extension integration](https://docs.tangen.app/extend/cross-extension.md): How one extension discovers another through contribution points, and why a contributed handler runs with its own context.
+- [Flow contributions](https://docs.tangen.app/extend/flow-contributions.md): Contributing an action and a trigger to Flow from an external extension, using only published packages.
+## Develop & Operate
+
+- [Operate Tangen](https://docs.tangen.app/operate.md): Deploying, configuring and running Tangen: deployments, schema changes, storage, security and upgrades.
+- [Deploying Tangen](https://docs.tangen.app/operate/deployment.md): Deploying Tangen to production: what runs, what to configure, the secrets you need, and the `tangen start` command that serves the API.
+- [Deployment scenarios on one machine](https://docs.tangen.app/operate/deployment/scenarios.md): Three ways developers run development, staging and production, and a hosts-file simulation that makes one laptop feel like a laptop plus one or two servers.
+- [Running in production](https://docs.tangen.app/operate/production.md): What changes between a development server and a production one, and what has to be set before it starts.
+## Reference
+
+- [Reference](https://docs.tangen.app/reference.md): The complete supported Tangen contracts: packages, configuration, fields, TangenQL, the SDK, the CLI, auth, permissions, errors and extensions.
+- [Public contract](https://docs.tangen.app/reference/public-contract.md): Which Tangen packages and imports are supported, what stable and experimental mean, and what is internal.
+- [Configuration](https://docs.tangen.app/reference/configuration.md): Every public configuration file, the define* helper it uses, and what belongs in each.
+- [Environment variables](https://docs.tangen.app/reference/environment-variables.md): Every environment variable Tangen reads, whether it is required, its default, and whether it is a secret.
+- [Deployments](https://docs.tangen.app/reference/deployments.md): One build, one database, one role - what a deployment is, the three roles, and the production safety rules.
+- [Fields](https://docs.tangen.app/reference/fields.md): All 28 built-in field types, their configuration, storage, localization and query behaviour.
+- [Link](https://docs.tangen.app/reference/link.md): The link field: stored shape, resolved shape, routing boundary, and what it deliberately does not do.
+- [Preview](https://docs.tangen.app/reference/preview.md): Preview tokens, the draft-read endpoint, TTLs, scoping and the live-preview stream.
+- [Knowledge](https://docs.tangen.app/reference/knowledge.md): Semantic search and ask-with-citations over your own content: the two endpoints, the grants they need, and the three things that must be in place first.
+- [TangenQL](https://docs.tangen.app/reference/tangenql.md): The query language: filters, operators, boolean groups, relations, sorting, pagination, depth and what it refuses.
+- [SDK](https://docs.tangen.app/reference/sdk.md): @tangen/sdk: creating a client, reading and writing content, media, errors, cancellation and what has no SDK surface.
+- [Delivery API](https://docs.tangen.app/reference/delivery-api.md): The REST endpoints an API key can call, grouped by the scope that grants them.
+- [GraphQL](https://docs.tangen.app/reference/graphql.md): The generated GraphQL API: how to turn it on, what the schema looks like, and what it will not do.
+- [Authentication](https://docs.tangen.app/reference/authentication.md): The four authentication systems, the Site users extension's options, its REST endpoints, and why there is no SDK auth surface.
+- [Permissions](https://docs.tangen.app/reference/permissions.md): Roles, API key scopes and actions, extension permissions, and why a capability is not a permission.
+- [CLI](https://docs.tangen.app/reference/cli.md): Every tangen command, its flags, and the rules that govern destructive operations and production.
+- [Errors](https://docs.tangen.app/reference/errors.md): The public error codes, their HTTP statuses, and the ones your application is expected to handle.
+- [Extension manifest](https://docs.tangen.app/reference/extension-manifest.md): Manifest v1: every field, what it declares, and how config, secrets, migrations and dependencies work.
+- [Extension lifecycle](https://docs.tangen.app/reference/extension-lifecycle.md): The eleven stages an extension moves through, what each may do, and what disable, uninstall and purge mean.
+- [Flow reference](https://docs.tangen.app/reference/flow.md): Node kinds, condition operators, built-in actions, trigger types and the limits, as the implementation declares them.
+- [Flow contract import](https://docs.tangen.app/reference/flow-contract.md): The public import surface for Flow contributions and site helpers, and which entry point is not one.
+## AI Agents
+
+- [AI Agents](https://docs.tangen.app/ai.md): How coding agents should retrieve and apply this documentation.
+## Resources
+
+- [Resources](https://docs.tangen.app/resources.md): Examples, glossary and the reference material that sits beside the documentation rather than inside it.

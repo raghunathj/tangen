@@ -1,0 +1,380 @@
+{
+  "$comment": "Canonical navigation for developer-docs, and the single source for the Mintlify `navigation` block: `bun run docs:nav` regenerates docs.json from this file and `--check` fails when they drift. It lists pages that EXIST; what is planned lives in planning/migration-map.md. 'planning' and 'conventions' are excluded from every generator by name.",
+  "version": 1,
+  "site": {
+    "name": "Tangen",
+    "baseUrl": "/docs",
+    "excludeFromPublish": [
+      "planning",
+      "conventions"
+    ]
+  },
+  "sections": [
+    {
+      "id": "learn",
+      "title": "Getting Started",
+      "audience": "site-developer",
+      "description": "Sequential tutorials that build something real.",
+      "groups": [
+        {
+          "title": "Learn",
+          "pages": [
+            "learn/index",
+            "learn/quick-start"
+          ]
+        },
+        {
+          "title": "Build the Enterprise Website",
+          "pages": [
+            "learn/enterprise-website/index",
+            "learn/enterprise-website/create-the-project",
+            "learn/enterprise-website/model-the-site",
+            "learn/enterprise-website/page-blocks",
+            "learn/enterprise-website/globals-and-navigation",
+            "learn/enterprise-website/media-and-relations",
+            "learn/enterprise-website/seed-and-publish",
+            "learn/enterprise-website/querying",
+            "learn/enterprise-website/frontend-routes",
+            "learn/enterprise-website/localization",
+            "learn/enterprise-website/forms",
+            "learn/enterprise-website/flow",
+            "learn/enterprise-website/deployments",
+            "learn/enterprise-website/production",
+            "learn/enterprise-website/seo"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "title": "Build with Tangen",
+      "audience": "site-developer",
+      "description": "Building an application on Tangen.",
+      "groups": [
+        {
+          "title": "Build with Tangen",
+          "pages": [
+            "build/index"
+          ]
+        },
+        {
+          "title": "Getting started",
+          "pages": [
+            "build/getting-started/index",
+            "build/getting-started/project-structure",
+            "build/getting-started/configuration",
+            "build/getting-started/generated-types",
+            "build/getting-started/schema-workflow"
+          ]
+        },
+        {
+          "title": "Content modeling",
+          "pages": [
+            "build/content-modeling/index",
+            "build/content-modeling/content-types",
+            "build/content-modeling/choosing-fields",
+            "build/content-modeling/structuring-content",
+            "build/content-modeling/relations",
+            "build/content-modeling/links",
+            "build/content-modeling/localization"
+          ]
+        },
+        {
+          "title": "Content",
+          "pages": [
+            "build/content/index",
+            "build/content/publishing",
+            "build/content/scheduling",
+            "build/content/writing",
+            "build/content/preview"
+          ]
+        },
+        {
+          "title": "Globals",
+          "pages": [
+            "build/globals/index"
+          ]
+        },
+        {
+          "title": "Querying",
+          "pages": [
+            "build/querying/index",
+            "build/querying/first-query",
+            "build/querying/filtering",
+            "build/querying/pagination",
+            "build/querying/relations",
+            "build/querying/sdk",
+            "build/querying/troubleshooting"
+          ]
+        },
+        {
+          "title": "Frontend",
+          "pages": [
+            "build/frontend/index",
+            "build/media/index"
+          ]
+        },
+        {
+          "title": "Capabilities",
+          "pages": [
+            "build/localization/index",
+            "build/auth/index",
+            "build/search/index"
+          ]
+        },
+        {
+          "title": "Ship it",
+          "pages": [
+            "build/deployments/index",
+            "build/performance/index",
+            "build/testing/index"
+          ]
+        },
+        {
+          "title": "Cache & performance",
+          "pages": [
+            "build/performance/cache"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "extensions",
+      "title": "Extensions",
+      "audience": "site-developer",
+      "description": "Using what ships with Tangen: declare, install, enable, use.",
+      "groups": [
+        {
+          "title": "Overview",
+          "pages": [
+            "extensions/index"
+          ]
+        },
+        {
+          "title": "Forms",
+          "pages": [
+            "extensions/forms/index",
+            "extensions/forms/submissions"
+          ]
+        },
+        {
+          "title": "Flow",
+          "pages": [
+            "extensions/flow/index",
+            "extensions/flow/getting-started",
+            "extensions/flow/concepts",
+            "extensions/flow/triggers",
+            "extensions/flow/logic",
+            "extensions/flow/actions",
+            "extensions/flow/runs",
+            "extensions/flow/forms-integration",
+            "extensions/flow/security"
+          ]
+        },
+        {
+          "title": "SEO",
+          "pages": [
+            "extensions/seo/index"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "extend",
+      "title": "Extend Tangen",
+      "audience": "extension-developer",
+      "description": "Building extensions on the supported contract.",
+      "groups": [
+        {
+          "title": "Extend Tangen",
+          "pages": [
+            "extend/index"
+          ]
+        },
+        {
+          "title": "Getting started",
+          "pages": [
+            "extend/introduction/index",
+            "extend/introduction/what-is-an-extension",
+            "extend/introduction/first-extension",
+            "extend/introduction/structure"
+          ]
+        },
+        {
+          "title": "The contract",
+          "pages": [
+            "extend/contract/index",
+            "extend/contract/manifest",
+            "extend/contract/lifecycle",
+            "extend/contract/capabilities",
+            "extend/contract/versioning"
+          ]
+        },
+        {
+          "title": "Configuration and data",
+          "pages": [
+            "extend/data/index",
+            "extend/data/configuration",
+            "extend/data/secrets",
+            "extend/data/migrations",
+            "extend/data/extension-data"
+          ]
+        },
+        {
+          "title": "Contributions",
+          "pages": [
+            "extend/contributions/index",
+            "extend/contributions/server",
+            "extend/contributions/routes",
+            "extend/contributions/admin",
+            "extend/contributions/fields",
+            "extend/contributions/permissions",
+            "extend/contributions/observability"
+          ]
+        },
+        {
+          "title": "Development and shipping",
+          "pages": [
+            "extend/shipping/index",
+            "extend/shipping/local-development",
+            "extend/shipping/cli",
+            "extend/shipping/testing",
+            "extend/shipping/distribution"
+          ]
+        },
+        {
+          "title": "Configuration",
+          "pages": [
+            "extend/configuration"
+          ]
+        },
+        {
+          "title": "Integration",
+          "pages": [
+            "extend/cross-extension",
+            "extend/flow-contributions"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operate",
+      "title": "Develop & Operate",
+      "audience": "operator",
+      "description": "Deploying, configuring and running Tangen.",
+      "groups": [
+        {
+          "title": "Operate Tangen",
+          "pages": [
+            "operate/index"
+          ]
+        },
+        {
+          "title": "Deployment",
+          "pages": [
+            "operate/deployment/index",
+            "operate/deployment/scenarios"
+          ]
+        },
+        {
+          "title": "Running Tangen",
+          "pages": [
+            "operate/production"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reference",
+      "title": "Reference",
+      "audience": "all",
+      "description": "The complete supported contracts.",
+      "groups": [
+        {
+          "title": "Reference",
+          "pages": [
+            "reference/index"
+          ]
+        },
+        {
+          "title": "Contracts",
+          "pages": [
+            "reference/public-contract",
+            "reference/configuration",
+            "reference/environment-variables",
+            "reference/deployments"
+          ]
+        },
+        {
+          "title": "Content",
+          "pages": [
+            "reference/fields",
+            "reference/link",
+            "reference/preview",
+            "reference/knowledge"
+          ]
+        },
+        {
+          "title": "Querying",
+          "pages": [
+            "reference/tangenql",
+            "reference/sdk",
+            "reference/delivery-api",
+            "reference/graphql"
+          ]
+        },
+        {
+          "title": "Access",
+          "pages": [
+            "reference/authentication",
+            "reference/permissions"
+          ]
+        },
+        {
+          "title": "Operations",
+          "pages": [
+            "reference/cli",
+            "reference/errors"
+          ]
+        },
+        {
+          "title": "Extensions",
+          "pages": [
+            "reference/extension-manifest",
+            "reference/extension-lifecycle",
+            "reference/flow",
+            "reference/flow-contract"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai",
+      "title": "AI Agents",
+      "audience": "agent",
+      "description": "How coding agents should read and apply this documentation.",
+      "groups": [
+        {
+          "title": "AI Agents",
+          "pages": [
+            "ai/index"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resources",
+      "title": "Resources",
+      "audience": "mixed",
+      "description": "Examples, glossary and material beside the learning paths.",
+      "groups": [
+        {
+          "title": "Resources",
+          "pages": [
+            "resources/index"
+          ]
+        }
+      ]
+    }
+  ]
+}

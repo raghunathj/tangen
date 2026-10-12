@@ -1,0 +1,47 @@
+{
+  "name": "@tangen/studio-compiler",
+  "version": "0.1.1",
+  "description": "Turns a Tangen Studio page schema into published artifacts - stylesheets today, runtime manifests next. Framework-free: compilation happens on a server, never in the visitor's browser.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "directory": "packages/studio-compiler"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "dependencies": {
+    "@tangen/studio-schema": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "default": "./dist/index.js"
+      },
+      "./fs": {
+        "types": "./dist/delivery-fs.d.ts",
+        "import": "./dist/delivery-fs.js",
+        "default": "./dist/delivery-fs.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts ./src/delivery-fs.ts --outdir dist --target node --format esm --packages external && tsc --emitDeclarationOnly -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./fs": "./src/delivery-fs.ts"
+  }
+}
