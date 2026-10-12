@@ -2,10 +2,12 @@
   "name": "@tangen/ext-flows",
   "version": "0.1.162",
   "description": "Tangen Flows — Shopify-Flow-style automations: trigger, conditions, actions, run logs. No developer required.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "extensions/flows"
   },
   "files": [

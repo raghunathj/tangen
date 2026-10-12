@@ -2,10 +2,12 @@
   "name": "@tangen/nextjs",
   "version": "0.1.22",
   "description": "Next.js integration helpers for Tangen \u2014 draft-mode preview handler",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/nextjs"
   },
   "type": "module",

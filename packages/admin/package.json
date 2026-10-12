@@ -3,10 +3,12 @@
   "version": "0.1.337",
   "type": "module",
   "description": "The Tangen Admin application - the content editing UI a Tangen project serves",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/admin"
   },
   "scripts": {

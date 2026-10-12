@@ -2,10 +2,12 @@
   "name": "@tangen/types",
   "version": "0.1.95",
   "description": "Type definitions and config helpers for the Tangen headless CMS",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/types"
   },
   "type": "module",

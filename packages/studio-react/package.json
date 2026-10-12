@@ -2,10 +2,12 @@
   "name": "@tangen/studio-react",
   "version": "0.1.1",
   "description": "The Studio runtime for React sites - drop <StudioBlocks/> into any React app to server-render Tangen Studio pages: kit blocks, token-bound styling, data bindings and collection loops.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/studio-react"
   },
   "type": "module",

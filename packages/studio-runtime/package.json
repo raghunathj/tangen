@@ -2,10 +2,12 @@
   "name": "@tangen/studio-runtime",
   "version": "0.1.1",
   "description": "The framework-neutral Tangen Studio runtime - the visual-edit overlay and the admin/site message protocol. No framework dependency, so a React, Vue or Astro site can all support click-in-preview.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/studio-runtime"
   },
   "type": "module",

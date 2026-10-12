@@ -2,10 +2,12 @@
   "name": "@tangen/api",
   "version": "0.1.215",
   "description": "The Tangen API server - createServer, the REST surface, and the runtime capability registry",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/api"
   },
   "main": "./src/index.ts",

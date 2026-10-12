@@ -2,10 +2,12 @@
   "name": "@tangen/realtime",
   "version": "0.1.3",
   "description": "The Tangen realtime client - lazy, one multiplexed connection per tab, WebSocket with automatic SSE fallback, reconnect with cursor resume. Framework-neutral; depends on @tangen/sdk for auth and base URL only.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/realtime"
   },
   "type": "module",

@@ -2,10 +2,12 @@
   "name": "@tangen/studio-schema",
   "version": "0.1.1",
   "description": "The canonical Tangen Studio contract - page/block/component schema, style values, style properties, tokens and breakpoints. Depends on nothing: every other Studio package reads this, so it can never depend upward.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/studio-schema"
   },
   "type": "module",

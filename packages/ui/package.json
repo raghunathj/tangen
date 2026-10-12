@@ -2,10 +2,12 @@
   "name": "@tangen/ui",
   "version": "0.1.112",
   "description": "Shared UI component library for Tangen admin and apps",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/ui"
   },
   "main": "./src/index.ts",

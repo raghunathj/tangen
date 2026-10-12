@@ -2,10 +2,12 @@
   "name": "@tangen/porter",
   "version": "0.1.2",
   "description": "Porter - data movement for Tangen CMS: promote, export/import bundles, remote transfer. A porter carries your goods safely between places.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/porter"
   },
   "type": "module",

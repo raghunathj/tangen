@@ -2,10 +2,12 @@
   "name": "@tangen/ext-forms",
   "version": "0.1.23",
   "description": "Forms for a Tangen site: a builder, public embeds, headless schema and submit routes, submissions, notifications, webhooks, spam protection and localization",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "extensions/forms"
   },
   "files": [

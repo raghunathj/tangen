@@ -2,10 +2,12 @@
   "name": "@tangen/realtime-react",
   "version": "0.1.2",
   "description": "React bindings for @tangen/realtime - a provider, useRealtime, useRealtimeStatus, useRealtimeEvent, usePresence and usePresenceSelector. Selector-based, so a component re-renders only when its slice changes; never a second transport.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/realtime-react"
   },
   "type": "module",

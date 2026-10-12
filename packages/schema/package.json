@@ -2,10 +2,12 @@
   "name": "@tangen/schema",
   "version": "0.1.42",
   "description": "Schema definition helpers (defineType, fields) for Tangen content models",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/schema"
   },
   "type": "module",

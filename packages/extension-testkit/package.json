@@ -2,10 +2,12 @@
   "name": "@tangen/extension-testkit",
   "version": "0.1.8",
   "description": "Test an extension against the real Tangen kernel: a ctx built from its grants, fake peers, contribution assertions.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/extension-testkit"
   },
   "main": "./src/index.ts",

@@ -2,10 +2,12 @@
   "name": "@tangen/knowledge",
   "version": "0.1.23",
   "description": "Knowledge (RAG) for Tangen CMS \u2014 embeddings, semantic search, ask-with-citations. Optional: install only when you enable knowledge.",
+  "homepage": "https://github.com/raghunathj/tangen#readme",
+  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/raghunathj/tangenplatform.git",
+    "url": "git+https://github.com/raghunathj/tangen.git",
     "directory": "packages/knowledge"
   },
   "type": "module",
