@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-seo",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Production SEO for a Tangen site: metadata, canonical URLs, robots, sitemaps, redirects and structured data",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

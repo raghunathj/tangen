@@ -1,6 +1,6 @@
 {
   "name": "@tangen/api",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The Tangen API server - createServer, the REST surface, and the runtime capability registry",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

@@ -1,5 +1,11 @@
 # @tangen/admin
 
+## 0.2.1
+
+### Patch Changes
+
+- @tangen/ui@0.2.1
+
 ## 0.2.0
 
 ### Patch Changes
