@@ -1,6 +1,6 @@
 {
   "name": "@tangen/realtime",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "The Tangen realtime client - lazy, one multiplexed connection per tab, WebSocket with automatic SSE fallback, reconnect with cursor resume. Framework-neutral; depends on @tangen/sdk for auth and base URL only.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
