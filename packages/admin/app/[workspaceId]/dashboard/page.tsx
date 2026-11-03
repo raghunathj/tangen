@@ -36,6 +36,8 @@ import {
   type RowSpan,
   type DashboardPrefs,
 } from '@/lib/dashboard-prefs'
+import { formatWidgetCell } from '@/lib/dashboard-table'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { WidgetShell, WidgetDragOverlay } from '@/components/dashboard/widget-shell'
 import { WidgetCard } from '@/components/dashboard/widget-card'
 import { StatGroupCard } from '@/components/dashboard/stat-group-card'
@@ -155,9 +157,13 @@ function TableCard({ widget }: { widget: DashboardWidget }) {
       ) : (
         // Its own scroll container, like every other table in Admin: at 390px
         // three date columns ran 20px past the card and were cut off rather
-        // than reachable (Phase 8B browser harness).
+        // than reachable (Phase 8B browser harness). `min-w-full` and NOT
+        // `w-full` is what makes that container work: a table pinned to 100%
+        // can never overflow, so the scroll never engaged and the columns
+        // crushed instead - at 390px the Title wrapped one word per line and
+        // the last column was unreachable anyway.
         <div className="overflow-x-auto border-t border-border-subtle">
-        <table className="w-full text-ui-xs">
+        <table className="min-w-full text-ui-xs">
           {/* The grey earns its place here: a header row a shade under the
               card, so the columns read as headings without a second border. */}
           <thead className="bg-surface-sunken">
@@ -171,7 +177,18 @@ function TableCard({ widget }: { widget: DashboardWidget }) {
             {widget.rows.map((row, i) => (
               <tr key={i} className="transition-colors motion-fast hover:bg-surface-hover">
                 {widget.columns!.map((col) => (
-                  <td key={col.key} className="px-4 py-2.5 text-fg">{String(row[col.key] ?? '-')}</td>
+                  // The column says what the value IS (`displayType`), and
+                  // until now nothing read it, so a date column printed its
+                  // raw timestamp. `whitespace-nowrap` is the other half of
+                  // the scroll container: a cell that wraps cannot overflow.
+                  <td key={col.key} className="whitespace-nowrap px-4 py-2.5 text-fg">
+                    {/* A status is a pill everywhere else in the Admin, so it
+                        is a pill here too - it was printing the bare enum
+                        value ("published", lowercase). */}
+                    {col.displayType === 'status'
+                      ? <StatusBadge status={String(row[col.key] ?? '')} />
+                      : formatWidgetCell(row[col.key], col.displayType)}
+                  </td>
                 ))}
               </tr>
             ))}

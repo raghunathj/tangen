@@ -11,6 +11,8 @@
 import { Elysia } from 'elysia'
 import type { Redis } from 'ioredis'
 import { RequestError } from '../../lib/errors'
+import { requireDecision } from '../../kernel/policy'
+import { actorFromContext } from '../../kernel/actor'
 import { SCHEMA_CACHE_KEY } from '../../services/schema-cache'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -95,9 +97,12 @@ export const cacheFlushRoute = (app: Elysia) =>
   app.post('/api/v1/admin/cache/flush', async (ctx: any) => {
     const { body, redis, workspaceId, permissions, set } = ctx
 
-    if (permissions?.admin !== true) {
-      throw new RequestError('FORBIDDEN', 'Admin permission required', 403)
-    }
+    // Through the kernel, not a hand-rolled sentinel read. The old
+    // `permissions?.admin !== true` was the one gate in the codebase that
+    // decided admin for itself, which means it could not learn anything the
+    // policy learns - and a gate that is almost like the others is the kind
+    // that drifts (S7 of the security audit).
+    requireDecision(actorFromContext(ctx), { kind: 'owner-or-capability', capabilities: ['manage:settings'] })
 
     const payload = buildFlushPayload(body)
     let flushed = 0

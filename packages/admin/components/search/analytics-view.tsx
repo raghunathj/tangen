@@ -62,7 +62,7 @@ export function AnalyticsView() {
     try {
       const q: Record<string, string> = { days: '30' }
       if (audience !== 'all') q.audience = audience
-      const res = await adminFetch<{ data: Summary }>('/admin/search-analytics', undefined, q)
+      const res = await adminFetch<{ data: Summary }>('/admin/search-insights', undefined, q)
       setSummary(res.data)
     } catch (e) { setError((e as Error).message ?? 'Failed to load analytics') }
     finally { setLoading(false) }

@@ -12,21 +12,19 @@
  *   it has to be walked rather than stringified.
  */
 import type { SchemaDefinition } from '@tangen/types'
+import { contentDocText } from '@tangen/types'
 
 const TEXT_FIELD_TYPES = new Set(['text', 'textarea', 'richtext'])
 
 /**
- * Plain text from a ProseMirror/TipTap node tree.
- * @param node - The richtext node, or any unknown value.
- * @returns The concatenated text of every leaf node.
+ * Plain text from a richtext document, for the search column.
+ *
+ * `contentDocText` with a SPACE separator: all that matters for a search
+ * index is that words from two blocks do not fuse into one token. The
+ * previous walker here put a space between every child rather than at block
+ * boundaries, which split hyphenated and marked-up words apart.
  */
-function extractRichtextText(node: unknown): string {
-  if (!node || typeof node !== 'object') return ''
-  const n = node as Record<string, unknown>
-  if (typeof n.text === 'string') return n.text
-  if (Array.isArray(n.content)) return n.content.map(extractRichtextText).join(' ')
-  return ''
-}
+const extractRichtextText = (node: unknown): string => contentDocText(node, { separator: ' ' })
 
 /**
  * Every searchable word in a content row: text, textarea and richtext fields,

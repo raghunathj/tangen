@@ -134,6 +134,21 @@ const HELPER_TYPES = new Set([
 interface ComponentImport { ident: string; name: string }
 interface FieldCodeResult { code: string; imports: ComponentImport[] }
 
+/** A bare object key is only safe when the name IS an identifier. */
+const IDENT_RE = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+
+/**
+ * One field name, emitted as an object key that cannot carry code.
+ *
+ * A name that is a plain identifier is written bare, which is what every real
+ * schema holds and what keeps a generated file readable. Anything else is a
+ * computed key built by JSON.stringify - still a valid record key, still
+ * typed as that literal by TypeScript, and impossible to break out of.
+ */
+export function emitKey(name: string): string {
+  return IDENT_RE.test(name) ? name : `[${JSON.stringify(name)}]`
+}
+
 function fieldCode(f: CodegenField): FieldCodeResult {
   const cfg = sanitizeFieldConfig(f.config, f.fieldType) as Record<string, unknown>
   if (f.required) {
@@ -170,10 +185,23 @@ function fieldCode(f: CodegenField): FieldCodeResult {
   // Rename intent is a TOP-LEVEL prop, beside label. Inside config the
   // sanitizer would drop it and the rename would be silently lost.
   const prevProp = f.previousName?.length ? `, previousName: ${JSON.stringify(f.previousName)}` : ''
+  // The key and the field type are the two places a name reaches the generated
+  // source as CODE rather than as data (security finding 19). Everything else
+  // here goes through JSON.stringify already; these two did not, so a field
+  // named `x: 1, INJECTED` emitted a second property and a `fieldType`
+  // carrying a quote closed its own string literal. The file is then imported
+  // by the dev server, so the hostile text ran.
+  //
+  // The sink is safe on its own now, whatever a caller validated or forgot:
+  // a key that is not an identifier is quoted, and the field type is a string
+  // literal built by JSON.stringify. A plain name still emits a bare key,
+  // because generated schemas are read and edited by people.
+  const key = emitKey(f.name)
+  const typeStr = JSON.stringify(f.fieldType)
   const code = HELPER_TYPES.has(f.fieldType)
-    ? `    ${f.name}: field.${f.fieldType}({ label: ${label}${prevProp}${flatStr}, config: ${cfgStr}${disabledProp} }),`
+    ? `    ${key}: field.${f.fieldType}({ label: ${label}${prevProp}${flatStr}, config: ${cfgStr}${disabledProp} }),`
     // group / custom types — object form, required stays top-level
-    : `    ${f.name}: { label: ${label}${prevProp}, fieldType: '${f.fieldType}', config: ${cfgStr}, required: ${f.required}${disabledProp} },`
+    : `    ${key}: { label: ${label}${prevProp}, fieldType: ${typeStr}, config: ${cfgStr}, required: ${f.required}${disabledProp} },`
   return { code, imports }
 }
 
@@ -202,7 +230,7 @@ export function generateObjectTypeSource(type: CodegenObjectType): string {
   const componentImports = new Map<string, string>() // ident → folder name
   for (const r of fieldResults) for (const ci of r.imports) componentImports.set(ci.ident, ci.name)
   const componentImportLines = [...componentImports]
-    .map(([ident, name]) => `import ${ident} from '../../components/${name}/schema'`)
+    .map(([ident, name]) => `import ${ident} from ${JSON.stringify(`../../components/${name}/schema`)}`)
     .join('\n')
 
   // Persist description + admin config (stages/icon/…) so the builder's layout
@@ -223,9 +251,9 @@ export function generateObjectTypeSource(type: CodegenObjectType): string {
 import { defineObjectType${usesHelper ? ', field' : ''} } from '@tangen/schema'
 ${componentImportLines ? componentImportLines + '\n' : ''}
 export default defineObjectType({
-  id: '${type.id}',
-  name: '${type.name}',
-  label: '${type.label}',
+  id: ${JSON.stringify(type.id)},
+  name: ${JSON.stringify(type.name)},
+  label: ${JSON.stringify(type.label)},
 ${extras ? extras + '\n' : ''}  fields: ${hasFields ? `{\n${fieldsCode}\n  }` : '{}'},
 })
 `
@@ -240,14 +268,18 @@ ${extras ? extras + '\n' : ''}  fields: ${hasFields ? `{\n${fieldsCode}\n  }` : 
  */
 export function schemaDirIdentifier(name: string): string {
   if (/^[A-Za-z_$][\w$]*$/.test(name)) return name
-  return name
+  const camel = name
     .replace(/[-\s]+([A-Za-z0-9])/g, (_, c: string) => c.toUpperCase())
     .replace(/[^\w$]/g, '')
+  // An identifier may not start with a digit, and may not be empty. Without
+  // this the generated import was a syntax error rather than an injection,
+  // but a generated file that will not parse is its own kind of broken.
+  return /^[A-Za-z_$]/.test(camel) ? camel : `schema_${camel}`
 }
 
 /** Generate the `content-objects/index.ts` barrel importing every type schema. */
 export function generateSchemaBarrel(typeNames: string[]): string {
-  const imports = typeNames.map((n) => `import ${schemaDirIdentifier(n)} from './${n}/schema'`).join('\n')
+  const imports = typeNames.map((n) => `import ${schemaDirIdentifier(n)} from ${JSON.stringify(`./${n}/schema`)}`).join('\n')
   const typeList = typeNames.map(schemaDirIdentifier).join(', ')
   return `import { defineSchema } from '@tangen/schema'
 ${imports}
@@ -282,7 +314,7 @@ export function generateComponentSource(comp: CodegenComponent): string {
     // there is no components table, so nothing else remembers.
     .map((f) => {
       const prev = f.previousName?.length ? `, previousName: ${JSON.stringify(f.previousName)}` : ''
-      return `    { name: '${f.name}', label: '${f.label}', fieldType: '${f.fieldType}', config: ${configCode(f)}, required: ${f.required}${prev} },`
+      return `    { name: ${JSON.stringify(f.name)}, label: ${JSON.stringify(f.label)}, fieldType: ${JSON.stringify(f.fieldType)}, config: ${configCode(f)}, required: ${f.required}${prev} },`
     })
     .join('\n')
   const extras = [
@@ -294,8 +326,8 @@ export function generateComponentSource(comp: CodegenComponent): string {
   return `import { defineComponent } from '@tangen/schema'
 
 export default defineComponent({
-  name: '${comp.name}',
-  label: '${comp.label}',
+  name: ${JSON.stringify(comp.name)},
+  label: ${JSON.stringify(comp.label)},
 ${extras ? extras + '\n' : ''}  fields: ${hasFields ? `[\n${fieldsCode}\n  ]` : '[]'},
 })
 `
@@ -303,7 +335,7 @@ ${extras ? extras + '\n' : ''}  fields: ${hasFields ? `[\n${fieldsCode}\n  ]` : 
 
 /** Generate the `components/index.ts` registry barrel (a plain array). */
 export function generateComponentsBarrel(names: string[]): string {
-  const imports = names.map((n) => `import ${schemaDirIdentifier(n)} from './${n}/schema'`).join('\n')
+  const imports = names.map((n) => `import ${schemaDirIdentifier(n)} from ${JSON.stringify(`./${n}/schema`)}`).join('\n')
   return `${imports}
 
 export default [${names.map(schemaDirIdentifier).join(', ')}]
@@ -327,15 +359,15 @@ export function generateGlobalsFileContent(globals: CodegenGlobal[]): string {
   const body = globals.map((g) => {
     const fields = g.fields.map((f) => {
       const req = f.required ? `, required: true` : ''
-      return `      { name: '${f.name}', label: '${f.label}', fieldType: '${f.fieldType}', config: ${configCode(f)}${req} },`
+      return `      { name: ${JSON.stringify(f.name)}, label: ${JSON.stringify(f.label)}, fieldType: ${JSON.stringify(f.fieldType)}, config: ${configCode(f)}${req} },`
     }).join('\n')
     const extras = [
       g.description ? `    description: ${JSON.stringify(g.description)},` : '',
       g.icon ? `    icon: ${JSON.stringify(g.icon)},` : '',
     ].filter(Boolean).join('\n')
     return `  {
-    name: '${g.name}',
-    label: '${g.label}',
+    name: ${JSON.stringify(g.name)},
+    label: ${JSON.stringify(g.label)},
 ${extras ? extras + '\n' : ''}    fields: ${g.fields.length ? `[\n${fields}\n    ]` : '[]'},
   },`
   }).join('\n')

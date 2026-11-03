@@ -37,19 +37,20 @@ Scaffold the project. The `--name` and `--db` flags skip every prompt, which is
 also the form to use in CI:
 
 ```bash
-bunx @tangen/cli create northwind \
+bunx @tangen/cms create northwind \
   --name "Northwind Systems" \
   --db postgres://localhost:5432/northwind_dev
 cd northwind
 ```
 
-Create the tables. **Bootstrap comes before push**: bootstrap creates the system
-tables that everything else needs, and `tangen push` on a database without them
-stops and names this command.
+`@tangen/cms` is the only package you name, and that one command scaffolds the
+project, installs the dependencies and creates the tables - including the
+**workspace row** the admin's setup page needs before you can make an account.
 
-```bash
-bun x tangen bootstrap development
-```
+**The tables come before push**, and `create` has already made them. A
+`tangen push` against a database without them stops and names
+`tangen bootstrap`, which is what you run if you skipped the `--db` prompt, and
+what staging and production always need because `tangen dev` never runs there.
 
 Start the API and the admin panel together:
 
@@ -57,8 +58,11 @@ Start the API and the admin panel together:
 bun run dev
 ```
 
-Then open `http://localhost:3001` and create your admin account. You need it in
-chapter 6.
+Then open `http://localhost:3001`. With no owner yet it sends you to
+`/<workspace-id>/setup` (`wsp_northwind_systems`), which asks for your name, a
+real email address and a password of at least 8 characters, and makes that
+account the workspace owner. It is one-shot - once an owner exists the page
+answers `410 Gone`. You need this account in chapter 6.
 
 ## Expected result
 

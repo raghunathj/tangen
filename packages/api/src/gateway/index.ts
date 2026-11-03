@@ -40,7 +40,7 @@ export {
   registerRoutePolicy, clearDynamicRoutePolicies, dynamicRoutePolicies,
   resolveDynamicRoutePolicy,
 } from './dynamic-policies'
-export { resolveGatewayPolicy, GATEWAY_DEFAULTS, GatewayCeilingError } from './resolve-config'
+export { resolveGatewayPolicy, GATEWAY_DEFAULTS, RATE_LIMIT_DEFAULT_NOTE, GatewayCeilingError } from './resolve-config'
 export {
   gatewayCors, decideCors, effectiveCors, resetCorsCache, resolveRequestWorkspace,
   cachedDomainLookup, resolveCorsMode, applyCorsHeaders, corsDivergenceCounts, resetCorsDivergenceCounters,

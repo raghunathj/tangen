@@ -182,7 +182,7 @@ export interface ResolvedSeo {
 
 // ── The application boundary ─────────────────────────────────────────────────
 
-/** What the resolver is asked about. Identity, never a path. */
+/** What the resolver is asked about: identity, plus whatever already answers the address. */
 export interface SeoUrlInput {
   workspaceId: string
   type: string
@@ -196,6 +196,13 @@ export interface SeoUrlInput {
    * so a resolver that only needs the slug never sees it.
    */
   fieldValue?: string | null
+  /**
+   * The address Tangen composed from the type's declared `path`, locale
+   * prefix included. Absent for a type that declares none. A resolver that
+   * only wants to prefix or rewrite the declared address reads this and
+   * returns, instead of rebuilding a route it did not have to know.
+   */
+  path?: string | null
 }
 
 /**
@@ -234,14 +241,19 @@ export interface SeoHelpers {
    * Which FIELD holds a type's URL path, for a site that routes by a field
    * rather than the slug: `{ page: 'path' }`, or one name for every type.
    * Tangen reads that one field - never the whole object - and, with
-   * `siteUrl`, that is enough on its own: a type listed here needs no
-   * `resolveUrl`. Most sites route by slug and need none of this.
+   * `siteUrl`, that is enough on its own.
+   *
+   * A type that declares `path` in its schema needs neither this nor
+   * `resolveUrl`: Tangen composes the address and `siteUrl` makes it
+   * absolute. Declaring this for such a type is a deliberate override - a
+   * legacy column that still holds the real address, say - and it wins.
    */
   urlField?: string | Record<string, string>
   /**
    * How this application builds a URL for a content object. Takes precedence
-   * over `urlField`, and receives that field's value as `fieldValue` when one
-   * is declared, so a resolver can prefix or localise it.
+   * over both `urlField` and the type's declared `path`, and receives each as
+   * `fieldValue` and `path`, so a resolver can prefix or localise rather than
+   * rebuild the address.
    */
   resolveUrl?: SeoUrlResolver
   /** How this application builds an absolute media URL. */

@@ -37,6 +37,7 @@ import {
 } from '@/kit'
 import { IconRefresh, IconSettings, IconExternalLink, IconPuzzle, IconListChecks, IconStack, IconCheck, IconX, IconInfo } from '@tangen/icons'
 import { DynamicIcon } from '@/components/dynamic-icon'
+import { websiteHref } from '@/lib/website-href'
 import {
   extensionState, versionVerdict, filterExtensions, sortExtensions,
   type ExtensionRow, type UpdateVerdict,
@@ -181,9 +182,12 @@ export default function ExtensionsSettingsPage() {
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate text-ui-sm text-fg">{r.author ?? '-'}</div>
-          {r.homepage && (
+          {/* A manifest is the extension AUTHOR's input, so the scheme is
+              checked: `javascript:` here was a click away from running in the
+              Admin origin as the operator who installed it. */}
+          {websiteHref(r.homepage) && (
             <a
-              href={r.homepage}
+              href={websiteHref(r.homepage)}
               target="_blank"
               rel="noreferrer noopener"
               onClick={(e) => e.stopPropagation()}
@@ -336,9 +340,12 @@ function ExtensionSheet({ row, workspaceId, update, onClose }: {
               <Panel rows>
                 <Row label="Id" value={<InlineCode>{row.extensionId}</InlineCode>} />
               <Row label="Author" value={row.author ?? 'Not declared'} />
-                <Row label="Website" value={row.homepage
-                  ? <a href={row.homepage} target="_blank" rel="noreferrer noopener" className={TEXT_LINK}>{row.homepage}</a>
-                  : 'Not declared'} />
+                {/* An unusable href shows as TEXT, not as a link and not
+                    dropped: the operator still sees what the manifest
+                    declared and can judge it. */}
+                <Row label="Website" value={websiteHref(row.homepage)
+                  ? <a href={websiteHref(row.homepage)} target="_blank" rel="noreferrer noopener" className={TEXT_LINK}>{row.homepage}</a>
+                  : row.homepage || 'Not declared'} />
                 <Row label="Licence" value={row.license ?? 'Not declared'} />
               </Panel>
               <Panel rows>

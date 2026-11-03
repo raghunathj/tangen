@@ -31,8 +31,19 @@ export function isPortTaken(err: unknown): boolean {
   return code === 'EADDRINUSE' || /in use/i.test(msg)
 }
 
-/** The message a developer sees: the port, the likely cause, the two ways out. */
+/**
+ * The message a developer sees: the port, the likely cause, how to find the
+ * process holding it, and the two ways out. The lookup line is there because
+ * "stop that server" is only actionable once you know WHICH one, and this
+ * failure recurs whenever a second `dev` is started in a project that already
+ * has one running.
+ */
 export function describeListenFailure(port: number, err: unknown): string {
   if (!isPortTaken(err)) return `could not listen on port ${port}: ${err instanceof Error ? err.message : String(err)}`
-  return `port ${port} is already in use by another server - most likely another Tangen API (the platform repo, or a second site) started with the same PORT. Stop that server, or set PORT to a free port in this project's .env.`
+  return [
+    `port ${port} is already in use by another server - most likely another Tangen API`,
+    `(the platform repo, or a second site, or an earlier dev run of this one) started with the same PORT.`,
+    `Find it with:  lsof -nP -iTCP:${port} -sTCP:LISTEN   (macOS, Linux)`,
+    `Then stop that server, or set PORT to a free port in this project's .env.`,
+  ].join('\n  ')
 }

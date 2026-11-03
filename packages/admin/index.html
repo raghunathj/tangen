@@ -15,6 +15,32 @@
     <meta name="tangen:config" content="" />
     <title>Tangen CMS</title>
     <!--
+      The tab icon: the Tangen mark, the same path app/(auth)/login draws, in
+      the same brand indigo. A favicon.test gate asserts the two are identical
+      so a logo change cannot leave this behind.
+
+      INLINE rather than a file in public/, because the Admin runs both from
+      packages/admin in the monorepo and from node_modules/@tangen/admin in a
+      consumer install - an asset would have to resolve, be listed in `files`,
+      and survive publishing in both. A data URI has none of that surface and
+      costs no request. Without it the browser asks for /favicon.ico, the SPA
+      fallback answers, and the tab shows the browser's blank-page glyph.
+
+      The viewBox is the mark's own bounding box (x 3.83-88.17, y 24.04-93.5)
+      squared off around its centre, so the mark keeps its proportions instead
+      of being stretched to fit. Checked by rendering at 16px, where the
+      knocked-out inner triangle still survives as a cutout.
+
+      `#` is percent-encoded. Unescaped it begins a fragment, so the SVG
+      truncates at the first colour and the icon disappears with no console
+      error and no broken-image glyph - just the default back.
+    -->
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 12.77 92 92'><path d='M49.3193 26.5007L84.7297 87.8333H88.1667V93.5H3.83337V87.8333H7.2695L42.68 26.5007C43.7384 24.6672 46.0828 24.039 47.9163 25.0975C48.499 25.434 48.9831 25.9179 49.3193 26.5007ZM46 64.5451L33.1917 87.8333H58.8087L46 64.5451Z' fill='%234F46E5'/></svg>"
+    />
+    <!--
       tangen theme, before first paint: the stored preference (light | dark |
       system) decides whether the dark scope is on the root BEFORE the bundle
       loads, so there is no light flash. lib/theme.ts reads the same key and
@@ -35,6 +61,41 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Boot fallback. If the module graph never executes - a content blocker
+      refusing one request is the common cause, and an editor's ad blocker is
+      not ours to control - the page would otherwise stay white with nothing
+      to read and nothing in the UI to explain it. This is inline and above
+      the module script on purpose: an inline script still runs when a network
+      request is blocked, and the error listener has to be registered before
+      the script it is watching. main.tsx sets __tangenBooted, so a working
+      admin never sees this.
+    -->
+    <script>
+      (function () {
+        var shown = false
+        function reveal() {
+          if (shown || window.__tangenBooted) return
+          var r = document.getElementById('root')
+          if (!r || r.childElementCount > 0) return
+          shown = true
+          r.innerHTML =
+            '<div style="font:15px/1.6 system-ui,sans-serif;max-width:34rem;margin:12vh auto;padding:0 1rem">' +
+            '<h1 style="font-size:1.05rem;margin:0 0 .6rem">The admin could not load</h1>' +
+            '<p style="margin:0 0 .6rem;opacity:.8">A browser extension that blocks requests is the usual cause. ' +
+            'Allow this site in your ad or content blocker, then reload.</p>' +
+            '<p style="margin:0;opacity:.6">If that is not it, the browser console names the request that failed.</p>' +
+            '</div>'
+        }
+        window.addEventListener('error', function (e) {
+          var t = e && e.target
+          if (t && (t.tagName === 'SCRIPT' || t.tagName === 'LINK')) reveal()
+        }, true)
+        // A blocked request usually errors at once; this covers the case where
+        // it hangs instead, without stealing a slow-but-fine load.
+        setTimeout(reveal, 8000)
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

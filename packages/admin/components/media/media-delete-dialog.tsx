@@ -9,7 +9,7 @@
  * License: MIT
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { adminFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
@@ -63,7 +63,7 @@ export function MediaDeleteDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o && !busy) onClose() }}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Delete asset</DialogTitle></DialogHeader>
-        <div className="px-6 py-4 space-y-3">
+        <DialogBody className="space-y-3">
           {usage === null ? (
             <DialogDescription>Checking where “{assetName}” is used…</DialogDescription>
           ) : inUse ? (
@@ -95,7 +95,7 @@ export function MediaDeleteDialog({
               Permanently delete “{assetName}”? This removes the file and can’t be undone.
             </DialogDescription>
           )}
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose} disabled={busy}>{inUse ? 'Close' : 'Cancel'}</Button>
           {inUse && (

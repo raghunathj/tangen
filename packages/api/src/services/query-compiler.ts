@@ -51,7 +51,13 @@ const SYSTEM_ALIASES: Record<string, string> = {
   createdBy: 'created_by', updatedBy: 'updated_by',
 }
 
-const SYSTEM_SORT_COLUMNS = new Set([
+/**
+ * Exported so a caller that hard-codes a sort can be GATED against it rather
+ * than finding out from a 422 in front of a person. An unknown sort field is
+ * refused (see `resolveSort`), which is the right answer at runtime and a late
+ * one for a picker whose ordering is decided in code.
+ */
+export const SYSTEM_SORT_COLUMNS = new Set([
   'id', 'title', 'slug', 'status', 'created_at', 'updated_at', 'published_at',
 ])
 

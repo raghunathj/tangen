@@ -58,7 +58,7 @@ async function serveFile(storage: StorageAdapter, storagePath: string, set: any)
   // execute in the API's origin. A private asset is reached with a signed
   // link, which does not make its contents any safer to render.
   for (const [k, v] of Object.entries(hardeningHeaders(mimeType))) set.headers[k] = v
-  return new Response(streamed.body as BodyInit)
+  return new Response(streamed.body)
 }
 
 /**

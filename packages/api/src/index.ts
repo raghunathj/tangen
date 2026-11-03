@@ -350,7 +350,15 @@ async function seedWorkspacesFromProjects(dbConn: typeof db, projects: Workspace
   }
 }
 
-export type App = typeof app
+/**
+ * The server a caller gets from `createServer`.
+ *
+ * It used to be `typeof app`, naming a module-scope instance that was removed
+ * on 2026-08-27 for the measured reasons above - so the exported type referred
+ * to nothing and resolved to an error for anyone who imported it. Nothing in
+ * the repository did, which is why it survived.
+ */
+export type App = ReturnType<typeof createServer>
 
 if (import.meta.main) {
   configureTangenLogging()

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import { NumericInput } from '@/components/fields/numeric-input'
 import { useNavigate, useParams, useSearchParams, useBlocker } from 'react-router-dom'
 import { clsx } from 'clsx'
 import * as Switch from '@radix-ui/react-switch'
@@ -147,7 +148,7 @@ function CellInput({
             </button>
           )
         })}
-        {!options.length && <span className="text-xs text-fg-faint self-center">No options</span>}
+        {!options.length && <span className="text-xs text-fg-subtle self-center">No options</span>}
       </div>
     )
   }
@@ -166,10 +167,12 @@ function CellInput({
 
   if (fieldType === 'number') {
     return (
-      <input
-        type="number"
-        value={value == null ? '' : String(value)}
-        onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+      // `<input type="number">` reports an empty value for text it cannot
+      // parse while leaving the characters on screen, so a bulk edit could
+      // look filled and write null to every selected row.
+      <NumericInput
+        value={value}
+        onChange={onChange}
         disabled={disabled}
         className={baseInput}
       />
@@ -655,7 +658,7 @@ export default function BulkEditPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
+            <table className="min-w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-sunken sticky top-0 z-10">
                   <th className="px-3 py-2.5 text-left text-xs font-semibold text-fg-muted uppercase tracking-wide whitespace-nowrap sticky left-0 bg-surface-sunken border-r border-border min-w-[200px]">

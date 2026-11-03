@@ -19,7 +19,7 @@ import { clsx } from 'clsx'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
-  Dialog, DialogContent, DialogHeader, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter,
   DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { useAuthStore } from '@/lib/auth'
@@ -44,10 +44,11 @@ import { useResizableWidth, INSPECTOR_WIDTH } from '@/lib/use-sidebar-width'
 import { useObjectVersions, type VersionEntry } from '@/lib/use-object-versions'
 import { useLocaleDrafts } from '@/lib/use-locale-drafts'
 import { useObjectLifecycle } from '@/lib/use-object-lifecycle'
-import { useObjectLoad, type AuditActor, type AuditInfo } from '@/lib/use-object-load'
+import { useObjectLoad, readPathInfo, type AuditActor, type AuditInfo } from '@/lib/use-object-load'
+import { addressFor, addressFrame } from '@/lib/address-preview'
 import { useObjectEditor } from '@/lib/object-editor/use-object-editor'
 import { snapshotOf } from '@/lib/object-editor/editor-model'
-import { buildSaveRequest, classifySaveFailure, panelDataHasDraftChanges } from '@/lib/object-editor/save-request'
+import { buildSaveRequest, classifySaveFailure, panelDataHasDraftChanges, panelDataChanged } from '@/lib/object-editor/save-request'
 import { ChangedElsewhereNotice, changedAnchors } from '@/components/object-editor/ChangedElsewhereNotice'
 import { EditorBar } from '@/components/object-editor/EditorBar'
 import { useEditingClaim } from '@/kit'
@@ -55,6 +56,8 @@ import { EditingPresence } from '@/components/object-editor/EditingPresence'
 import { FieldPresence } from '@/components/object-editor/FieldPresence'
 import { fieldOfFocusTarget } from '@/components/object-editor/field-focus'
 import { FieldRenderer } from '@/components/object-editor/FieldRenderer'
+import { FoldAllForValue } from '@/components/fields/fold-all-button'
+import { FoldProvider } from '@/lib/use-fold-state'
 import { AIFillButton, AI_FILLABLE_TYPES } from '@/components/fields/ai-fill-button'
 import { GenAIButton } from '@/components/gen-ai-button'
 import { LocaleBadge, localeColor, type WorkingLocale, type LocaleColor } from '@/components/i18n/localized-field-inputs'
@@ -64,8 +67,8 @@ import { useLocaleStore } from '@/lib/locale'
 import { useDevMode } from '@/lib/use-dev-mode'
 import { useUIStore } from '@/lib/ui-store'
 import { useNarrowViewport } from '@/lib/use-narrow-viewport'
-import { FieldJumpMenu, JUMP_MENU_THRESHOLD } from '@/components/object-editor/FieldJumpMenu'
-import { inspectorLayout } from '@/lib/field-presentation'
+import { FieldJumpMenu, JUMP_MENU_THRESHOLD, jumpTargets } from '@/components/object-editor/FieldJumpMenu'
+import { inspectorLayout, fieldColSpan } from '@/lib/field-presentation'
 import { AIAssistantPanel, type TaggedField } from '@/components/fields/ai-assistant-panel'
 import {
   usePreviewBreakpoints, PreviewBreakpoints, useLivePreviewConnection, ConnectionBadge,
@@ -228,6 +231,7 @@ export default function ObjectEditorPage() {
   // extension data), /new → /<id> handoff, per-object resets, extraction (R8).
   const {
     object, setObject, audit, setAudit, loading, refresh: refreshObject, etagRef,
+    pathInfo, setPathInfo,
     i18nMap, setI18nMap, i18nLoaded,
     panelDataMap, setPanelDataMap, publishedPanelDataMap, setPublishedPanelDataMap,
     extractedForObjectId, createdHandoffRef,
@@ -379,7 +383,7 @@ export default function ObjectEditorPage() {
     setPreviewBusy(true)
     try {
       const token = await mintPreviewToken(id)
-      const url = buildPreviewUrl(previewCfg.previewUrl, { id, type: params.typeName as string, slug, locale: activeLocale ?? localesInfo?.defaultLocale, token: token ?? undefined })
+      const url = buildPreviewUrl(previewCfg.previewUrl, { id, type: params.typeName as string, slug, path: pathInfo.path, locale: activeLocale ?? localesInfo?.defaultLocale, token: token ?? undefined })
       if (mode === 'tab') { window.open(url, '_blank', 'noopener') }
       else {
         setPreviewSrc(url); setPreviewOpen(true)
@@ -455,6 +459,7 @@ export default function ObjectEditorPage() {
   const dirtySnapRef = useRef<{ title: unknown; fv: unknown; str: string }>({ title: undefined, fv: undefined, str: '' })
   const draftCalcRef = useRef<{ key: unknown[]; val: boolean }>({ key: [], val: false })
   const slugDirty = useRef(false)
+
 
   // ── Presentation-mode navigation (preview pane → editor follow) ─────────────
   // Clicking a link inside the live-preview pane loads the target object into
@@ -865,6 +870,15 @@ export default function ObjectEditorPage() {
     typeName: params.typeName, slugDirty,
   })
 
+  // ── The URL preview (slice 7 of tasks/plan-content-paths.md) ─────────────
+  // A type that declares `path` lives at a composed address, so `/<slug>` is
+  // the wrong thing to show: a page whose parents are About > Company is at
+  // /about/company. The server answers the SHAPE of the address, so this row
+  // recomposes it on every keystroke; a type that declares none answers
+  // nothing here and the plain slug row renders exactly as it always did.
+  const addressBox = addressFrame(pathInfo.template)
+  const liveAddress = addressFor(pathInfo.template, slugEditing ? slugDraft : (slug || slugify(title)))
+
   function viewLive() {
     if (!object?.published_values || !typeDef) return
     let snap = object.published_values as Record<string, unknown>
@@ -945,6 +959,10 @@ export default function ObjectEditorPage() {
       etagRef.current = etagOf(res) ?? etagRef.current
       const saved = normalizeObjectData(res.data as Record<string, unknown>) as unknown as ObjectData
       setObject(saved)
+      // A save may have moved the page. The response carries the new address
+      // because the request asked for it, so the preview is correct the
+      // moment the parent field is saved - no extra read.
+      setPathInfo(readPathInfo(res.data as Record<string, unknown>))
       markMeAs('updated_by')
       // The baseline is the values that were SENT, not the store's latest:
       // a keystroke during the request must still read as unsaved.
@@ -1333,6 +1351,10 @@ export default function ObjectEditorPage() {
   const versioningEnabled = typeDef.admin?.versioning?.enabled !== false
 
   return (
+    // One fold record for the screen: the Collapse all in each field's header
+    // and the cards in the editor below it have to agree, and two independent
+    // copies of the same record would not see each other's toggles.
+    <FoldProvider>
     <div className="relative flex flex-col flex-1 min-h-0">
 
       {/* Autosave - a bottom-centered floating pill so it never shifts the top bar's layout. */}
@@ -1742,9 +1764,7 @@ export default function ObjectEditorPage() {
             {/* A long document gets a jump list (spec §19): fields that need
                 attention first, then every field, each scrolling and focusing. */}
             {mainFields.length > JUMP_MENU_THRESHOLD && (
-              <FieldJumpMenu targets={mainFields
-                .filter((f) => !f.config?.admin?.hidden)
-                .map((f) => ({ name: f.name, label: f.label, required: !!f.required, error: !!validationErrors[f.name] }))} />
+              <FieldJumpMenu targets={jumpTargets(mainFields, fieldValues, validationErrors)} />
             )}
             {/* Realtime R3: who else is here, in the crumb row - avatars, a word, the take-over. */}
             {!isNew && !!object && (
@@ -1907,7 +1927,10 @@ export default function ObjectEditorPage() {
         <div className="mb-7 -mt-4">
           {slugEditing ? (
             <div className="flex items-center gap-1.5">
-              <span className="text-sm text-fg-subtle font-mono shrink-0">/</span>
+              {/* The address either side of the box, so the editor is typing
+                  into the URL rather than into a field next to it. Without a
+                  declared path there is no shape, and the bare `/` is right. */}
+              <span className="text-sm text-fg-subtle font-mono shrink-0">{addressBox ? addressBox.prefix : '/'}</span>
               <input
                 autoFocus
                 type="text"
@@ -1924,6 +1947,9 @@ export default function ObjectEditorPage() {
                 placeholder="slug"
                 className="h-7 min-w-0 flex-1 rounded-control border border-border bg-surface-raised px-2 font-mono text-ui-sm text-fg shadow-raised outline-none focus-visible:border-focus-border focus-visible:ring-[3px] focus-visible:ring-focus/25"
               />
+              {addressBox?.suffix ? (
+                <span className="text-sm text-fg-subtle font-mono shrink-0">{addressBox.suffix}</span>
+              ) : null}
               {/* Status indicator */}
               {slugStatus === 'checking' && (
                 <IconLoader className="size-3.5 text-fg-subtle animate-spin shrink-0" />
@@ -1953,7 +1979,9 @@ export default function ObjectEditorPage() {
           ) : (
             <div className="flex items-center gap-1.5 group">
               <span className="font-mono text-ui-sm text-fg-subtle">
-                /{slug || <span className="italic">{slugify(title) || 'auto-generated'}</span>}
+                {liveAddress !== null
+                  ? liveAddress
+                  : <>/{slug || <span className="italic">{slugify(title) || 'auto-generated'}</span>}</>}
               </span>
               <button
                 onClick={openSlugEdit}
@@ -2022,6 +2050,14 @@ export default function ObjectEditorPage() {
                         const sfPatched = patchedGroupSubFields.get(field.name)?.[sfIdx] ?? patchFieldAccess(sf)
                         const sfAdm = sfPatched.config?.admin
                         if (sfAdm?.hidden) return null
+                        // A sub-field's OWN rule, which only the group's was read
+                        // here before. The server already waives `required` for a
+                        // field whose rule does not hold (field-validator skips
+                        // it), so showing it anyway offered a field nothing would
+                        // ever ask for - and a conditional switch inside a group
+                        // hid nothing, in silence.
+                        const sfCv = sfAdm?.conditionalVisibility
+                        if (sfCv && !evalVisibility(sfCv, (n) => fieldValues[n])) return null
                         const sfIsRepeater = sf.fieldType === 'repeater'
                         const sfIsComponent = sf.fieldType === 'component'
                         const sfIsComplex = sfIsRepeater || sfIsComponent
@@ -2061,8 +2097,7 @@ export default function ObjectEditorPage() {
                             </div>
                           )
                         }
-                        const sfW = sfAdm?.width
-                        const sfColClass = sfW === 'half' ? 'col-span-3' : sfW === 'third' ? 'col-span-2' : 'col-span-6'
+                        const sfColClass = fieldColSpan(sfAdm?.width)
                         return (
                           <div key={sf.name} className={sfColClass} data-field={sf.name}>
                             {/* div, not <label>: a label with no htmlFor activates its first
@@ -2118,6 +2153,17 @@ export default function ObjectEditorPage() {
                     <span className={typeBadgeCls}>{isRepeater ? 'repeater' : 'sections'}</span>
                     {presenceFor(field.name)}
                     {adm?.readonly && <span className="ml-auto text-ui-2xs font-normal text-fg-subtle">read-only</span>}
+                    {/*
+                      Collapse all lives in THIS bar rather than on a row of its
+                      own above the cards, where it cost a full row of height
+                      for one control. `ml-auto` only when nothing else claimed
+                      the right edge, so it never fights the read-only note.
+                    */}
+                    {!isCollapsed && (
+                      <span className={clsx('-my-1', !adm?.readonly && 'ml-auto')}>
+                        <FoldAllForValue value={fieldValues[field.name]} noun={isRepeater ? 'items' : 'sections'} />
+                      </span>
+                    )}
                   </div>
                   {!isCollapsed && (
                     <div className="p-4">
@@ -2137,7 +2183,7 @@ export default function ObjectEditorPage() {
               )
             }
 
-            const colClass = w === 'half' ? 'col-span-3' : w === 'third' ? 'col-span-2' : 'col-span-6'
+            const colClass = fieldColSpan(w)
             return (
               <div key={field.name} className={colClass} data-field={field.name}>
                 {/* div, not <label> - see the group sub-field note above. */}
@@ -2232,7 +2278,11 @@ export default function ObjectEditorPage() {
                   panelData: panelDataMap[panel.extensionId] ?? {},
                   onPanelDataChange: (data: Record<string, unknown>) => {
                     const current = pendingPanelDataRef.current[panel.extensionId] ?? panelDataMap[panel.extensionId] ?? {}
-                    if (JSON.stringify(data) === JSON.stringify(current)) return
+                    // Normalized: `panelDataMap` holds the WRAPPED read shape
+                    // while a panel emits its bare draft, so a raw compare
+                    // never matched and a panel merely mounting marked a
+                    // published object dirty until a reload.
+                    if (!panelDataChanged(data, current)) return
                     pendingPanelDataRef.current[panel.extensionId] = data
                     setPanelDataSeq((n) => n + 1)
                     setHasPendingPanelChanges(true)
@@ -2261,9 +2311,9 @@ export default function ObjectEditorPage() {
                               <DialogHeader>
                                 <DialogTitle>{panel.label}</DialogTitle>
                               </DialogHeader>
-                              <div className="px-6 py-5 max-h-[60vh] overflow-y-auto">
+                              <DialogBody>
                                 <Suspense fallback={null}><PanelComponent key={`${panel.id}:${panelRemountSeq}`} {...panelProps} /></Suspense>
-                              </div>
+                              </DialogBody>
                             </DialogContent>
                           </Dialog>
                         </>
@@ -2627,7 +2677,9 @@ export default function ObjectEditorPage() {
             panelData: panelDataMap[panel.extensionId] ?? {},
             onPanelDataChange: (data: Record<string, unknown>) => {
               const current = pendingPanelDataRef.current[panel.extensionId] ?? panelDataMap[panel.extensionId] ?? {}
-              if (JSON.stringify(data) === JSON.stringify(current)) return
+              // Same normalization as the sidebar path above: the wrapped read
+              // shape against a panel's bare draft emit.
+              if (!panelDataChanged(data, current)) return
               pendingPanelDataRef.current[panel.extensionId] = data
               setPanelDataSeq((n) => n + 1)
               setHasPendingPanelChanges(true)
@@ -3060,5 +3112,6 @@ export default function ObjectEditorPage() {
       )}
       </div>{/* split row */}
     </div>
+    </FoldProvider>
   )
 }

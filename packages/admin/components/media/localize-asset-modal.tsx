@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { clsx } from 'clsx'
 import { IconUpload, IconImage, IconSearch, IconX, IconChevronDown } from '@tangen/icons'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { MediaPicker } from '@/components/fields/media-picker'
@@ -199,11 +199,11 @@ export function LocalizeAssetModal({ assetId, open, onOpenChange, onChanged }: L
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-xl">
-          <DialogHeader className="px-5 py-3.5">
+          <DialogHeader>
             <DialogTitle>Manage localization</DialogTitle>
           </DialogHeader>
 
-          <div className="px-5 pt-4 pb-5 space-y-4">
+          <DialogBody className="space-y-4">
             <p className="text-xs text-fg-muted">
               Each language can serve its own asset - content that references this
               asset automatically delivers the language's version. Languages without
@@ -330,7 +330,7 @@ export function LocalizeAssetModal({ assetId, open, onOpenChange, onChanged }: L
                 )
               })}
             </div>
-          </div>
+          </DialogBody>
 
           <input
             ref={fileInputRef}

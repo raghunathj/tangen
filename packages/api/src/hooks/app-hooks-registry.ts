@@ -14,15 +14,16 @@
  *          workspace_installed_apps rows.
  */
 import { join, dirname } from 'node:path'
+import type { ContentDocVocabulary, ContentDocNodeSpec, ExtensionRichtextNode } from '@tangen/types'
 import type {
   ContentHooks, TangenExtensionManifest, TangenExtensionServer, WorkspaceProject,
   FieldType, FieldTypeServerValidate, ExtensionCapabilityDef, ExtensionMigration,
 } from '@tangen/types'
-import { compileExtensionPermissions, shadowedAdminRoutePaths } from '@tangen/types'
+import { CONTENT_DOC_VOCABULARY, allowedRichtextNodes, richtextNodeSpec, grantNames, compileExtensionPermissions, shadowedAdminRoutePaths } from '@tangen/types'
 import { validateDeclaredMigrations } from '@tangen/db'
 import { registerPorterProvider, getPorterProvider, type PorterProvider } from '../services/porter-providers'
 import { contributions } from '../kernel/contributions'
-import { setCustomFieldTypeResolver } from '../services/field-validator'
+import { setRichtextVocabularyResolver, setCustomFieldTypeResolver } from '../services/field-validator'
 import { getSiteFieldType } from '../services/site-field-types'
 
 interface RegisteredExtension {
@@ -442,6 +443,82 @@ export function setExtensionActivity(fn: ((extensionId: string, workspaceId: str
 }
 
 /**
+ * The richtext vocabulary for a workspace: the built-in nodes and marks, plus
+ * every element the ACTIVE extensions there declared and hold the grant for.
+ *
+ * Synchronous and scope-aware for the same reason `resolveCustomFieldType` is:
+ * a write validates against the vocabulary, and a disabled extension's
+ * element must not be accepted into a document. Without a scope it answers
+ * the built-in vocabulary only - no workspace, no contributions.
+ *
+ * Memoised per workspace against the registry generation, because a content
+ * read serializes every row and would otherwise rebuild this per row.
+ */
+const _vocabCache = new Map<string, { gen: number; vocab: ContentDocVocabulary }>()
+const _contribCache = new Map<string, { gen: number; list: RichtextContribution[] }>()
+
+/** One contributed node, as its extension declared it (name already namespaced). */
+export type RichtextContribution = ExtensionRichtextNode & { name: string }
+
+/**
+ * The richtext nodes the ACTIVE, granted extensions of a workspace declare,
+ * highest `priority` first and ties broken by name.
+ *
+ * This is the ONE composition. `richtextVocabularyFor` builds the validator's
+ * vocabulary from it, and the Admin bootstrap serves it to the editor, so the
+ * editor can never offer a node that the next write refuses. A second
+ * traversal with the same rules written twice is exactly how those two drift.
+ *
+ * It answers the DECLARATIONS rather than the vocabulary specs because a
+ * declaration carries `label` and `priority` too, which a stored document has
+ * no use for and an insert menu cannot do without.
+ */
+export function richtextContributionsFor(scope?: { workspaceId: string }): RichtextContribution[] {
+  if (!scope) return []
+  const gen = registryGeneration()
+  const hit = _contribCache.get(scope.workspaceId)
+  if (hit && hit.gen === gen) return hit.list
+
+  const list: RichtextContribution[] = []
+  for (const [extId, entry] of _registry) {
+    const declared = entry.manifest.richtextNodes
+    if (!declared?.length) continue
+    // Not active here means not offered here - the same rule a custom field
+    // type's validator follows.
+    if (_activity && _activity(extId, scope.workspaceId) === false) continue
+    const granted = recordedGrantsOf(extId, scope.workspaceId)
+    // `undefined` is "scope not known yet"; fall back to what the manifest
+    // asked for, which the gate will still enforce on every facility call.
+    const grants = granted ?? grantNames((entry.manifest.grants?.required ?? []) as never)
+    list.push(...allowedRichtextNodes(extId, entry.manifest, grants))
+  }
+  // `allowedRichtextNodes` orders within one extension; this orders ACROSS
+  // them, so two extensions cannot make the menu depend on registration order.
+  list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.name.localeCompare(b.name))
+
+  _contribCache.set(scope.workspaceId, { gen, list })
+  return list
+}
+
+export function richtextVocabularyFor(scope?: { workspaceId: string }): ContentDocVocabulary {
+  if (!scope) return CONTENT_DOC_VOCABULARY
+  const gen = registryGeneration()
+  const hit = _vocabCache.get(scope.workspaceId)
+  if (hit && hit.gen === gen) return hit.vocab
+
+  const contributions = richtextContributionsFor(scope)
+  let nodes: Record<string, ContentDocNodeSpec> | null = null
+  for (const node of contributions) {
+    nodes ??= { ...CONTENT_DOC_VOCABULARY.nodes }
+    nodes[node.name] = richtextNodeSpec(node)
+  }
+
+  const vocab = nodes ? { nodes, marks: CONTENT_DOC_VOCABULARY.marks } : CONTENT_DOC_VOCABULARY
+  _vocabCache.set(scope.workspaceId, { gen, vocab })
+  return vocab
+}
+
+/**
  * The server side of a custom field type. With a scope, a field type whose
  * extension is not active there keeps its inherited primitive (storage and
  * baseline validation stay right) and loses the extension's `validate`: a
@@ -471,10 +548,17 @@ export function resolveCustomFieldType(
   return undefined
 }
 
-// Wire the resolver into the (registry-agnostic) field validator once at load.
+// Wire the resolvers into the (registry-agnostic) field validator once at
+// load. One direction only: the validator never imports this module back,
+// which is the cycle that left its own module state uninitialised.
 setCustomFieldTypeResolver(resolveCustomFieldType)
+setRichtextVocabularyResolver(richtextVocabularyFor)
 
 /** The resolver a write in one workspace x environment passes to validateFieldValues. */
 export function customFieldTypeResolverFor(workspaceId: string) {
-  return (name: string) => resolveCustomFieldType(name, { workspaceId })
+  // The scope rides on the function, so every validation pass that already
+  // takes this resolver gets the workspace's richtext vocabulary too without
+  // a new parameter at seven call sites. Declared on the type, not smuggled.
+  const resolve = (name: string) => resolveCustomFieldType(name, { workspaceId })
+  return Object.assign(resolve, { workspaceId })
 }

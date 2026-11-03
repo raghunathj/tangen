@@ -36,6 +36,8 @@ import { resolveLinksDeep } from '../../services/link-loader'
 import { applySerialize } from '../../services/richtext-serializer'
 import { queryCacheKeyFor, withQueryCache, collectQueryTags } from '../../services/route-cache'
 import { applyFieldAfterRead, getActiveBehaviorRegistry } from '../../services/field-behavior'
+import { pathColumnsFor, pathDepsOf, pathFactsFor } from '../../services/path-resolver'
+import { ancestorsFor, selfParentFieldOf } from '../../services/ancestors'
 import { gatewayContextOf } from '../../gateway/request-context'
 import { clampRead, readLimitsFor, type ReadClamp } from '../../gateway/read-limits'
 import { emitQueryFacts, queryObserverCount, type QueryFacts } from '../../services/query-observer'
@@ -72,6 +74,8 @@ export const queryBodySchema = t.Object({
   serialize: t.Optional(t.Record(t.String(), t.Any())),
   locale: t.Optional(t.String()),
   includeLabels: t.Optional(t.Boolean()),
+  includePath: t.Optional(t.Boolean()),
+  includeAncestors: t.Optional(t.Boolean()),
   total: t.Optional(t.Boolean()),
 })
 
@@ -213,6 +217,10 @@ async function executeQuery(ctx: any) {
     if (!typeDefGate || typeDefGate.disabled) {
       throw new RequestError('TYPE_NOT_FOUND', `Type "${typeName}" not found in schema`)
     }
+    // Opt in, like depth and populate: an address costs a lookup, so nobody
+    // pays for one they did not ask for (plan-content-paths.md, decision 7).
+    const wantPath = (input as { includePath?: boolean }).includePath === true
+    const wantAncestors = (input as { includeAncestors?: boolean }).includeAncestors === true
 
 
     const table = (contentTables as Record<string, any>)[typeName]
@@ -264,7 +272,15 @@ async function executeQuery(ctx: any) {
     // The sort column must be selected even under a props projection — the
     // next-page cursor is built from the last row's sort value.
     const sortJsKey = Object.keys(table).find(k => (table as any)[k]?.name === sortField) ?? sortField
-    const colSelection = buildSelectColumns(table, input.props ? [...input.props, sortJsKey] : undefined)
+    // A props projection says what the CALLER gets back, not what the server
+    // may read: an address asked for under one needs its own columns selected,
+    // exactly as the cursor needs the sort column above. `null` from
+    // pathColumnsFor is a path FUNCTION - it may read any column, so the
+    // projection is dropped and the whole row is fetched for it.
+    const pathCols = wantPath ? pathColumnsFor(typeDefGate as never) : []
+    const colSelection = pathCols === null
+      ? undefined
+      : buildSelectColumns(table, input.props ? [...input.props, sortJsKey, ...pathCols] : undefined)
     // The exact total is the dominant database cost of a list over a large
     // type: an index-only scan of every qualifying row, linear in their number,
     // while the page itself is a few dozen buffers. It stays the default - the
@@ -323,6 +339,25 @@ async function executeQuery(ctx: any) {
 
     const labelsPromise = ((input as { includeLabels?: boolean }).includeLabels && rowIds.length > 0)
       ? listTagsForEntities(db, { workspaceId, entityType: contentEntityType(typeName), entityIds: rowIds })
+      : null
+
+    // Addresses compose from the RAW page rows, so this starts here, beside the
+    // labels, rather than after the expansions that would have overwritten the
+    // relation ids it reads. The template is the editor's affordance, so it
+    // rides a member read only.
+    // The chain a row sits under, for a hierarchical list. Batched like the
+    // addresses above: one recursive query for the page, not one per row.
+    // The Admin cannot work this out from the rows it was sent, because the
+    // list is paginated and a parent may be on another page entirely.
+    const ancestorParentField = wantAncestors ? selfParentFieldOf(typeDefGate as never, typeName) : null
+    const ancestorsPromise = ancestorParentField && rows.length > 0
+      ? ancestorsFor(rows as Record<string, unknown>[], typeName, ancestorParentField, { db, workspaceId })
+      : null
+
+    const pathsPromise = wantPath && rows.length > 0
+      ? pathFactsFor(rows as Record<string, unknown>[], typeName, pathDepsOf(ctx), {
+          locale: locale === 'all' ? null : locale, template: !!memberId,
+        })
       : null
 
     // Public reads come from the publish-time snapshot (below) in both
@@ -438,7 +473,7 @@ async function executeQuery(ctx: any) {
     expandedRows = await expandMediaDeep(expandedRows, typeDef, (project?.components ?? []) as never, db, workspaceId, locale === 'all' ? null : locale)
     // One batched target lookup for the whole page of rows, whatever the
     // page size - a link consumes no relation depth (Phase 6B, Units 12/13).
-    expandedRows = await resolveLinksDeep(expandedRows, typeDef, (project?.components ?? []) as never, db, workspaceId, { publicView, locale: locale === 'all' ? null : locale })
+    expandedRows = await resolveLinksDeep(expandedRows, typeDef, (project?.components ?? []) as never, db, workspaceId, { publicView, locale: locale === 'all' ? null : locale, pathDeps: pathDepsOf(ctx) })
 
     // Richtext serialisation
     // Field-level afterRead hooks (behavior overlay) — no-op for hook-less types
@@ -468,8 +503,22 @@ async function executeQuery(ctx: any) {
     const maskedRows = memberId
       ? applyFieldAccessMask(finalData as Record<string, unknown>[], restrictedReadFields(typeDef, fieldAccessContext(ctx)))
       : finalData
+    // `_path` goes on by POSITION: every stage from the page rows to here is a
+    // map, so the two arrays are still aligned, and a props projection may have
+    // dropped `id` from the response so there is nothing to match on. It is
+    // attached before content.serialize@1 so a filter sees the row exactly as
+    // it will be returned.
+    const pathFacts = pathsPromise ? await pathsPromise : null
+    const withPaths = pathFacts
+      ? (maskedRows as Record<string, unknown>[]).map((r, i) => ({ ...r, ...pathFacts[i] }))
+      : maskedRows
+    // `_ancestors` goes on by POSITION for the same reason `_path` does.
+    const ancestors = ancestorsPromise ? await ancestorsPromise : null
+    const withAncestors = ancestors
+      ? (withPaths as Record<string, unknown>[]).map((r, i) => ({ ...r, _ancestors: ancestors[i] ?? [] }))
+      : withPaths
     // K4.4: content.serialize@1 - the rows as they will be returned.
-    const masked = await applyContentSerialize({ workspaceId, typeName, rows: maskedRows as Record<string, unknown>[], status: (effectiveStatus ?? input.status ?? null) as string | null, context: { exec: ctx.exec ?? null } })
+    const masked = await applyContentSerialize({ workspaceId, typeName, rows: withAncestors as Record<string, unknown>[], status: (effectiveStatus ?? input.status ?? null) as string | null, context: { exec: ctx.exec ?? null } })
 
     // Opt-in operational labels — fetched concurrently above, attached as `_labels`.
     let withLabels = masked as Record<string, unknown>[]

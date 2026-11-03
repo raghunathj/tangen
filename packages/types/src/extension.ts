@@ -15,6 +15,7 @@
  */
 import type { ExtensionSettingsDefinition } from './extension-settings'
 import type { ExtensionSlotContribution } from './admin-slots'
+import type { ExtensionRichtextNode } from './richtext-nodes'
 
 export interface ExtensionContext {
   workspaceId: string
@@ -378,6 +379,14 @@ export interface TangenExtensionManifest {
    * `admin:contribute`.
    */
   slots?: ExtensionSlotContribution[]
+  /**
+   * Richtext elements this extension adds to the editor, DECLARED as data
+   * (slice 5 of tasks/plan-editor.md). The platform renders each from its
+   * declaration - server-side HTML included - so nothing the extension wrote
+   * runs inside a document. Needs `richtext:contribute-nodes`; without it
+   * none are offered, the way slots behave.
+   */
+  richtextNodes?: ExtensionRichtextNode[]
   /**
    * The built Admin bundle (Extension Kernel K7.3): a relative `.js`/`.mjs`
    * path, produced by `tangen extension bundle-ui`, that the Admin loads at

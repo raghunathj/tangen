@@ -16,6 +16,9 @@ export interface ContentTypeItem {
   disabled?: boolean
   singleton?: boolean
   localized?: boolean
+  /** The declared address in its stored shape, or null. Served by /types from
+   *  the registry column - the only route a declaration has to the Admin. */
+  path?: { pattern?: string; root?: string; field?: string; fn?: boolean } | null
   admin?: { taxonomy?: { parentType?: string } }
   fields?: Array<{ name: string; fieldType: string; config?: Record<string, unknown> }>
 }

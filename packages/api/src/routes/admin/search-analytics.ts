@@ -1,6 +1,6 @@
 /**
  * File Name: search-analytics.ts
- * Purpose: GET /api/v1/admin/search-analytics — the Settings → Search dashboard
+ * Purpose: GET /api/v1/admin/search-insights — the Settings → Search dashboard
  *          data (top searches, zero-result searches, volume trend, totals). Reads
  *          retention-bounded query logs (no PII) and summarizes them. Read-only;
  *          requires manage:settings. `days` (≤90) and `audience` filter the window.
@@ -15,7 +15,7 @@ import { requireCapability } from '../../lib/member-access'
 import { summarizeSearchLogs } from '../../services/search-analytics'
 
 export const searchAnalyticsRoute = (app: Elysia) =>
-  app.get('/api/v1/admin/search-analytics', async (ctx: any) => {
+  app.get('/api/v1/admin/search-insights', async (ctx: any) => {
     const { db, workspaceId, permissions, query } = ctx
     requireCapability({ permissions, memberId: ctx.memberId }, 'manage:settings')
 

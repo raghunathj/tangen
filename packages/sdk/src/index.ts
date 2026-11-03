@@ -37,7 +37,7 @@ export type {
   LivePreviewObject, LivePreviewMessage, FetchPreviewObjectOptions, OnLivePreviewOptions,
   PreviewNavigateInfo, PreviewNavigateMessage,
 } from './preview'
-export { isInternalLink, isExternalLink, isLinkResolved, linkSuffix } from './link'
+export { isInternalLink, isExternalLink, isPathLink, isLinkResolved, linkHref, linkSuffix } from './link'
 export type {
   ResolvedLink, ResolvedInternalLink, ResolvedExternalLink,
   LinkValue, InternalLinkValue, ExternalLinkValue, LinkKind, LinkQuery,

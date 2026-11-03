@@ -8,9 +8,11 @@
  * Author: Raghunath J
  * License: MIT
  *
- * Dependencies/Notes: The URL for each object comes from the application's
- *          resolver. An object it cannot place has no sitemap entry and the
- *          run reports the reason; nothing here assembles a path from a slug.
+ * Dependencies/Notes: The URL for each object is whatever answers first: the
+ *          application's resolver, the field it declared, or the address the
+ *          type's own `path` composes. An object none of them can place has no
+ *          sitemap entry and the run reports the reason; nothing here
+ *          assembles a path from a slug.
  */
 import { sitemapEligibility, sortEntries, type IneligibleReason, type SitemapEntry } from '../lib/sitemap'
 import { readStored, pickMetadata } from '../lib/metadata'
@@ -41,6 +43,8 @@ export interface SitemapObject {
   publishedAt?: string | null
   /** The declared URL field's value, read by the producer (it holds the row). */
   urlFieldValue?: string | null
+  /** The address the type's declared `path` composes (`_path`), read by the producer. */
+  path?: string | null
 }
 
 export interface SitemapBuild {
@@ -88,7 +92,7 @@ export async function buildSitemap(input: {
 
       const url = await objectUrl({
         helpers: helpersWithResolver(input), workspaceId: input.workspaceId, type: object.type, id: object.id,
-        locale: input.locale, slug: object.slug, fieldValue: object.urlFieldValue,
+        locale: input.locale, slug: object.slug, fieldValue: object.urlFieldValue, pathValue: object.path,
       })
 
       const verdict = sitemapEligibility({
@@ -126,7 +130,7 @@ async function resolveAlternates(
   for (const code of locales) {
     const href = await objectUrl({
       helpers: helpersWithResolver(input), workspaceId: input.workspaceId, type: object.type, id: object.id,
-      locale: code, slug: object.slug, fieldValue: object.urlFieldValue,
+      locale: code, slug: object.slug, fieldValue: object.urlFieldValue, pathValue: object.path,
     })
     if (href) out.push({ hreflang: code, href })
   }

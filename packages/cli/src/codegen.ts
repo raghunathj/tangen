@@ -16,13 +16,17 @@
 import { fieldTypeToSql } from '@tangen/types'
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { flattenFields, type SchemaDefinition, type FieldType, type CustomTableDefinition } from '@tangen/types'
+import { flattenFields, type SchemaDefinition, type FieldTypeRef, type CustomTableDefinition } from '@tangen/types'
 import { localizedContainerFields } from '@tangen/schema'
 import { fieldIsIndexable, fieldIndexMethod } from './column-types'
 import { artifactMeta } from '@tangen/schema'
 import { isSafeIdent } from '@tangen/types'
 
-function fieldTypeToDrizzleCall(fieldType: FieldType, colName: string, config?: Record<string, unknown>): string | null {
+// `FieldTypeRef`, not `FieldType`: a field's type may be a CUSTOM type's name,
+// and `fieldTypeToSql` already takes a plain string and falls through to TEXT
+// for one it does not know. Declaring the narrower type here made every custom
+// field a type error at the call sites and changed nothing at runtime.
+function fieldTypeToDrizzleCall(fieldType: FieldTypeRef, colName: string, config?: Record<string, unknown>): string | null {
   // ONE mapping (types/column-kinds.ts): the kind push creates is the kind the
   // generated file declares and the kind the runtime registry builds.
   switch (fieldTypeToSql(fieldType, config)) {

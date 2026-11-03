@@ -56,6 +56,30 @@ function blockingFindings(findings: DriftFinding[]): DriftFinding[] {
   return findings.filter((f) => f.pair === 'registry/db' && f.severity === 'error')
 }
 
+/**
+ * The workspace this database's schema was pushed for, read from its own push
+ * ledger.
+ *
+ * Provenance has to come from the DATABASE, not from the local config: the
+ * whole reason `contentTablesMeta` exists is so a server can say "this
+ * artifact is another environment's" instead of meeting a missing column as a
+ * query error, and stamping whatever the local config happens to name would
+ * defeat that for the one case it is there to catch.
+ *
+ * Null when there is no applied push to read - a database nobody has pushed to
+ * has no provenance, and an unstamped file is the honest answer rather than a
+ * guess. `.catch` because a fresh database has no ledger table at all, which
+ * is how doctor reads the same table.
+ */
+export const PUSHED_WORKSPACE_SQL =
+  "SELECT workspace_id FROM schema_pushes WHERE status = 'applied' ORDER BY started_at DESC LIMIT 1"
+
+async function pushedWorkspaceId(query: DoctorQuery): Promise<string | null> {
+  const rows = await query(PUSHED_WORKSPACE_SQL).catch(() => null)
+  const id = rows?.[0]?.workspace_id
+  return typeof id === 'string' && id.trim() ? id.trim() : null
+}
+
 /** The core: read the registry, guard, generate, compare, write. Pure apart from the injected reads and the file writes. */
 export async function regenerateFromRegistry(opts: RegenerateOptions): Promise<RegenerateResult> {
   const [{ registry, runtime }, db] = await Promise.all([
@@ -78,7 +102,18 @@ export async function regenerateFromRegistry(opts: RegenerateOptions): Promise<R
   try { localOrder = await opts.loadLocal() } catch { /* registry order */ }
 
   const schema = schemaFromRegistry(runtime, localOrder)
-  const artifacts: PushArtifacts = generatePushArtifacts(schema, (opts.components ?? []) as never, opts.customTables)
+  // The provenance block push stamps. Omitting it was the gap this command's
+  // own promise hid: the file came back without `contentTablesMeta`, so the
+  // artifact-vs-environment check in doctor had nothing to read and a
+  // regenerate silently traded a stale fingerprint for no fingerprint.
+  const workspaceId = await pushedWorkspaceId(opts.query)
+  const artifacts: PushArtifacts = generatePushArtifacts(
+    schema,
+    (opts.components ?? []) as never,
+    opts.customTables,
+    undefined,
+    workspaceId ? { workspaceId } : undefined,
+  )
 
   const contentPath = resolve(opts.outDir, 'content-tables.ts')
   const customPath = resolve(opts.outDir, 'custom-tables.ts')

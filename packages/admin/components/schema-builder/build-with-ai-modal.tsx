@@ -10,7 +10,7 @@
  */
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, Textarea } from '@/kit'
+import { Button, Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription, Textarea } from '@/kit'
 import { IconSparkles } from '@tangen/icons'
 import { toast } from '@/lib/toast'
 import { generateSchema, combineClarify, type SchemaAiKind } from '@/lib/schema-ai'
@@ -68,7 +68,7 @@ export function BuildWithAiModal({ open, onOpenChange, kind }: {
           <DialogDescription>Describe what you want - you’ll review and save before anything is written.</DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 py-4 space-y-3">
+        <DialogBody className="space-y-3">
           {clarify ? (
             <div className="space-y-2">
               <p className="text-sm text-fg">A couple of questions first - or say “just build it”:</p>
@@ -88,7 +88,7 @@ export function BuildWithAiModal({ open, onOpenChange, kind }: {
             onChange={(e) => setPrompt(e.currentTarget.value)}
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run() }}
             placeholder={clarify ? 'Answer, or say “just build it”…' : mode === 'set' ? 'Describe the data model, e.g. “a blog with posts, authors and categories”' : KIND_HINT[kind]} />
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>

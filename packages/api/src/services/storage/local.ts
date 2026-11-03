@@ -20,6 +20,15 @@ import { DEFAULT_MEDIA_DIR } from '../../lib/media-dir'
 /**
  * Resolves a key against the base dir, rejecting traversal escapes.
  * Returns null when the key escapes the base or targets the base itself.
+ *
+ * THE ROOT, NOT THE WORKSPACE PREFIX. This answers only "does the key leave
+ * the media directory", which is a filesystem question and this adapter's own
+ * job. It deliberately knows nothing about the `<workspaceId>/<assetId>/`
+ * layout, because the tenancy rule has to hold for an object-store adapter
+ * too - where a key is an opaque string and `../` is three characters S3 will
+ * store without complaint. That rule lives in `lib/media-key.ts`, above every
+ * adapter. The gap between the two was the shared root cause of security
+ * findings 16 (Porter) and 20 (upload variants).
  */
 export function safeResolve(baseDir: string, key: string): string | null {
   const base = resolve(baseDir)

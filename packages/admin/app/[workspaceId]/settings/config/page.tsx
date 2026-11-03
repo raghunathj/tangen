@@ -143,7 +143,7 @@ export default function ConfigurationSettingsPage() {
       {['core', 'site', 'integrations', 'extensions'].filter((g) => groups.has(g)).map((g) => (
         <SettingsSection key={g} title={<span className="capitalize">{g}</span>} flush>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-full text-sm">
               <thead className="text-xs text-fg-subtle text-left">
                 <tr><th className="px-5 py-2 font-medium">key</th><th className="px-3 py-2 font-medium">state</th><th className="px-3 py-2 font-medium">from</th><th className="px-3 py-2 font-medium">policy</th><th className="px-3 py-2 font-medium">value</th></tr>
               </thead>

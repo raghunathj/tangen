@@ -421,6 +421,13 @@
       "when": 1787500320000,
       "tag": "0060_connections",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "6",
+      "when": 1787500380000,
+      "tag": "0061_object_type_path",
+      "breakpoints": true
     }
   ]
 }

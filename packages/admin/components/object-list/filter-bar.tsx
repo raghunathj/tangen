@@ -9,6 +9,11 @@ import {
 import { clsx } from 'clsx'
 import { adminFetch } from '@/lib/api'
 import type { FieldFilter, FilterableField, DateFilters } from './types'
+// A filter's number box must not discard what it cannot parse: `<input
+// type="number"` reports an empty value for unparseable text while leaving
+// the characters on screen, so a filter read the EMPTY string and returned
+// the wrong rows with nothing on screen saying why.
+import { NumericInput } from '@/components/fields/numeric-input'
 
 // ── Shared portal popover helper ──────────────────────────────────────────────
 
@@ -436,14 +441,14 @@ function TokenPopoverContent({
         <div className="border-t border-border p-2 space-y-1.5">
           {isBetween ? (
             <div className="flex gap-1.5 items-center">
-              <input type="number" value={betweenFrom} onChange={e => setBetweenFrom(e.target.value)} placeholder="From"
+              <NumericInput value={betweenFrom} onChange={n => setBetweenFrom(n == null ? '' : String(n))} placeholder="From"
                 className="flex-1 min-w-0 text-xs border border-border rounded-md px-2 py-1.5 outline-none focus-visible:border-focus-border" />
               <span className="text-xs text-fg-subtle shrink-0">–</span>
-              <input type="number" value={betweenTo} onChange={e => setBetweenTo(e.target.value)} placeholder="To"
+              <NumericInput value={betweenTo} onChange={n => setBetweenTo(n == null ? '' : String(n))} placeholder="To"
                 className="flex-1 min-w-0 text-xs border border-border rounded-md px-2 py-1.5 outline-none focus-visible:border-focus-border" />
             </div>
           ) : (
-            <input type="number" autoFocus value={numVal} onChange={e => setNumVal(e.target.value)}
+            <NumericInput autoFocus value={numVal} onChange={n => setNumVal(n == null ? '' : String(n))}
               onKeyDown={e => { if (e.key === 'Enter') applyNum() }} placeholder="Value"
               className="w-full text-xs border border-border rounded-md px-2.5 py-1.5 outline-none focus-visible:border-focus-border" />
           )}
@@ -1218,14 +1223,14 @@ function AddFilterDropdown({
           <div className="border-t border-border p-2 space-y-1.5">
             {isBtw ? (
               <div className="flex gap-1.5 items-center">
-                <input type="number" value={bFrom} onChange={e => setBFrom(e.target.value)} placeholder="From"
+                <NumericInput value={bFrom} onChange={n => setBFrom(n == null ? '' : String(n))} placeholder="From"
                   className="flex-1 min-w-0 text-xs border border-border rounded-md px-2 py-1.5 outline-none focus-visible:border-focus-border" />
                 <span className="text-xs text-fg-subtle shrink-0">–</span>
-                <input type="number" value={bTo} onChange={e => setBTo(e.target.value)} placeholder="To"
+                <NumericInput value={bTo} onChange={n => setBTo(n == null ? '' : String(n))} placeholder="To"
                   className="flex-1 min-w-0 text-xs border border-border rounded-md px-2 py-1.5 outline-none focus-visible:border-focus-border" />
               </div>
             ) : (
-              <input type="number" autoFocus value={val} onChange={e => setVal(e.target.value)}
+              <NumericInput autoFocus value={val} onChange={n => setVal(n == null ? '' : String(n))}
                 onKeyDown={e => { if (e.key === 'Enter') doAdd() }} placeholder="Value"
                 className="w-full text-xs border border-border rounded-md px-2.5 py-1.5 outline-none focus-visible:border-focus-border" />
             )}

@@ -18,6 +18,7 @@
 import { create } from 'zustand'
 import { useEffect } from 'react'
 import { adminFetch } from './api'
+import { validateRichtextNodes, type ExtensionRichtextNode } from '@tangen/types'
 
 export type CapabilityState = 'on' | 'off' | 'unavailable'
 
@@ -61,6 +62,40 @@ export interface BootstrapFlags {
   deploymentRole: 'development' | 'staging' | 'production' | null
   /** admin.nav.links: what the Settings tree shows under "Other". */
   links: NavLinks
+  /**
+   * The richtext nodes this workspace's active, granted extensions declare,
+   * highest priority first. Only the CONTRIBUTIONS: the built-in vocabulary is
+   * bundled, so an empty list is the ordinary case and costs nothing.
+   */
+  richtextNodes: RichtextContribution[]
+}
+
+/** One contributed node, exactly as its extension declared it. */
+export type RichtextContribution = ExtensionRichtextNode & { name: string }
+
+/** `<extensionId>.<name>`, which is what the server namespaces a node to. */
+const NAMESPACED = /^[a-zA-Z][a-zA-Z0-9-]*\.[a-zA-Z][a-zA-Z0-9]*$/
+
+/**
+ * A declaration list is only usable if it is WHOLE. `validateRichtextNodes` is
+ * the same check the server ran before sending it, so a response that fails it
+ * means something is wrong with the response, and a half-trusted list would
+ * compile into a schema that throws and blank the editor for every field.
+ *
+ * The names are checked twice and deliberately. On the wire a name is
+ * `acme.callout`, which the shared validator REFUSES - it validates a
+ * declaration as an extension author wrote it, where the name is camelCase and
+ * the namespace has not been applied yet. So the namespace is checked here and
+ * stripped before the shared rules run, rather than loosening a rule that the
+ * extension review depends on. Getting this wrong dropped every contribution
+ * silently, and the browser lane is what caught it.
+ */
+export function richtextNodesOf(raw: unknown): RichtextContribution[] {
+  if (!Array.isArray(raw) || raw.length === 0) return []
+  const list = raw as RichtextContribution[]
+  if (!list.every((n) => typeof n?.name === 'string' && NAMESPACED.test(n.name))) return []
+  const asDeclared = list.map((n) => ({ ...n, name: n.name.slice(n.name.indexOf('.') + 1) }))
+  return validateRichtextNodes(asDeclared).length === 0 ? list : []
 }
 
 export interface NavLinks { support?: string; docs?: string }
@@ -78,7 +113,7 @@ function linksOf(raw: unknown): NavLinks {
 // `content` defaults true here too: a failed or not-yet-loaded bootstrap
 // read must not hide a core nav section - unlike `recents` (opt-in, safe
 // off), losing the read should never look like "every type was hidden".
-const NO_FLAGS: BootstrapFlags = { recents: false, content: true, schemaWritable: false, queryMonitorEnabled: false, graphqlEnabled: false, deploymentRole: null, links: {} }
+const NO_FLAGS: BootstrapFlags = { recents: false, content: true, schemaWritable: false, queryMonitorEnabled: false, graphqlEnabled: false, deploymentRole: null, links: {}, richtextNodes: [] }
 
 interface CapabilityStoreState {
   /** Descriptors by workspace. */
@@ -117,6 +152,7 @@ export const useCapabilityStore = create<CapabilityStoreState>((set, get) => ({
             graphqlEnabled: d.graphqlEnabled === true,
             deploymentRole: d.deploymentRole === 'development' || d.deploymentRole === 'staging' || d.deploymentRole === 'production' ? d.deploymentRole : null,
             links: linksOf((d as { links?: unknown }).links),
+            richtextNodes: richtextNodesOf((d as { richtextNodes?: unknown }).richtextNodes),
           },
         },
         loading: { ...s.loading, [key]: false },

@@ -19,9 +19,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*",
-    "@tangen/icons": "*",
-    "@tangen/types": "*",
+    "@tangen/cms": "^0.2.5",
+    "@tangen/icons": "^0.1.2",
+    "@tangen/types": "^0.5.0",
     "react": "*"
   },
   "devDependencies": {
@@ -32,7 +32,7 @@
     "@types/react": "^18.3.3",
     "bun-types": "^1.1.0",
     "drizzle-orm": "^0.45.2",
-    "elysia": "1.4.28",
+    "elysia": "1.4.30",
     "react": "^18.3.1"
   }
 }

@@ -51,7 +51,11 @@ export function SessionExpiredDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+        {/* No padding of its own: this form IS the dialog's content, so the
+            automatic DialogBody pads it - which is what that wrapper exists
+            for. Declaring px-6 here paid the gutter twice and put the fields
+            24px in under a 20px header. */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Email"
             type="email"

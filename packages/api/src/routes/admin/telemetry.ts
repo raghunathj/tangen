@@ -43,7 +43,7 @@ const scopeOf = (ctx: any) => ({
  */
 export const telemetryRoutes = (app: Elysia) =>
   app
-    .get('/api/v1/admin/telemetry/overview', async (ctx: any) => {
+    .get('/api/v1/admin/runtime/overview', async (ctx: any) => {
       requireAdminRole(ctx)
       const scope = scopeOf(ctx)
       const metrics = metricsSnapshot(scope)
@@ -65,7 +65,7 @@ export const telemetryRoutes = (app: Elysia) =>
       }
     })
 
-    .get('/api/v1/admin/telemetry/events', async (ctx: any) => {
+    .get('/api/v1/admin/runtime/events', async (ctx: any) => {
       requireAdminRole(ctx)
       const q = ctx.query ?? {}
       const names = typeof q.name === 'string' && q.name
@@ -90,7 +90,7 @@ export const telemetryRoutes = (app: Elysia) =>
       }
     })
 
-    .delete('/api/v1/admin/telemetry/events', async (ctx: any) => {
+    .delete('/api/v1/admin/runtime/events', async (ctx: any) => {
       requireAdminRole(ctx)
       clearRing(scopeOf(ctx))
       return { data: { cleared: true } }

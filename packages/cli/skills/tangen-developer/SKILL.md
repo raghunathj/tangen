@@ -71,6 +71,12 @@ the words:
 | env, environment | a **deployment**: one process, one database (`DATABASE_URL`), one role (`TANGEN_DEPLOYMENT_ROLE`) |
 | secret, credential (in config) | a **reference** - the NAME of the variable the deployment supplies |
 | API key's environment | the key **is** issued by one deployment; nothing is passed |
+| URL, route, permalink, slug path | the type's **`path`** declaration, and **`_path`** on a read that asked for it |
+| reorder fields, move a field up the form | the **declaration order** in the type's `fields`, which is what the editor draws, plus `admin.editorView` for the sidebar split |
+| conditional field, show/hide, required only when | **`conditionalVisibility`**, on the field, on the `group` that holds several of them, or on a sub-field inside a repeater row or a component block; a hidden field is never required |
+| clear a select, unset a choice, deselect, go back to no value | every select has a visible way back: a first row or radio reading `None` (or `Use default (X)`), and on a `segmented` group the pressed button un-presses plus a `✕` in the group. Stores `null` |
+| picker only shows some entries, limit the choices in a picker | nothing to configure: every entry picker searches, orders and pages the **server**. Narrow with `allowedTargets` (link) or `config.filter` (relation) |
+| stop an author typing any URL, restrict a link | **`allowedKinds`** - it is both the save-time rule and which tabs the editor offers; omit it for all three |
 
 Then follow the section index and the page's own Related links.
 
@@ -117,6 +123,13 @@ right page yet.
 Smallest change that delivers the behaviour. Keep the existing package manager,
 structure and conventions. Do not refactor what you were not asked to touch, and
 do not regenerate a project to add a feature to it.
+
+**Do not hand-author what the platform composes.** The clearest case is an
+address: a type declares `path` once and the platform builds every URL from
+the tree and the slugs it already holds. Adding a `path` or `url` text field
+for an editor to type into makes the URL a thing that can be wrong, and a page
+that moves then leaves every child's address lying. Read the addresses page
+before modelling a routable type.
 
 ## 6. Prove it
 

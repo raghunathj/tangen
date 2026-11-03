@@ -151,7 +151,16 @@ export async function postJSON(
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   })
-  const json = await res.json().catch(() => ({}))
+  /**
+   * The three error envelopes the supported providers actually use. Declared
+   * rather than reached for off `{}`, which is what `res.json()` infers and
+   * what made `json?.error?.message` a type error in published TypeScript.
+   */
+  interface ProviderErrorBody {
+    error?: { message?: string; error?: { message?: string } }
+    message?: string
+  }
+  const json = (await res.json().catch(() => ({}))) as ProviderErrorBody
   if (!res.ok) {
     const message =
       json?.error?.message ?? json?.error?.error?.message ?? json?.message ?? res.statusText ?? 'request failed'

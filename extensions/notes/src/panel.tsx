@@ -99,7 +99,10 @@ export function NotesPanel({ objectId }: PanelProps) {
           aria-label="New note"
         />
         <div className="mt-1.5 flex items-center justify-between">
-          <span className="text-ui-2xs text-fg-faint">Internal: never shown on the site.</span>
+          {/* fg-subtle, not fg-faint: the 50% tier is decorative by the token
+              contract (globals.css) and measures 3.94:1 on a page, so a
+              sentence someone has to READ stops at the 60% tier. */}
+          <span className="text-ui-2xs text-fg-subtle">Internal: never shown on the site.</span>
           <Button size="xs" variant="secondary" onClick={() => void add()} isLoading={busy} disabled={text.trim() === ''}>Add note</Button>
         </div>
       </div>

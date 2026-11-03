@@ -1,5 +1,45 @@
 # @tangen/extension-testkit
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/api@0.2.4
+  - @tangen/types@0.5.0
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [d54f1ba]
+- Updated dependencies [d54f1ba]
+- Updated dependencies [d54f1ba]
+- Updated dependencies [d54f1ba]
+- Updated dependencies [120fff5]
+- Updated dependencies [d54f1ba]
+  - @tangen/types@0.4.0
+  - @tangen/api@0.2.3
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [2c270e5]
+- Updated dependencies [a33a309]
+- Updated dependencies [809bb12]
+- Updated dependencies [03269e0]
+- Updated dependencies [f8a0101]
+- Updated dependencies [c133431]
+  - @tangen/api@0.2.2
+  - @tangen/types@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

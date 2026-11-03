@@ -1,6 +1,6 @@
 {
   "name": "@tangen/connectors-google",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "The Google connector pack for Tangen: one Google connection, Sheets and Search Console capabilities, typed services and Flow actions. Tangen ships no connectors of its own - install the providers you use",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -28,7 +28,7 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*"
+    "@tangen/cms": "^0.2.4"
   },
   "devDependencies": {
     "@tangen/cms": "workspace:^",

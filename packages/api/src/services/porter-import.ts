@@ -269,6 +269,7 @@ import { getTableColumns } from 'drizzle-orm'
 import { deleteI18nRows, upsertI18nRow } from './i18n'
 import { createRevision } from '../lib/revisions'
 import { getPorterProvider, sortProvidersByDependency, type PorterProvider, type PorterProviderResult } from './porter-providers'
+import { assertSafeMediaRef } from '@tangen/porter'
 
 /** JSONL round-trips Dates as ISO strings - timestamp columns want Dates back. */
 function coerceRowForTable(table: any, values: Record<string, unknown>): Record<string, unknown> {
@@ -357,6 +358,14 @@ export async function commitBundleImport(input: CommitBundleImportInput): Promis
       if (existing && (existing.metadata as any)?.sha256 === sha256 && sha256) writeBytes = false
     }
 
+    // A bundle names this file, and a bundle is untrusted input. The local
+    // storage adapter refuses to leave the media ROOT, but not to leave the
+    // WORKSPACE prefix - and a workspace is the tenancy boundary - so a
+    // `filename` of `../../<other-workspace>/<asset>/logo.png` wrote
+    // bundle-chosen bytes into another workspace's media. Refused by name,
+    // never rewritten to a basename: an import that silently renames a file is
+    // an import nobody can reconcile against its bundle.
+    assertSafeMediaRef(asset.id, filename)
     const storagePath = `${workspaceId}/${m.targetId}/${filename}`
     if (writeBytes) {
       const bytes = await reader.readMediaFile(asset.id as string, filename)

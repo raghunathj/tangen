@@ -14,9 +14,42 @@
  *          broken request must never take a button away. The server still
  *          refuses honestly if a stale projection offers one.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LifecycleActions, LifecycleAction, LifecycleActionId } from '@tangen/types'
 import { adminFetch } from '@/lib/api'
+
+/** What one run of the hook's effect saw. */
+export interface ActionsFetchKey {
+  typeName: string | undefined
+  objectId: string | null
+  deps: unknown[]
+}
+
+/**
+ * Whether the policy is worth re-reading, given what the previous run saw.
+ *
+ * The identity of the thing being asked about - the type and the object -
+ * always forces a read: showing one object's actions for another is wrong
+ * whatever else is true.
+ *
+ * Beyond that, a caller's dependency becoming KNOWN for the first time
+ * (`undefined` -> a value) is HYDRATION, not a change. The editor passes
+ * `[object?.updatedAt]` so the policy re-reads after a save, but `object` is
+ * null on the first render, so the object arriving looks exactly like a save.
+ * It is not one: the server computes the policy from the object's own stored
+ * state, so the answer already in flight is complete, and re-asking is a
+ * second round trip for the same bytes - serialised behind the object read,
+ * which is what hurts when the database is far away.
+ *
+ * A value going the other way (known -> undefined) IS a change: state being
+ * cleared is a different situation from state still loading.
+ */
+export function shouldRefetchActions(prev: ActionsFetchKey | null, next: ActionsFetchKey): boolean {
+  if (!prev) return true
+  if (prev.typeName !== next.typeName || prev.objectId !== next.objectId) return true
+  if (prev.deps.length !== next.deps.length) return true
+  return !next.deps.every((d, i) => d === prev.deps[i] || prev.deps[i] === undefined)
+}
 
 /** True when the value is the policy shape; anything else reads as "no policy" (a fixture, a proxy error page, an older server). */
 function isPolicy(actions: unknown): actions is LifecycleActions {
@@ -83,9 +116,13 @@ export function useLifecycleActions(typeName: string | undefined, objectId: stri
       setActions(null)   // a broken request never takes a button away
     }
   }, [typeName, objectId])
+  const lastFetch = useRef<ActionsFetchKey | null>(null)
   useEffect(() => {
     let alive = true
-    if (!typeName) { setActions(null); return }
+    if (!typeName) { setActions(null); lastFetch.current = null; return }
+    const key: ActionsFetchKey = { typeName, objectId, deps }
+    if (!shouldRefetchActions(lastFetch.current, key)) return
+    lastFetch.current = key
     adminFetch<{ data: LifecycleActions }>(`/objects/${typeName}/actions`, undefined, objectId ? { objectId } : undefined)
       .then((r) => { if (alive) setActions(r.data ?? null) })
       .catch(() => { if (alive) setActions(null) })

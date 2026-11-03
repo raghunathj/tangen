@@ -29,6 +29,22 @@ import { buildEvent, emitRecorded, attributionOf } from '../../kernel/events'
 import { resolveActorId } from '../../lib/actor'
 
 /**
+ * Why a delete was refused, in one sentence that NAMES what is in the way.
+ *
+ * It used to count only - "1 entry references this item" - which leaves the
+ * reader to go and find which one. For a page tree the blockers are the whole
+ * answer, because the thing in the way is a page the person can go and move.
+ * Three at most, so this stays a sentence rather than a list.
+ */
+export function blockedMessage(blockers: Array<{ id: string; title: string | null }>): string {
+  const named = blockers.slice(0, 3).map((b) => b.title ?? b.id).join(', ')
+  const rest = blockers.length > 3 ? ` and ${blockers.length - 3} more` : ''
+  const plural = blockers.length === 1 ? 'y references' : 'ies reference'
+  const overflow = blockers.length === 10 ? '+' : ''
+  return `Cannot delete - ${blockers.length}${overflow} entr${plural} this item: ${named}${rest}`
+}
+
+/**
  * Resolves and validates the type name from a delete request, returning its typeId.
  * @param typeName - The ?type query parameter value from the request.
  * @param schema - Workspace schema definition used to look up the type.
@@ -103,8 +119,9 @@ export const makeDeleteHandler = (projects: any[]) => async (ctx: any) => {
       if (blockers.length > 0) {
         throw new RequestError(
           'CONFLICT',
-          `Cannot delete - ${blockers.length}${blockers.length === 10 ? '+' : ''} entr${blockers.length === 1 ? 'y references' : 'ies reference'} this item`,
+          blockedMessage(blockers),
           409,
+          undefined,
           { blockers },
         )
       }

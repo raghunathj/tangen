@@ -25,6 +25,7 @@ import {
 } from './image-processor'
 import { createLocalStorage } from './storage/local'
 import { resolveStorage } from './storage'
+import { mediaKey } from '../lib/media-key'
 import type { MediaAsset, VariantMeta, ImageVariant } from '@tangen/types'
 import { queueAssetKnowledgeSync } from './knowledge-sync'
 
@@ -179,9 +180,13 @@ export async function ingestMediaBuffer(ctx: IngestContext, opts: IngestOptions)
   const ext = getFileExtension(opts.mimeType)
   const originalFilename = `original.${ext}`
 
-  // Per-asset key prefix: {wid}/{id}/ - the provider-agnostic layout
+  // Per-asset key prefix: {wid}/{id}/ - the provider-agnostic layout.
+  // Every key below is built with `mediaKey`, which refuses a leaf that would
+  // leave the prefix (finding 20): a storage adapter's own guard holds the
+  // media ROOT, not the workspace boundary, and the workspace is the tenancy
+  // boundary. See lib/media-key.ts for why the rule lives above the adapter.
   const keyPrefix = mediaAssetKeyPrefix(workspaceId, id)
-  const storagePath = `${keyPrefix}/${originalFilename}`
+  const storagePath = mediaKey(keyPrefix, originalFilename)
 
   // Any failure past the first write (variant processing, later writes, the
   // DB insert) must not strand orphaned objects in the backend — clean the
@@ -199,7 +204,7 @@ export async function ingestMediaBuffer(ctx: IngestContext, opts: IngestOptions)
     dimensions = await extractDimensions(opts.buffer)
 
     const thumb = await processSystemThumbnail(opts.buffer)
-    thumbnailPath = `${keyPrefix}/_thumb.webp`
+    thumbnailPath = mediaKey(keyPrefix, '_thumb.webp')
     await storage.write(thumbnailPath, thumb.outputBuffer, { contentType: 'image/webp' })
 
     const workspacePresets: Record<string, ImageVariant> | undefined =
@@ -212,8 +217,7 @@ export async function ingestMediaBuffer(ctx: IngestContext, opts: IngestOptions)
     generatedRecipes = toGenerate
     for (const variant of toGenerate) {
       const processed = await processVariant(opts.buffer, variant)
-      const variantFilename = `${variant.name}.${processed.format}`
-      const variantPath = `${keyPrefix}/${variantFilename}`
+      const variantPath = mediaKey(keyPrefix, `${variant.name}.${processed.format}`)
       await storage.write(variantPath, processed.outputBuffer, { contentType: `image/${processed.format}` })
       variants[variant.name] = {
         storagePath: variantPath,

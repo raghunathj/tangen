@@ -28,7 +28,7 @@ import { getSchemaWritable } from '../../lib/schema-writable'
 import { runtimeRegistry } from '../../runtime/registry'
 import { extensionStates } from '../../runtime/extensions'
 import { extensionWiringDeps } from '../../services/extension-server'
-import { getExtensionManifest, listRegisteredExtensionIds } from '../../hooks/app-hooks-registry'
+import { getExtensionManifest, listRegisteredExtensionIds, richtextContributionsFor } from '../../hooks/app-hooks-registry'
 import { capabilityDescriptors, type CapabilityDescriptor } from '../../services/capability-descriptor'
 
 /**
@@ -112,6 +112,16 @@ export const adminUiConfigRoute = (app: Elysia) =>
         graphqlEnabled: await graphqlEnabledFor(project),
         // Phase 8A: one server-owned answer for this workspace x environment.
         capabilities: await capabilitiesFor(String(workspaceId ?? '')),
+        // The richtext nodes this workspace's active extensions declare, so
+        // the EDITOR can offer what the validator already accepts. Only the
+        // contributions travel: the Admin bundles the built-in vocabulary, and
+        // they travel as DECLARATIONS because `label` and `priority` are what
+        // an insert menu needs and a stored document has no use for. Composed
+        // by the same function the write path validates against, never a
+        // second traversal.
+        richtextNodes: richtextContributionsFor(String(workspaceId ?? '')
+          ? { workspaceId: String(workspaceId) }
+          : undefined),
         // Stage 2 (plan-config-resolver section 10): the keys declared
         // clientSafe, by key, and nothing else of the resolved deployment.
         config: resolvedFor(String(workspaceId ?? ''))?.clientSafe() ?? {},

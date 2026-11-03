@@ -37,6 +37,7 @@ import { stripDisabledBlocks } from '../../lib/strip-disabled'
 import { fieldAccessContext, restrictedReadFields, applyFieldAccessMask } from '../../lib/field-access'
 import { applyContentSerialize } from '../../services/content-filters'
 import { applyFieldAfterRead, getActiveBehaviorRegistry } from '../../services/field-behavior'
+import { pathDepsOf, pathFactsFor } from '../../services/path-resolver'
 import { resolveReadLocales, filterI18nMap, fetchI18nRows, localizeRow, buildI18nMap, projectLocalization, publishedI18nSide, publishedI18nMap } from '../../services/i18n'
 import { pickAuditActorIds, resolveActorLabels, buildAudit, type AuditInfo } from '../../lib/actor'
 import { gatewayContextOf } from '../../gateway/request-context'
@@ -132,6 +133,12 @@ export const handleGetById = async (ctx: any) => {
 
     // ── Content: cache or Postgres ──────────────────────────────────────────
     let serialized: Record<string, unknown>
+    // The row as the database holds it. The address composes from this and not
+    // from the presented row: a relation expanded at depth is an object where
+    // the resolver wants an id, and a read mask may have taken the slug out of
+    // the response. Neither changes where the object lives.
+    let rawRow: Record<string, unknown>
+    const wantPath = query.includePath === 'true' || query.includePath === true
 
     const cached = cacheKey && !noCacheHeader ? await readObjectCache(redis, cacheKey) : null
 
@@ -172,6 +179,7 @@ export const handleGetById = async (ctx: any) => {
     }
 
     if (cached) {
+      rawRow = cached
       let result: Record<string, unknown>[] = [presentRow(cached)]
       result = await applyLocale(result, cached)
       if (!publicView && liveI18nFull) result = result.map((r) => ({ ...r, hasDraftChanges: computeHasDraftChanges(cached, typeDef, liveI18nFull) }))
@@ -191,7 +199,7 @@ export const handleGetById = async (ctx: any) => {
       result = await expandMediaDeep(result, typeDef, mediaRegistry, db, workspaceId, locale === 'all' ? null : locale)
       // Links resolve their target's CURRENT facts here; a public read never
       // resolves an unpublished one (Phase 6B, Units 6 and 11).
-      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale: locale === 'all' ? null : locale })
+      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale: locale === 'all' ? null : locale, pathDeps: pathDepsOf(ctx) })
       result = result.map(r => applyFieldAfterRead(getActiveBehaviorRegistry(), workspaceId, typeDef, r, afterReadCtx))
       // C5 read side: the response follows the CURRENT component definition.
       // Storage keeps what it was given; this only shapes what is shown.
@@ -220,6 +228,7 @@ export const handleGetById = async (ctx: any) => {
         await writeObjectCache(redis, cacheKey, rows[0] as Record<string, unknown>, ttl)
       }
 
+      rawRow = (rows as Record<string, unknown>[])[0]
       let result: Record<string, unknown>[] = [presentRow((rows as Record<string, unknown>[])[0])]
       result = await applyLocale(result, (rows as Record<string, unknown>[])[0])
       if (!publicView && liveI18nFull) result = result.map((r) => ({ ...r, hasDraftChanges: computeHasDraftChanges((rows as Record<string, unknown>[])[0], typeDef, liveI18nFull) }))
@@ -239,7 +248,7 @@ export const handleGetById = async (ctx: any) => {
       result = await expandMediaDeep(result, typeDef, mediaRegistry, db, workspaceId, locale === 'all' ? null : locale)
       // Links resolve their target's CURRENT facts here; a public read never
       // resolves an unpublished one (Phase 6B, Units 6 and 11).
-      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale: locale === 'all' ? null : locale })
+      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale: locale === 'all' ? null : locale, pathDeps: pathDepsOf(ctx) })
       result = result.map(r => applyFieldAfterRead(getActiveBehaviorRegistry(), workspaceId, typeDef, r, afterReadCtx))
       // C5 read side: the response follows the CURRENT component definition.
       // Storage keeps what it was given; this only shapes what is shown.
@@ -260,6 +269,17 @@ export const handleGetById = async (ctx: any) => {
     }
     // K4.4: content.serialize@1 - the row as it will be returned.
     ;[serialized] = await applyContentSerialize({ workspaceId, typeName, rows: [serialized], status: (query.status as string | undefined) ?? null, context: { exec: ctx.exec ?? null } })
+
+    // ?includePath=true: the object's address, composed per read and never
+    // stored, so a renamed ancestor corrects it at once. The template - the
+    // same address with `:slug` left as a hole - is what the editor draws its
+    // slug box into, so it rides a member read only.
+    if (wantPath) {
+      const [facts] = await pathFactsFor([rawRow], typeName, pathDepsOf(ctx), {
+        locale: locale === 'all' ? null : locale, template: isAdminCall,
+      })
+      serialized = { ...serialized, ...facts }
+    }
 
     // ── Extension data ───────────────────────────────────────────────────────
     // Included by default. Pass ?includeExtensionData=false to skip.

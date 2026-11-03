@@ -195,6 +195,14 @@ export async function readManifestContentTypes(manifest: ResolvedManifest): Prom
       + `  ${e instanceof Error ? e.message : String(e)}`,
     )
   }
+  // `importManifestEntry` answers null when the specifier resolved to nothing,
+  // and reading `.default` off that threw a TypeError with no mention of the
+  // extension or the path. Same refusal as the catch above, which is the
+  // message an author can act on.
+  if (!mod) {
+    const tried = manifestEntrySpecifiers(manifest, declared, 'contentTypes').join(' or ')
+    throw new Error(`extension "${manifest.id}": could not load contentTypes from "${declared}" (${tried})`)
+  }
   const value = (mod.default ?? mod) as unknown
   if (!Array.isArray(value)) {
     throw new Error(`extension "${manifest.id}": "${declared}" must default-export an array of content types`)

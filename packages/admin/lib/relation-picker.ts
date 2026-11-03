@@ -1,48 +1,26 @@
 /**
  * File Name: relation-picker.ts
- * Purpose: Utilities for the relation-field picker modal — query building, ID toggle,
- *   and status badge rendering for candidate content records.
+ * Purpose: What a relation picker needs beyond the shared query layer: the
+ *   status filter's vocabulary, the id toggle, and the label and tone of a
+ *   content status.
  *
  * Author: Raghunath J
  * License: MIT
  *
- * Dependencies/Notes: None
+ * Dependencies/Notes: Query building moved to lib/pickable-objects.ts, which
+ *          every entry picker shares. See the note below.
  */
 
 export type RelationStatusFilter = 'all' | 'draft' | 'published' | 'archived'
 
-/** The body of `POST /objects/<type>/query`: only keys the query validation accepts (the type is in the path). */
-export interface RelationQuery {
-  limit: number
-  offset: number
-  /** A status, or `any` for every status including archived. */
-  status: string
-  query?: Record<string, unknown>
-}
-
-/**
- * Constructs a RelationQuery for fetching candidate records, applying search text and status filters.
- * @param targetType - The content type name to query
- * @param search - Free-text search string matched against the title field
- * @param statusFilter - Status filter to apply; "all" asks for `any`
- * @param offset - Pagination offset (default 0)
- * @returns A RelationQuery ready to pass to the objects API
+/*
+ * `buildRelationQuery` lived here and is gone. It hard-coded `limit: 20` with
+ * an `offset` parameter that both relation pickers only ever passed as 0, so
+ * every relation field offered the first 20 entries of its target type and no
+ * way to reach the 21st. The pickers share `pickerQueryBody` with the object
+ * and link pickers now, which pages, sorts and carries a field's filter -
+ * see lib/pickable-objects.ts. A source gate keeps them on it.
  */
-export function buildRelationQuery(
-  targetType: string,
-  search: string,
-  statusFilter: RelationStatusFilter,
-  offset = 0,
-  filter?: Record<string, unknown>,
-): RelationQuery {
-  const trimmed = search.trim()
-  const q: RelationQuery = { limit: 20, offset, status: statusFilter === 'all' ? 'any' : statusFilter }
-  // The field's config.filter restricts candidates; the search rides on top of it.
-  const query: Record<string, unknown> = { ...(filter ?? {}) }
-  if (trimmed) query.title = { contains: trimmed }
-  if (Object.keys(query).length > 0) q.query = query
-  return q
-}
 
 /**
  * Adds id to the array if absent, removes it if present; used for multi-select relation fields.
@@ -56,25 +34,32 @@ export function toggleId(ids: string[], id: string): string[] {
 
 export interface StatusBadge {
   label: string
-  className: string
+  /** A `Badge` variant from `@tangen/ui`, not a class string. */
+  variant: 'default' | 'neutral' | 'success' | 'error' | 'warning' | 'info'
 }
 
 /**
- * Returns the display label and Tailwind class string for a given content status.
- * @param status - Content status string (e.g. "published", "draft", "archived", "staged")
- * @returns StatusBadge with a label and Tailwind className
+ * The label and `Badge` variant for a content status.
+ *
+ * This used to return a Tailwind class string, and those strings painted raw
+ * palette steps - a fixed green fill, fixed green text, a fixed green border -
+ * which the design system's own Badge doc says a badge must never do, because
+ * a palette step is one colour and a surface has two themes. Naming the
+ * VARIANT keeps the colour decision in the design system, where dark mode is
+ * already answered.
  */
 export function statusBadge(status: string): StatusBadge {
   switch (status) {
     case 'published':
-      return { label: 'Published', className: 'bg-green-50 text-green-700 border-green-200' }
+      return { label: 'Published', variant: 'success' }
     case 'draft':
-      return { label: 'Draft', className: 'bg-surface-hover text-fg-muted border-border' }
+      return { label: 'Draft', variant: 'neutral' }
     case 'archived':
-      return { label: 'Archived', className: 'bg-orange-50 text-orange-700 border-orange-200' }
+      return { label: 'Archived', variant: 'warning' }
     case 'staged':
-      return { label: 'Staged', className: 'bg-accent-muted text-accent-fg border-indigo-200' }
+      return { label: 'Staged', variant: 'default' }
     default:
-      return { label: status, className: 'bg-surface-hover text-fg-muted border-border' }
+      // An unknown status is shown as it arrived rather than guessed at.
+      return { label: status, variant: 'neutral' }
   }
 }

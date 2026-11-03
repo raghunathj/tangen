@@ -17,6 +17,8 @@ import path from 'path'
 import { appUiRegistryPlugin } from './vite-plugin-app-ui.ts'
 import { extensionPanelsPlugin, extensionRuntimeDependencies } from './vite-plugin-extension-panels.ts'
 import { fieldTypeUiPlugin } from './vite-plugin-field-type-ui.ts'
+import { devSourceCachePlugin } from './vite-dev-cache.ts'
+import { isBenignProxyDisconnect } from './vite-log-filter.ts'
 
 // Vite's config loader runs in Node CJS context — ESM-only packages (@logtape/logtape)
 // and workspace TS sources can't be required. Inline the same format LogTape uses so
@@ -81,8 +83,13 @@ function makeLogger(): ViteLogger {
       this.warn(msg)
     },
 
-    error(msg: string, _options?: LogErrorOptions) {
-      write('error', msg)
+    error(msg: string, options?: LogErrorOptions) {
+      const m = strip(msg)
+      // A proxied socket losing its peer is a reload, not a fault. See
+      // `isBenignProxyDisconnect`: every other proxy error still prints,
+      // because ECONNREFUSED here means the API is not running.
+      if (isBenignProxyDisconnect(m, (options?.error as Error | undefined)?.message)) return
+      write('error', m)
     },
 
     clearScreen(_type: LogType) {
@@ -134,8 +141,7 @@ const monorepoAliases = IN_MONOREPO ? {
 // re-optimizes and 504s ("Outdated Optimize Dep") every module the browser
 // already holds. Kill the churn: no discovery, pre-bundle the real deps.
 const adminPkg = JSON.parse(readFileSync(path.resolve(import.meta.dirname, 'package.json'), 'utf8')) as { dependencies?: Record<string, string> }
-// @tiptap/pm exports only subpaths (no "."), so it can't be force-included.
-const TOOLING = new Set(['vite', 'tailwindcss', '@tailwindcss/forms', '@tailwindcss/postcss', '@vitejs/plugin-react', '@types/react', '@types/react-dom', '@tiptap/pm'])
+const TOOLING = new Set(['vite', 'tailwindcss', '@tailwindcss/forms', '@tailwindcss/postcss', '@vitejs/plugin-react', '@types/react', '@types/react-dom'])
 const consumerOptimizeDeps = {
   noDiscovery: true,
   include: [
@@ -203,6 +209,12 @@ export default defineConfig(({ command }) => ({
   optimizeDeps: IN_MONOREPO ? undefined : consumerOptimizeDeps,
   customLogger: makeLogger(),
   plugins: [
+    // Must come before anything that responds: in a consumer install the
+    // admin's own source carries the dep-optimizer's `?v=` and Vite serves any
+    // versioned URL `immutable` for a year, while that hash is derived from
+    // the lockfile rather than the file - so a patched file keeps the old URL
+    // and the browser keeps the old module. See vite-dev-cache.ts.
+    devSourceCachePlugin(),
     ...(IN_MONOREPO ? [] : [internalSpecifierRewrite(path.resolve(import.meta.dirname))]),
     react(),
     appUiRegistryPlugin(APP_ROOT),

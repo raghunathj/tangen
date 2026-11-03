@@ -68,7 +68,7 @@ import { getLogger } from '@tangen/logging'
 import type { WorkspaceProject } from '@tangen/types'
 import { RequestError } from '../lib/errors'
 import { effectiveGatewayPolicy } from './effective-policy'
-import type { ResolvedGatewayPolicy } from './resolve-config'
+import { RATE_LIMIT_DEFAULT_NOTE, type ResolvedGatewayPolicy } from './resolve-config'
 import { adjustOrOpen, hitOrOpen, type RateLimitStore } from './rate-limit/store'
 import { observeRateLimit, type RateLimitObservation } from './rate-limit'
 import { countConnectionOpened, type ConnectionClosed } from './connection-log'
@@ -257,7 +257,7 @@ let current: ReturnType<typeof realtimeHubGate> | null = null
  */
 export function installRealtimeLimits(opts: RealtimeLimitsOptions): RealtimeGate {
   current = realtimeHubGate(opts)
-  logger.debug(`realtime ceilings: counted in the ${opts.store.kind} store${opts.store.distributed ? '' : ' (one process only)'}; enforcement follows gateway.rateLimit.enabled per workspace, default observe`)
+  logger.debug(`realtime ceilings: counted in the ${opts.store.kind} store${opts.store.distributed ? '' : ' (one process only)'}; enforcement follows gateway.rateLimit.enabled per workspace, ${RATE_LIMIT_DEFAULT_NOTE}`)
   return current
 }
 

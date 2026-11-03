@@ -84,7 +84,7 @@ export async function serveStaticMedia(
   if (!streamed) return new Response('Not found', { status: 404 })
 
   const mimeType = EXT_MIME[extname(requestedPath).toLowerCase()] ?? 'application/octet-stream'
-  return new Response(streamed.body as BodyInit, {
+  return new Response(streamed.body, {
     headers: { 'Content-Type': mimeType, 'Cache-Control': 'public, max-age=31536000, immutable', ...hardeningHeaders(mimeType) },
   })
 }

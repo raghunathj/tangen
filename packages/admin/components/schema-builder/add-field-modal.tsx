@@ -10,7 +10,7 @@
  */
 import { useMemo, useState } from 'react'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { IconSearch } from '@tangen/icons'
 import { Button, Input } from '@/kit'
@@ -55,11 +55,15 @@ export function AddFieldModal({ open, onOpenChange, onPick, title = 'Add a field
           <DialogDescription>Choose a field type to add. You can rename and configure it next.</DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 pt-4">
-          <Input autoFocus value={q} onChange={(e) => setQ(e.currentTarget.value)} placeholder="Search field types…" icon={<IconSearch className="size-3.5" />} aria-label="Search field types" />
-        </div>
+        <DialogBody className="flex flex-col p-0">
+          {/* px-5, the gutter the header and footer sit on. These were px-6
+              INSIDE the automatic body's px-5, so they sat at 44px under a
+              20px header and were 4px out of line even discounting that. */}
+          <div className="shrink-0 px-5 pt-4">
+            <Input autoFocus value={q} onChange={(e) => setQ(e.currentTarget.value)} placeholder="Search field types…" icon={<IconSearch className="size-3.5" />} aria-label="Search field types" />
+          </div>
 
-        <div className="px-6 py-4 max-h-[26rem] overflow-y-auto space-y-5">
+          <div className="px-5 py-4 max-h-[26rem] overflow-y-auto space-y-5">
           {groups.length === 0 && customMatches.length === 0 && (
             <div className="text-sm text-fg-subtle text-center py-8">No field types match “{q}”.</div>
           )}
@@ -102,7 +106,8 @@ export function AddFieldModal({ open, onOpenChange, onPick, title = 'Add a field
               </div>
             </div>
           )}
-        </div>
+          </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )

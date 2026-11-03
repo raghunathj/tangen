@@ -93,7 +93,7 @@ const CAPABILITIES: Partial<Record<FieldType, Control[]>> = {
   url: [...TEXTUAL, { path: 'config.validation.httpsOnly', label: 'HTTPS only', kind: 'toggle' }],
   phone: [{ path: 'config.validation.e164', label: 'Enforce E.164', kind: 'toggle' }],
   richtext: [
-    { path: 'config.toolbar', label: 'Toolbar', kind: 'select', choices: [{ label: 'Basic (default)', value: 'basic' }, { label: 'Advanced', value: 'advanced' }], help: 'Basic = bold/italic/headings/lists/link. Advanced adds code, quotes, HR, undo/redo, HTML view.' },
+    { path: 'config.toolbar', label: 'Toolbar', kind: 'select', choices: [{ label: 'Basic', value: 'basic' }, { label: 'Advanced (default)', value: 'advanced' }], help: 'Advanced is everything: code, quotes, HR, undo/redo and the HTML view. Basic narrows it to bold/italic/headings/lists/link.' },
     { path: 'config.media', label: 'Allow embedded images', kind: 'toggle' },
   ],
   number: [
@@ -161,7 +161,7 @@ const CAPABILITIES: Partial<Record<FieldType, Control[]>> = {
     { path: 'config.allowedTargets', label: 'Linkable content types', kind: 'typeRefMulti', help: 'Which types an internal link may point at. Empty = every type.' },
     { path: 'config.anchor', label: 'Allow an anchor', kind: 'toggle', defaultOn: true, help: 'A fragment on the destination, stored without the # (e.g. team).' },
     { path: 'config.query', label: 'Allow query parameters', kind: 'toggle', defaultOn: true },
-    { path: 'config.validation.allowedSchemes', label: 'Allowed URL schemes', kind: 'stringList', placeholder: 'https', help: 'External links only. Empty = https, http, mailto, tel. javascript: and data: are never accepted.' },
+    { path: 'config.validation.allowedSchemes', label: 'Allowed URL schemes', kind: 'stringList', placeholder: 'https', help: 'External links only. Empty = https, http, mailto, tel. Add one to accept a deep link, e.g. whatsapp. javascript:, data: and file: are refused whatever is listed here.' },
     { path: 'config.validation.httpsOnly', label: 'HTTPS only', kind: 'toggle', help: 'External links must start with https://.' },
     { path: 'config.validation.allowedDomains', label: 'Allowed domains', kind: 'stringList', placeholder: 'example.com' },
   ],

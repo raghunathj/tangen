@@ -13,6 +13,7 @@ import { TableRoot, Table, TableHead, TableHeaderCell, TableBody, TableRow, Tabl
 import { useAuthStore } from '@/lib/auth'
 import { usePresenceWatch } from '@/lib/realtime'
 import { RowPresence } from '@/components/object-list/RowPresence'
+import { AncestorPrefix, type AncestorRef } from '@/components/object-list/ancestor-prefix'
 import { useCan } from '@/lib/use-can'
 import { toast } from '@/lib/toast'
 import { adminFetch } from '@/lib/api'
@@ -31,7 +32,7 @@ import { FilterBar } from '@/components/object-list/filter-bar'
 import { SaveViewDialog } from '@/components/object-list/save-view-dialog'
 import type { FilterState, SavedView, FilterableField, FieldFilter, DateFilters } from '@/components/object-list/types'
 import type { ListViewColumns } from '@tangen/types'
-import { activeFields } from '@tangen/types'
+import { activeFields, singularLabel } from '@tangen/types'
 import { FILTERABLE_FIELD_TYPES } from '@/components/object-list/types'
 import { format, parseISO } from 'date-fns'
 import { TaxonomyTree } from '@/components/taxonomy/TaxonomyTree'
@@ -374,7 +375,7 @@ function MultiLocaleTitleCell({
             {title ? (
               <span className="text-sm text-fg truncate" title={title}>{title}</span>
             ) : (
-              <span className="text-xs text-fg-faint italic">not translated</span>
+              <span className="text-xs text-fg-subtle italic">not translated</span>
             )}
           </div>
         )
@@ -397,7 +398,7 @@ function BooleanCell({ value }: { value: unknown }) {
 // Media: small thumbnail for images, generic file indicator for others
 function MediaCell({ value }: { value: unknown }) {
   if (!value || typeof value !== 'object') return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-fg-faint">
+    <span className="inline-flex items-center gap-1 text-[11px] text-fg-subtle">
       <IconFileText className="size-4 shrink-0" />
       No file
     </span>
@@ -596,6 +597,10 @@ export default function ObjectListPage() {
   }, [statusFilter, search, page, activeViewId, fieldFilters, dateFilters, localeFilters, labelFilters, labelsOp, setSearchParams])
 
   const label = typeDef?.admin?.menu?.label ?? typeDef?.label ?? params.typeName
+  // A collection label is a PLURAL ('Posts'), so a button that creates one
+  // item has to say the singular or it reads "New Posts". Declared wins,
+  // because English irregulars are not inflectable ('People' -> 'Person').
+  const one = typeDef?.admin?.labelSingular ?? singularLabel(label)
 
   // Singletons never show a list — land straight in the one editor
   // (existing row when there is one, otherwise the pre-titled New form).
@@ -626,7 +631,7 @@ export default function ObjectListPage() {
       <Button icon={<IconPlus className="size-[15px]" />} size="xs" onClick={() =>
         navigate(`/${params.workspaceId}/objects/${params.typeName}/new`)
       }>
-        New {label}
+        New {one}
       </Button>
     ) : null,
   }, [label, typeDef, params.workspaceId, params.typeName, canWrite])
@@ -766,7 +771,8 @@ export default function ObjectListPage() {
             )
           }
           return (
-            <span className="inline-flex items-center">
+            <span className="inline-flex min-w-0 items-center">
+              <AncestorPrefix ancestors={row._ancestors as AncestorRef[] | undefined} />
               <TitleCell title={String(row.title ?? '')} id={row.id} />
               <RowPresence typeSlug={params.typeName as string} objectId={row.id} currentMemberId={member?.memberId ?? null} />
             </span>
@@ -890,6 +896,12 @@ export default function ObjectListPage() {
       // Locales filter — one locale overlays the rows; several attach per-row
       // i18n maps so the title column can stack every selected language
       ...(localeFilters.length > 0 ? { locale: localeFilters.join(',') } : {}),
+      // A hierarchical type shows where each row SITS as a prefix on its
+      // title. The chain has to come from the server: this list is paginated
+      // like any other, so a row's parent may be on another page, and working
+      // it out from the rows in hand is what made the old tree show a child as
+      // a top-level row under any search, filter, or page 2.
+      ...(isTaxonomyHierarchical ? { includeAncestors: true } : {}),
     }
     if (sortConfig) {
       body.sort = {
@@ -920,7 +932,7 @@ export default function ObjectListPage() {
     } finally {
       setLoading(false)
     }
-  }, [accessToken, params.typeName, statusFilter, debouncedSearch, fieldFilters, dateFilters, page, pageLimit, sortConfig, localeFilters, labelFilters, labelsOp])
+  }, [accessToken, params.typeName, statusFilter, debouncedSearch, fieldFilters, dateFilters, page, pageLimit, sortConfig, localeFilters, labelFilters, labelsOp, isTaxonomyHierarchical])
 
   useEffect(() => { fetchObjects() }, [fetchObjects])
 
@@ -1198,7 +1210,7 @@ export default function ObjectListPage() {
       {/* Both listings are flush and fill the column (calibration, "Lists"):
           the table scrolls in its own viewport, the taxonomy tree in its own. */}
       <div className="flex min-h-0 flex-1 flex-col">
-        {(isTaxonomyHierarchical && taxonomyParentField) ? (
+        {(isTaxonomyHierarchical && isTaxonomyOrderable && taxonomyParentField) ? (
           // ── Taxonomy: hierarchical drag-drop tree ──────────────────────────
           <>
             <ViewBar
@@ -1275,7 +1287,7 @@ export default function ObjectListPage() {
                     <Button icon={<IconPlus className="size-3.5" />} size="xs" onClick={() =>
                       navigate(`/${params.workspaceId}/objects/${params.typeName}/new`)
                     }>
-                      New {label}
+                      New {one}
                     </Button>
                   )}
                 </div>
@@ -1394,7 +1406,7 @@ export default function ObjectListPage() {
                 <Button icon={<IconPlus className="size-3.5" />} size="xs" onClick={() =>
                   navigate(`/${params.workspaceId}/objects/${params.typeName}/new`)
                 }>
-                  New {label}
+                  New {one}
                 </Button>
               ) : undefined,
             }}

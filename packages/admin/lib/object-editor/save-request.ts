@@ -12,6 +12,7 @@
  * Dependencies/Notes: buildUpdateBody from lib/editor; ApiError from lib/api.
  */
 import type { FieldDefinition } from '@tangen/types'
+import { canonicalEqual } from '../draft-changes'
 import { ApiError } from '@/lib/api'
 import { buildUpdateBody } from '@/lib/editor'
 
@@ -50,6 +51,11 @@ export function buildSaveRequest(input: SaveRequestInput): SaveRequest {
   }
   const query: Record<string, string> = {}
   if (input.isAuto) query.noRevision = '1'
+  // The save is the one edit that can MOVE a page: a new parent is a new
+  // address, and only the server knows the ancestors' slugs. Asking here
+  // refreshes the editor's URL preview from the response it was already
+  // waiting for, instead of a second request after every autosave.
+  query.includePath = 'true'
   const headers: Record<string, string> = {}
   if (input.etag) headers['If-Match'] = input.etag
   return { body, query, headers }
@@ -103,6 +109,23 @@ export function editableDraft(panelData: unknown): unknown {
     }
   }
   return panelData ?? {}
+}
+
+/**
+ * Whether a panel's emitted data differs from what it currently holds - the
+ * guard in front of `setHasPendingPanelChanges`.
+ *
+ * A panel re-emitting the data it was GIVEN must not read as an edit, or a
+ * published object shows "changes in draft" the moment any panel mounts or
+ * re-initialises, and stays that way until a reload. The trap is the same
+ * shape boundary the dirty check and the publish snapshot already normalize
+ * for: panel data arrives from the read WRAPPED (`{ draft, published,
+ * schemaVersion }`) while a panel emits its bare draft, so comparing the two
+ * raw can never be equal. Both sides go through `editableDraft` first, and
+ * the compare is canonical because an emit need not preserve key order.
+ */
+export function panelDataChanged(emitted: unknown, current: unknown): boolean {
+  return !canonicalEqual(editableDraft(emitted), editableDraft(current))
 }
 
 /**

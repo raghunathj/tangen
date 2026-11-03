@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-seo",
-  "version": "0.2.1",
+  "version": "0.2.5",
   "description": "Production SEO for a Tangen site: metadata, canonical URLs, robots, sitemaps, redirects and structured data",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -31,11 +31,11 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*",
-    "@tangen/icons": "*",
-    "@tangen/ui": "*",
+    "@tangen/cms": "^0.2.4",
+    "@tangen/icons": "^0.1.2",
+    "@tangen/ui": "^0.2.6",
     "react": "*",
-    "@tangen/sdk": "*"
+    "@tangen/sdk": "^0.4.0"
   },
   "dependencies": {
     "clsx": "^2.1.1"
@@ -49,7 +49,7 @@
     "bun-types": "^1.1.0",
     "react": "^18.3.1",
     "@tangen/icons": "workspace:^",
-    "react-router-dom": "^7.18.0",
+    "react-router-dom": "^7.18.4",
     "@tangen/sdk": "workspace:^"
   }
 }

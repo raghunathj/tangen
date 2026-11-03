@@ -56,6 +56,9 @@ export const FACILITY_FAMILIES = [
   'db', 'ai', 'jobs', 'routes', 'events', 'filters', 'admin', 'flow', 'mcp', 'telemetry', 'storage', 'translation', 'graphql', 'hooks',
   'secrets', 'connections', 'network', 'interceptors', 'store', 'mail', 'realtime', 'delegation',
   'filesystem', 'process', 'runtime',
+  // A richtext node declaration (richtext:contribute-nodes). Data only: the
+  // platform renders the declaration, so no extension code runs in a document.
+  'richtext',
 ] as const
 
 /**

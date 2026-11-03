@@ -33,6 +33,18 @@ export type OpSafety = 'safe' | 'needs-confirm' | 'blocked'
 const WIRE: Record<string, OpSafety> = { safe: 'safe', destructive: 'needs-confirm', ambiguous: 'blocked' }
 
 /** Never decides anything: plan-ops classifies, this renames. */
+/**
+ * One line for an address change. A pattern is the interesting case; the other
+ * two say what they are, because "{"fn":true}" in a plan is not a sentence.
+ */
+export function describePath(path: { pattern?: string; root?: string; field?: string; fn?: boolean } | null): string {
+  if (!path) return 'address: none'
+  if (path.fn === true) return 'address: built in code'
+  if (typeof path.field === 'string') return `address: from the "${path.field}" field`
+  const root = path.root ? `, root "${path.root}"` : ''
+  return `address: ${path.pattern}${root}`
+}
+
 export function classifyOp(op: ChangeOperation): OpSafety {
   return WIRE[classifyOperation(op).risk]!
 }
@@ -163,10 +175,14 @@ export function planToJson(plan: ChangePlan, migrations: PlanMigrations = { stat
         changed.push({ op: op.op, safety, detail: op.disabled ? 'disabled (content APIs 404)' : 're-enabled' }); break
       case 'UPDATE_TYPE_PLURAL':
         changed.push({ op: op.op, safety, detail: op.plural ? `plural: ${op.plural}` : 'plural: (inferred)' }); break
+      case 'UPDATE_TYPE_PATH':
+        changed.push({ op: op.op, safety, type: op.typeName, detail: describePath(op.path) }); break
       case 'UPDATE_TYPE_LABEL':
         changed.push({ op: op.op, safety, type: op.typeName, detail: `label: ${op.label}` }); break
       case 'UPDATE_TYPE_ADMIN_CONFIG':
         changed.push({ op: op.op, safety, detail: 'admin config updated' }); break
+      case 'SET_FIELD_ORDER':
+        changed.push({ op: op.op, safety, type: op.typeName, detail: 'field order follows the schema file' }); break
       case 'UPDATE_TYPE_PROVIDED_BY':
         changed.push({ op: op.op, safety, type: op.typeName, detail: describeProvidedBy(op.providedBy) }); break
     }
@@ -398,8 +414,12 @@ function printContentOps(plan: ChangePlan): void {
         console.log(`       ${sym.change} ${c.dim(`localized: ${op.localized}`)}`)
       } else if (op.op === 'UPDATE_TYPE_PLURAL') {
         console.log(`       ${sym.change} ${c.dim(op.plural ? `plural: ${op.plural}` : 'plural: (inferred)')}`)
+      } else if (op.op === 'UPDATE_TYPE_PATH') {
+        console.log(`       ${sym.change} ${c.dim(describePath(op.path))}`)
       } else if (op.op === 'UPDATE_TYPE_ADMIN_CONFIG') {
         console.log(`       ${sym.change} ${c.dim('admin config updated')}`)
+      } else if (op.op === 'SET_FIELD_ORDER') {
+        console.log(`       ${sym.change} ${c.dim('field order follows the schema file')}`)
       } else if (op.op === 'UPDATE_TYPE_PROVIDED_BY') {
         console.log(`       ${sym.change} ${c.dim(describeProvidedBy(op.providedBy))}`)
       } else if (op.op === 'CREATE_SINGLETON_OBJECT') {

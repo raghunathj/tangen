@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-auth",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "description": "Site users for a Tangen site: email and password, one-time codes by email or SMS, SSO (Google, GitHub, any OpenID Connect provider), anonymous sessions, profile fields, and the admin to manage them",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -30,9 +30,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*",
-    "@tangen/icons": "*",
-    "@tangen/ui": "*",
+    "@tangen/cms": "^0.2.4",
+    "@tangen/icons": "^0.1.2",
+    "@tangen/ui": "^0.2.6",
     "drizzle-orm": "*",
     "jose": "*",
     "react": "*"

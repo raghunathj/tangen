@@ -7,6 +7,7 @@
  *
  * Dependencies/Notes: Depends on the HttpClient interface from client.ts.
  */
+import type { LocaleCode } from '@tangen/types'
 import type { HttpClient } from './client'
 import { TangenError } from './errors'
 
@@ -17,7 +18,32 @@ export class GlobalsAccessor<T = Record<string, unknown>> {
   constructor(
     private readonly http: HttpClient,
     private readonly name: string,
+    private readonly localeCode?: string,
   ) {}
+
+  /**
+   * Serve this global's fields in the given locale (per-field fallback to the
+   * default locale is the route's own). `'all'` answers every locale's values
+   * at once, which is what the route serves for a translation tool.
+   *
+   * Returns a NEW accessor, like ObjectQueryBuilder.locale, so the accessor it
+   * is called on keeps serving the default locale and one reference can serve
+   * several locales in the same render.
+   * @param code - A locale code from the workspace config, or 'all'.
+   */
+  locale(code: LocaleCode | 'all'): GlobalsAccessor<T> {
+    return new GlobalsAccessor<T>(this.http, this.name, code)
+  }
+
+  /**
+   * This global's path, with the locale as a query parameter when one was
+   * chosen. The locale is encoded, so a value carrying an `&` cannot smuggle a
+   * second parameter onto the request.
+   */
+  private path(): string {
+    const base = `/globals/${encodeURIComponent(this.name)}`
+    return this.localeCode ? `${base}?locale=${encodeURIComponent(this.localeCode)}` : base
+  }
 
   /**
    * Reads all field values for this global.
@@ -25,27 +51,32 @@ export class GlobalsAccessor<T = Record<string, unknown>> {
    * @throws TangenError(403) when the API key lacks the globals:read scope.
    */
   get(): Promise<T> {
-    return this.request('read', () => this.http.get(`/globals/${encodeURIComponent(this.name)}`))
+    return this.request('read', () => this.http.get(this.path()))
   }
 
   /**
-   * Shallow-merges the given data into this global's stored values.
+   * Shallow-merges the given data into this global's stored values. Under
+   * `.locale(code)` this writes that locale's translation of the given keys.
    * @param data - Partial field values to merge
    * @returns The updated stored values
    * @throws TangenError(403) when the API key lacks the globals:write scope.
    */
   patch(data: Partial<T>): Promise<T> {
-    return this.request('write', () => this.http.patch(`/globals/${encodeURIComponent(this.name)}`, data))
+    return this.request('write', () => this.http.patch(this.path(), data))
   }
 
   /**
    * Fully replaces this global's stored values with the given data.
+   *
+   * A full replace has no per-locale form: the route refuses PUT with a locale
+   * (422) and names PATCH as the way to write a translation. That rule is left
+   * where it is enforced rather than copied here, so the two cannot drift.
    * @param data - Complete field values to write
    * @returns The updated stored values
    * @throws TangenError(403) when the API key lacks the globals:write scope.
    */
   set(data: T): Promise<T> {
-    return this.request('write', () => this.http.put(`/globals/${encodeURIComponent(this.name)}`, data))
+    return this.request('write', () => this.http.put(this.path(), data))
   }
 
   /**

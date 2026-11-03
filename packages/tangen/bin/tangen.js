@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * File Name: tangen.js
- * Purpose: `npm i @tangen/cms` is all a backend project needs — the package
+ * Purpose: `npm i @tangen/cms` is all a backend project needs - the package
  *          carries the `tangen` bin and delegates to @tangen/cli (a regular
  *          dependency). One package to install, one CLI to run.
  *
@@ -22,7 +22,7 @@ const bin = join(dirname(cliPkgPath), binRel)
 // (tangen.config.ts), uses Bun APIs, and bun auto-loads the project's .env.
 const probe = spawnSync('bun', ['--version'], { stdio: 'ignore' })
 if (probe.error) {
-  console.error('tangen: bun is required (https://bun.sh) — install it and re-run.')
+  console.error('tangen: bun is required (https://bun.sh) - install it and re-run.')
   process.exit(1)
 }
 const res = spawnSync('bun', [bin, ...process.argv.slice(2)], { stdio: 'inherit' })

@@ -35,6 +35,7 @@ import {
 import { stripDisabledBlocks } from '../../lib/strip-disabled'
 import { fieldAccessContext, restrictedReadFields, applyFieldAccessMask } from '../../lib/field-access'
 import { applyContentSerialize } from '../../services/content-filters'
+import { pathDepsOf, pathFactsFor } from '../../services/path-resolver'
 import { resolveReadLocales, filterI18nMap, buildI18nMap, fetchI18nRows, localizeRow, projectLocalization, publishedI18nSide, publishedI18nMap } from '../../services/i18n'
 import { gatewayContextOf } from '../../gateway/request-context'
 import { clampRead, readLimitsFor } from '../../gateway/read-limits'
@@ -131,6 +132,11 @@ export const handleGetBySlug = async (ctx: any) => {
     const mediaRegistry = ((workspaceProjects as any[] | undefined)?.find((p: any) => p.workspaceId === workspaceId)?.components ?? []) as never
 
     let serialized: Record<string, unknown>
+    // The row as stored: the address composes from the relation ids and the
+    // slug, which an expansion or a read mask may have taken out of the
+    // presented row (same rule as the by-id read).
+    let rawRow: Record<string, unknown>
+    const wantPath = query.includePath === 'true' || query.includePath === true
 
     async function applyLocale(rows: Record<string, unknown>[], raw: Record<string, unknown>): Promise<Record<string, unknown>[]> {
       if (!readLocales) return rows
@@ -159,6 +165,7 @@ export const handleGetBySlug = async (ctx: any) => {
     }
 
     if (cached) {
+      rawRow = cached
       let result: Record<string, unknown>[] = [presentRow(cached)]
       result = await applyLocale(result, cached)
       if (depth >= 1) {
@@ -175,7 +182,7 @@ export const handleGetBySlug = async (ctx: any) => {
       }
       result = normalizeManyRelationReads(normalizeRangeReads(result, typeDef.fields), typeDef.fields)
       result = await expandMediaDeep(result, typeDef, mediaRegistry, db, workspaceId, locale)
-      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale })
+      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale, pathDeps: pathDepsOf(ctx) })
       // C5 read side: the response follows the CURRENT component definition.
       result = result.map(r => projectComponentValues(typeDef, mediaRegistry as never, r))
       ;[serialized] = applySerialize(
@@ -202,6 +209,7 @@ export const handleGetBySlug = async (ctx: any) => {
         await writeObjectCache(redis, cacheKey, rows[0] as Record<string, unknown>, ttl)
       }
 
+      rawRow = (rows as Record<string, unknown>[])[0]
       let result: Record<string, unknown>[] = [presentRow((rows as Record<string, unknown>[])[0])]
       result = await applyLocale(result, (rows as Record<string, unknown>[])[0])
 
@@ -218,7 +226,7 @@ export const handleGetBySlug = async (ctx: any) => {
 
       result = normalizeManyRelationReads(normalizeRangeReads(result, typeDef.fields), typeDef.fields)
       result = await expandMediaDeep(result, typeDef, mediaRegistry, db, workspaceId, locale)
-      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale })
+      result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { publicView, locale, pathDeps: pathDepsOf(ctx) })
       // C5 read side: the response follows the CURRENT component definition.
       result = result.map(r => projectComponentValues(typeDef, mediaRegistry as never, r))
       ;[serialized] = applySerialize(
@@ -233,6 +241,13 @@ export const handleGetBySlug = async (ctx: any) => {
     }
     // K4.4: content.serialize@1 - the row as it will be returned.
     ;[finalData] = await applyContentSerialize({ workspaceId: ctx.workspaceId, typeName, rows: [finalData], status: (ctx.query?.status as string | undefined) ?? null, context: { exec: ctx.exec ?? null } })
+
+    // ?includePath=true, the same bargain as the by-id read: composed per
+    // read, absent unless asked, template for the editor only.
+    if (wantPath) {
+      const [facts] = await pathFactsFor([rawRow], typeName, pathDepsOf(ctx), { locale, template: isAdminCall })
+      finalData = { ...finalData, ...facts }
+    }
     return { data: finalData }
 }
 

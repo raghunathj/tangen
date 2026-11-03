@@ -18,6 +18,7 @@ import { resolveJwtSecret } from '../../lib/jwt-secret'
 import { buildRefreshCookie, isCrossSiteRequest } from '../../lib/refresh-cookie'
 import { enforceRateLimit } from '../../services/rate-limiter'
 import { memberHasActiveGrant } from '../../middleware/auth'
+import { clientIp, getTrustedProxy, socketAddressOf } from '../../lib/client-ip'
 
 export const ACCESS_TOKEN_TTL = 15 * 60  // 15 min (seconds) - the deadline login/refresh report
 const REFRESH_TOKEN_TTL_DAYS = 30
@@ -32,6 +33,27 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
   // A member created without a credential (desired state, a Porter import)
   // carries an unusable marker, not a hash: that is "wrong password", never a 500.
   try { return await Bun.password.verify(plain, hash) } catch { return false }
+}
+
+/**
+ * An Argon2id hash of nothing anyone knows, verified against when the email
+ * does not exist.
+ *
+ * Without it, a login for an unknown address answered in microseconds while
+ * one for a known address paid for an Argon2id verification, and that
+ * difference is a user-enumeration oracle: an attacker learns which addresses
+ * have accounts here without guessing a single password. Hardening from the
+ * security audit of 2026-10-28 (S7) - no boundary is crossed by knowing a
+ * member exists, but it is the first step of every credential attack and it
+ * costs one hash to remove.
+ *
+ * Minted once per process, lazily, so a deployment that never sees a failed
+ * login never pays for it. The password is random, so nothing can match it.
+ */
+let decoyHash: Promise<string> | null = null
+export function loginDecoyHash(): Promise<string> {
+  decoyHash ??= Bun.password.hash(randomBytes(32).toString('hex'), 'argon2id')
+  return decoyHash
 }
 
 export interface AccessTokenPayload {
@@ -114,6 +136,22 @@ export const loginRoute = (app: Elysia) =>
       await enforceRateLimit(redis, '_admin', `login:${email.trim().toLowerCase()}`, 5, 60)
     }
 
+    // And a window keyed on the CALLER, because the per-email one bounds
+    // guessing ONE account and says nothing about spraying one password
+    // across a thousand addresses - which is the attack that works on a
+    // member directory. Deliberately generous (60 a minute): a shared office
+    // address or a NAT is one IP for many real people, and a limit that locks
+    // them out is a worse outcome than the one it prevents. S7 of the
+    // security audit.
+    //
+    // Only when an address can be TRUSTED: `clientIp` answers null unless the
+    // operator declared their proxy, and a limit keyed on a header anyone can
+    // set is a limit an attacker clears by changing it.
+    const caller = clientIp(ctx.request, getTrustedProxy(), socketAddressOf(ctx))
+    if (caller) {
+      await enforceRateLimit(redis, '_admin', `login-ip:${caller}`, 60, 60)
+    }
+
     if (!email || !password) {
       throw new RequestError('VALIDATION_ERROR', 'email and password are required', 422)
     }
@@ -130,7 +168,16 @@ export const loginRoute = (app: Elysia) =>
       .where(whereClause)
       .limit(1)
 
-    const passwordOk = member ? await verifyPassword(password, member.passwordHash) : false
+    // A miss verifies against the DECOY and then fails anyway, so the response
+    // time does not say whether the address exists (S7). Written as two
+    // statements rather than a clever expression, because "verify, then
+    // discard the answer" is the whole point and has to survive a tidy-up.
+    let passwordOk = false
+    if (member) {
+      passwordOk = await verifyPassword(password, member.passwordHash)
+    } else {
+      await verifyPassword(password, await loginDecoyHash())
+    }
     if (!member || !passwordOk) {
       throw new RequestError('UNAUTHORIZED', 'Invalid email or password', 401)
     }

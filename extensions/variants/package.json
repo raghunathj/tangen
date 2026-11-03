@@ -19,9 +19,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*",
-    "@tangen/types": "*",
-    "@tangen/ui": "*",
+    "@tangen/cms": "^0.2.5",
+    "@tangen/types": "^0.5.0",
+    "@tangen/ui": "^0.2.8",
     "react": "*"
   },
   "devDependencies": {

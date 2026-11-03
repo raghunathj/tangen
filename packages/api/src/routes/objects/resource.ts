@@ -58,6 +58,8 @@ export const resourceQueryBodySchema = t.Object({
   serialize: t.Optional(t.Record(t.String(), t.Any())),
   locale: t.Optional(t.String()),
   includeLabels: t.Optional(t.Boolean()),
+  includePath: t.Optional(t.Boolean()),
+  includeAncestors: t.Optional(t.Boolean()),
   total: t.Optional(t.Boolean()),
 })
 
@@ -84,7 +86,7 @@ export function assertTypeExists(typeName: string, schema: SchemaDefinition): vo
 }
 
 /** Query params the GET-list route actually consumes. */
-const LIST_PARAMS = new Set(['status', 'limit', 'offset', 'depth', 'locale', 'sort', 'props', 'total'])
+const LIST_PARAMS = new Set(['status', 'limit', 'offset', 'depth', 'locale', 'sort', 'props', 'total', 'includePath', 'includeAncestors'])
 
 /** Params consumed by infrastructure before the handler (auth, env routing). */
 const INFRA_PARAMS = new Set(['env', 'key', 'type'])
@@ -151,6 +153,12 @@ export function parseListParams(
   }
 
   if (query.props) out.props = query.props.split(',').map((p) => p.trim()).filter(Boolean)
+
+  // Opt in only: anything other than a plain yes leaves the address off, so a
+  // stray `?includePath=0` cannot quietly buy a query.
+  if (query.includePath === 'true' || query.includePath === '1') out.includePath = true
+  // Same rule for the chain a row sits under: opt in, plain yes only.
+  if (query.includeAncestors === 'true' || query.includeAncestors === '1') out.includeAncestors = true
 
   return out
 }

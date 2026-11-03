@@ -22,7 +22,7 @@ import { jsonbParam, textArrayParam } from '../../lib/sql-values'
 import { resolveActorId, hookActor } from '../../lib/actor'
 import { assertObjectPermission } from '../../lib/permissions'
 import { assertStudioCssAllowed } from '../../lib/studio-css-gate'
-import { fieldAccessContext, restrictedWriteFields, stripRestrictedWrites, canWriteLocale, assertGrantedWrite } from '../../lib/field-access'
+import { canWriteLocale, enforceFieldWrites } from '../../lib/field-access'
 import { createRevision, upsertAutoSave } from '../../lib/revisions'
 import { isSlugUniqueViolation } from '../../lib/slugs'
 import { validateFieldValues, isUniqueField, collectFieldWarnings, normalizeRangeFieldValues } from '../../services/field-validator'
@@ -46,6 +46,7 @@ import { isSafeIdent } from '@tangen/types'
 import { projectToTableColumns } from '../../services/local-client'
 import { publishObject } from '../../services/publish-object'
 import { buildEvent, emitRecorded, attributionOf } from '../../kernel/events'
+import { pathFactsFor, pathDepsOf } from '../../services/path-resolver'
 
 function safeId(name: string): string {
   if (!isSafeIdent(name)) {
@@ -208,6 +209,13 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
     // ?noRevision=1 is sent by auto-save to avoid polluting version history
     const skipRevision = query.noRevision === '1'
     const trigger = skipRevision ? 'autosave' as const : 'manual' as const
+    // ?includePath=true answers with the object's composed address, the way a
+    // read does. A save is the one moment it can CHANGE - a new parent is a
+    // new address and only the server knows the ancestors' slugs - so the
+    // editor's URL preview refreshes from the response rather than paying for
+    // a second request. Opt in: a caller that does not draw an address pays
+    // nothing, and a type that declares no path costs no query either way.
+    const wantPath = query.includePath === 'true' || query.includePath === '1'
 
     // ── Locale-scoped write: translations go to the <type>_i18n side row ──────
     const project = (workspaceProjects as any[])?.find((p: any) => p.workspaceId === workspaceId)
@@ -231,9 +239,15 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
       assertObjectPermission(permissions, 'write', localizedTypeName!)
 
       const localeRegistry = ((ctx.workspaceProjects as any[] | undefined)?.find((p: any) => p.workspaceId === workspaceId)?.components ?? []) as never
-      const { sideValues, changedFields: localizedChanged } = buildLocalizedUpdate(localizedTypeDef, body as Record<string, unknown>, localeRegistry)
-      // K1.3: a grant allow-list covers every locale's fields alike.
-      assertGrantedWrite(sideValues, localizedTypeDef, fieldAccessContext(ctx))
+      const { sideValues: requestedSide, changedFields: requestedLocaleChanged } =
+        buildLocalizedUpdate(localizedTypeDef, body as Record<string, unknown>, localeRegistry)
+      // A translation is a write, so it meets the same gate: a grant allow-list
+      // covers every locale's fields alike (K1.3) and a role's write list
+      // strips them the same way. Only the allow-list half was here, which
+      // made `?locale=de` a way around a field ACL the base write enforced.
+      const { values: sideValues, restricted: localeRestricted } =
+        enforceFieldWrites(ctx, localizedTypeDef, requestedSide)
+      const localizedChanged = requestedLocaleChanged.filter((f: string) => !localeRestricted.has(f))
 
       // Validate translated values against the same field rules as the default locale
       const changedDefs = localizedTypeDef.fields.filter((f: any) => f.name in sideValues)
@@ -315,6 +329,11 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
       }, writer))
       runAfterChange(db, projects, { ...localizedHookCtx, savedData: localizedView }).catch(() => {})
       clearTypeQueryCache(redis, workspaceId, localizedTypeName!).catch(() => {})
+      // No address here on purpose: this is a TRANSLATION write, and a locale
+      // changes nothing about an address in v1 but its prefix (decision 8 of
+      // tasks/plan-content-paths.md - the slug is single-valued across
+      // locales). The editor's preview is the base address, which the base
+      // save below answers.
       return { data: { ...localizedView, type: localizedTypeName, locale: writeLocale, changedFields: localizedChanged } }
     }
 
@@ -326,17 +345,15 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
 
     assertObjectPermission(permissions, 'write', typeName)
 
-    // Field-level access: a grant allow-list refuses (K1.3); a role list strips.
-    const accessCtx = fieldAccessContext(ctx)
-    const typeDefForAccess = schema.types.find((t: any) => t.name === typeName)
-    assertGrantedWrite(prefilterUpdates, typeDefForAccess, accessCtx)
-    const restrictedW = restrictedWriteFields(typeDefForAccess, accessCtx)
-    const { values: updates, stripped: strippedFields } = stripRestrictedWrites(prefilterUpdates, restrictedW)
+    // Field-level access, through the one gate every write route uses: a grant
+    // allow-list refuses (K1.3); a role list strips.
+    const { values: updates, restricted: restrictedW } = enforceFieldWrites(
+      ctx,
+      schema.types.find((t: any) => t.name === typeName),
+      prefilterUpdates,
+    )
     // The fields the body named; which of them actually changed is decided after the write.
     const requestedFields = prefilterChanged.filter((f: string) => !restrictedW.has(f))
-    if (strippedFields.length > 0) {
-      ctx.set.headers['X-Tangen-Restricted-Fields'] = strippedFields.join(',')
-    }
 
     const table = (contentTables as Record<string, any>)[typeName]
     if (!table) {
@@ -691,7 +708,13 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
     // push guarded aside - which is a recovery artifact, not content (Unit 8).
     const [projected] = projectToTableColumns([rows[0] as Record<string, unknown>], table as never)
     const [responseRow] = coerceNumericFields([projected as Record<string, unknown>], typeDef2 as never)
-    return { data: { ...responseRow, type: typeName }, ...(Object.keys(warnings).length ? { warnings } : {}) }
+    // Composed from the RAW returned row, which is what the resolver wants:
+    // a relation here is still the id the pattern reads. The template is the
+    // editor's affordance, so only a member is given one.
+    const pathFacts = wantPath
+      ? (await pathFactsFor([rows[0] as Record<string, unknown>], typeName, pathDepsOf(ctx), { template: !!memberId }))[0]
+      : null
+    return { data: { ...responseRow, type: typeName, ...(pathFacts ?? {}) }, ...(Object.keys(warnings).length ? { warnings } : {}) }
 }
 
 

@@ -20,10 +20,11 @@
  *          reconcile* helpers at the bottom keep their old one-call shape for
  *          callers outside push (plan then execute on the given client).
  */
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import type { DbClient } from '@tangen/db'
 import { objectTypes, fields, workspaces, fullSchemaCacheKey, SCHEMA_CHANNEL } from '@tangen/db'
+import { storedPathOf } from '@tangen/types'
 import type { ChangePlan, ChangeOperation } from './types'
 import { evaluateDestructivePolicy } from './destructive-policy'
 import { classifyOperation, type MigrationRisk } from './plan-ops'
@@ -189,6 +190,9 @@ async function writeRegistry(tx: Tx, ops: ChangeOperation[]): Promise<void> {
       singleton: op.type.singleton ?? false,
       disabled: op.type.disabled ?? false,
       localized: (op.type as { localized?: boolean }).localized ?? false,
+      // The declared address in the one shape the column stores; null when the
+      // type declares none. A code-side function arrives as its marker.
+      path: storedPathOf(op.type.path) as never,
       previousNames: op.type.previousName ?? [],
       adminConfig: asConfigObject(op.type.admin) as any,
       // Which extension provisioned it (null = the site's own code). Stamped
@@ -235,7 +239,13 @@ async function writeRegistry(tx: Tx, ops: ChangeOperation[]): Promise<void> {
       fieldType: op.field.fieldType,
       config: asConfigObject(op.field.config) as any,
       previousNames: op.field.previousName ?? [],
-      position: i,
+      // The field's index in the DECLARED type. `i` - its index in the ops
+      // array, across every type in the push - was what this used to be, and
+      // it collided with the positions already stored on any type that also
+      // dropped a field, which left the editor drawing the form in an order
+      // nobody wrote. SET_FIELD_ORDER rewrites this moments later; the
+      // declared index is what makes the row sane on its own.
+      position: op.position ?? i,
       required: op.field.required ?? false,
       disabled: op.field.disabled ?? false,
     })
@@ -277,6 +287,11 @@ async function writeRegistry(tx: Tx, ops: ChangeOperation[]): Promise<void> {
       case 'UPDATE_TYPE_PLURAL':
         await tx.update(objectTypes).set({ plural: op.plural, updatedAt: new Date() }).where(eq(objectTypes.id, op.typeId))
         break
+      case 'UPDATE_TYPE_PATH':
+        // Registry only, no DDL: nothing is stored per row, so moving a
+        // pattern corrects every address under it at once (decision 13).
+        await tx.update(objectTypes).set({ path: op.path as never, updatedAt: new Date() }).where(eq(objectTypes.id, op.typeId))
+        break
       case 'UPDATE_TYPE_LABEL':
         await tx.update(objectTypes).set({ label: op.label, updatedAt: new Date() }).where(eq(objectTypes.id, op.typeId))
         break
@@ -304,7 +319,21 @@ async function writeRegistry(tx: Tx, ops: ChangeOperation[]): Promise<void> {
     await tx.delete(fields).where(eq(fields.id, op.fieldId))
   }
 
-  // Phase G: DROP_TYPE - fields before the type (fields.type_id references object_types.id)
+  // Phase G: SET_FIELD_ORDER - after the drops, so a removed field's position
+  // is not reserved, and after the renames, so `names` matches the rows by the
+  // name the schema file uses. A name with no row is skipped rather than
+  // failing the push: the order is presentation, and refusing a whole schema
+  // change over it would be the wrong trade.
+  for (const op of ops) {
+    if (op.op !== 'SET_FIELD_ORDER') continue
+    for (let i = 0; i < op.names.length; i++) {
+      await tx.update(fields)
+        .set({ position: i, updatedAt: new Date() })
+        .where(and(eq(fields.typeId, op.typeId), eq(fields.name, op.names[i]!)))
+    }
+  }
+
+  // Phase H: DROP_TYPE - fields before the type (fields.type_id references object_types.id)
   for (const op of ops) {
     if (op.op !== 'DROP_TYPE') continue
     await tx.delete(fields).where(eq(fields.typeId, op.typeId))

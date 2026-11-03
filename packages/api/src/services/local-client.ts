@@ -49,13 +49,14 @@ export type WorkspaceProjectLike = { workspaceId: string; [k: string]: unknown }
 import { compileBaseQuery, compileTableFilters, filterToSQL, conditionToSQL, buildSelectColumns, cursorToSQL, encodeCursor, referencedByToSQL, cursorSortSelection, cursorSortValue, CURSOR_SORT } from './query-compiler'
 import { resolveCustomTablePg, assertKnownColumns, normalizeTableWriteValues, runTableSelect } from './custom-table-registry'
 import { RequestError } from '../lib/errors'
-import { fetchI18nRows, buildI18nMap, filterI18nMap, localizeRow, localizedFieldNames, publishedI18nSide, publishedI18nMap } from './i18n'
+import { fetchI18nRows, buildI18nMap, filterI18nMap, localizeRow, localizedFieldNames, publishedI18nSide, publishedI18nMap, localizeGlobalData } from './i18n'
 import { createGlobalsStore } from './globals-store'
 import { validateFieldValues } from './field-validator'
 import { getRelationFields, expandRelations, applyProps } from './relation-loader'
 import { getObjectFields, expandObjectFields } from './object-loader'
 import { expandMediaDeep, collapseMediaDeep } from './media-loader'
 import { resolveLinksDeep, collapseLinksDeep } from './link-loader'
+import { pathDepsOf, pathColumnsFor, pathFactsFor, PATH_KEY, type PathResolverDeps } from './path-resolver'
 import { expandGlobalMedia, collapseGlobalMedia, globalDefinitionOf, componentRegistryOf } from './globals-media'
 import { applySerialize } from './richtext-serializer'
 import { withRouteCache, clearRouteCache, withQueryCache, clearTypeQueryCache, collectQueryTags, queryCacheKeyFor } from './route-cache'
@@ -102,6 +103,7 @@ function hashBuilderState(state: BuilderState): string {
     props: state.propsVal,
     populate: state.populateVal,
     locale: state.localeVal,
+    includePath: state.includePathVal,
   })
   return createHash('sha256').update(key).digest('hex').slice(0, 16)
 }
@@ -124,6 +126,7 @@ interface BuilderState {
   cacheStrategyVal: CacheStrategy | null
   noCacheVal: boolean
   localeVal: string | string[] | null
+  includePathVal: boolean
 }
 
 /** The client's error contract is RouteError (status, message); the canonical writes throw RequestError. */
@@ -181,6 +184,14 @@ class LocalObjectBuilderImpl implements LocalObjectBuilder {
     const project = this.projects?.find((p) => p.workspaceId === this.workspaceId)
     const components = project?.components
     return Array.isArray(components) ? (components as ComponentDef[]) : []
+  }
+
+  /** What a link's target address is composed from (slice 5 of content paths). */
+  private pathDeps(): PathResolverDeps {
+    return pathDepsOf({
+      db: this.db, workspaceId: this.workspaceId, schema: this.schema,
+      workspaceProjects: (this.projects ?? []) as unknown[],
+    })
   }
 
   // ── Content hooks (C1) ──────────────────────────────────────────────────────
@@ -270,6 +281,13 @@ class LocalObjectBuilderImpl implements LocalObjectBuilder {
    * map instead of overlaying a single language.
    */
   locale(code: string | string[]): LocalObjectBuilder { return this.fork({ localeVal: code }) }
+
+  /**
+   * Ask for each row's composed address as `_path`. Opt in for the same
+   * reason the HTTP read's `includePath` is: it widens the select and sends
+   * one batched address query, and nobody should pay for that unasked.
+   */
+  includePath(include = true): LocalObjectBuilder { return this.fork({ includePathVal: include }) }
 
   /** Single-code overlay locale, or null in map/off modes. */
   private overlayLocale(): string | null {
@@ -414,7 +432,15 @@ class LocalObjectBuilderImpl implements LocalObjectBuilder {
     // next-page cursor is built from the last row's sort value.
     const sortJsKey = Object.keys(table).find(k => (table as any)[k]?.name === sortField) ?? sortField
     const propsVal = this.state.propsVal ?? undefined
-    const colSelection = buildSelectColumns(table, propsVal ? [...propsVal, sortJsKey] : undefined)
+    // The address needs the columns its pattern reads - the relation holding
+    // the chain, and the slug - which a props projection may well have left
+    // out. They join the sort column, which is force-selected for the same
+    // reason. `null` is the FUNCTION form: it may read anything, so no
+    // honest subset exists and the projection is dropped.
+    const pathCols = this.state.includePathVal ? pathColumnsFor(this.schema.types.find(t => t.name === this.state.typeName) as never) : []
+    const colSelection = pathCols === null
+      ? undefined
+      : buildSelectColumns(table, propsVal ? [...propsVal, sortJsKey, ...pathCols] : undefined)
     const cursorSel = cursorSortSelection(table as never, sortJsKey)
     const pageSelection = cursorSel ? { ...(colSelection ?? getTableColumns(table as never)), ...cursorSel } : colSelection
     const [rows, countRows] = await Promise.all([
@@ -431,6 +457,12 @@ class LocalObjectBuilderImpl implements LocalObjectBuilder {
     if (cursorSel) for (const r of rows as Record<string, unknown>[]) delete r[CURSOR_SORT]
 
     const typeDef = this.schema.types.find(t => t.name === this.state.typeName)!
+    // Resolved from the RAW rows: expansion turns a relation into an object
+    // where the composer wants an id, and a props projection may drop the
+    // slug from the answer. Neither changes where the object lives.
+    const pathsPromise = this.state.includePathVal && rows.length > 0
+      ? pathFactsFor(rows as Record<string, unknown>[], this.state.typeName, this.pathDeps(), { locale: this.overlayLocale() })
+      : null
     let expandedRows: Record<string, unknown>[] = rows as Record<string, unknown>[]
     const publishedRaw = this.publishedRaw(expandedRows, statusVal)
 
@@ -453,15 +485,25 @@ class LocalObjectBuilderImpl implements LocalObjectBuilder {
     // Trusted server-side reads (custom routes, flows) resolve links
     // editorially: this client already reads drafts, so hiding an
     // unpublished target here would hide it from its own author.
-    expandedRows = await resolveLinksDeep(expandedRows, typeDef, this.componentRegistry(), this.db, this.workspaceId, { locale: this.overlayLocale() })
+    expandedRows = await resolveLinksDeep(expandedRows, typeDef, this.componentRegistry(), this.db, this.workspaceId, { locale: this.overlayLocale(), pathDeps: this.pathDeps() })
 
     const serialized = applySerialize(
       expandedRows.map(row => ({ ...row, type: this.state.typeName })),
       this.state.serializeVal ?? undefined,
     )
+    // By INDEX, not by id: every stage above is a `.map`, and a props
+    // projection may have dropped `id`. Merged before the serialize filter,
+    // so a `content.serialize@1` filter sees the final row.
+    const pathFacts = pathsPromise ? await pathsPromise : null
+    const withPaths = pathFacts ? serialized.map((r, i) => ({ ...r, ...pathFacts[i] })) : serialized
     // K4.4: content.serialize@1 - the rows as they will be returned (before props select).
-    const shaped = await applyContentSerialize({ workspaceId: this.workspaceId, typeName: this.state.typeName, rows: serialized, status: this.state.statusVal, context: { exec: this.exec ?? null } })
-    const filtered = applyProps(shaped, this.state.propsVal ?? undefined)
+    const shaped = await applyContentSerialize({ workspaceId: this.workspaceId, typeName: this.state.typeName, rows: withPaths, status: this.state.statusVal, context: { exec: this.exec ?? null } })
+    // A projection that asked for the address keeps it: `_path` is not a
+    // field the caller could have named in `props`, so it has to be added.
+    const keptProps = this.state.propsVal && this.state.includePathVal
+      ? [...this.state.propsVal, PATH_KEY]
+      : this.state.propsVal
+    const filtered = applyProps(shaped, keptProps ?? undefined)
 
     return { data: filtered, meta: { total, limit, offset, nextCursor } }
   }
@@ -513,7 +555,11 @@ class LocalObjectBuilderImpl implements LocalObjectBuilder {
     }
     if (this.state.localeVal) rows = await this.applyReadLocales(rows, typeDef, publishedRaw)
     rows = await expandMediaDeep(rows, typeDef, this.componentRegistry(), this.db, this.workspaceId, this.overlayLocale())
-    rows = await resolveLinksDeep(rows, typeDef, this.componentRegistry(), this.db, this.workspaceId, { locale: this.overlayLocale() })
+    rows = await resolveLinksDeep(rows, typeDef, this.componentRegistry(), this.db, this.workspaceId, { locale: this.overlayLocale(), pathDeps: this.pathDeps() })
+    if (this.state.includePathVal) {
+      const [facts] = await pathFactsFor([row], this.state.typeName, this.pathDeps(), { locale: this.overlayLocale() })
+      rows = [{ ...rows[0], ...facts }]
+    }
     // K4.4: content.serialize@1 - the row as it will be returned.
     const [shaped] = await applyContentSerialize({ workspaceId: this.workspaceId, typeName: this.state.typeName, rows: [rows[0]], status: this.state.statusVal, context: { exec: this.exec ?? null } })
     return shaped!
@@ -751,8 +797,35 @@ class LocalGlobalsAccessorImpl implements LocalGlobalsAccessor {
     private readonly name: string,
     private readonly projects?: WorkspaceProjectLike[],
     private readonly exec?: ExecutionContext,
+    private readonly localeCode?: string,
   ) {
     this.store = createGlobalsStore(db, workspaceId)
+  }
+
+  /**
+   * Read this global in the given locale: a translation overlays the base
+   * value per field, and a field with no translation keeps the base.
+   *
+   * Returns a NEW accessor, like the HTTP SDK's, so one reference can serve
+   * several locales in the same render.
+   */
+  locale(code: string | 'all'): LocalGlobalsAccessor {
+    return new LocalGlobalsAccessorImpl(this.db, this.workspaceId, this.name, this.projects, this.exec, code)
+  }
+
+  /**
+   * A localized WRITE is refused rather than quietly performed against the
+   * base values. Which roles may write which locale, and that a full replace
+   * has no per-locale form, are rules the globals route enforces; an extension
+   * here acts under its own authority, where `canWriteLocale` has no meaning,
+   * so the rule is named rather than reimplemented - and dropping the locale
+   * silently would overwrite base values a translator never touched.
+   */
+  private refuseLocalizedWrite(verb: string): void {
+    if (!this.localeCode) return
+    throw new RouteError('VALIDATION_ERROR',
+      `Cannot ${verb} global "${this.name}" under locale "${this.localeCode}" from the local client - ` +
+      `write a translation through PATCH /globals/${this.name}?locale=${this.localeCode}`, 422)
   }
 
   private allow(action: 'read' | 'write'): void {
@@ -767,15 +840,28 @@ class LocalGlobalsAccessorImpl implements LocalGlobalsAccessor {
     this.allow('read')
     const stored = await this.store.get(this.name)
     const project = this.project()
-    return expandGlobalMedia(stored, globalDefinitionOf(project, this.name), componentRegistryOf(project), this.db, this.workspaceId)
+    // Translations live inside the global's own jsonb under `__i18n`, so the
+    // overlay happens at read time - and `localizeGlobalData` is also what
+    // drops `__i18n`, which the raw store row carries. Without this the caller
+    // received every locale's values under a key it never asked for.
+    // `all` is the translation-tool read the route also serves: every locale's
+    // values, left where they are, rather than one overlaid on the base.
+    const localized = this.localeCode === 'all' ? stored : localizeGlobalData(stored, this.localeCode ?? null)
+    const mediaLocale = this.localeCode && this.localeCode !== 'all' ? this.localeCode : null
+    return expandGlobalMedia(localized, globalDefinitionOf(project, this.name), componentRegistryOf(project), this.db, this.workspaceId, mediaLocale)
   }
-  patch(data: Record<string, unknown>): Promise<void> {
+  // `async` on purpose: the locale refusal below must REJECT, not throw
+  // synchronously. A caller doing `globals(n).patch(d).catch(...)` would
+  // otherwise take the error past its own handler.
+  async patch(data: Record<string, unknown>): Promise<void> {
     this.allow('write')
+    this.refuseLocalizedWrite('patch')
     const project = this.project()
     return this.store.patch(this.name, collapseGlobalMedia(data, globalDefinitionOf(project, this.name), componentRegistryOf(project)))
   }
-  set(data: Record<string, unknown>): Promise<void> {
+  async set(data: Record<string, unknown>): Promise<void> {
     this.allow('write')
+    this.refuseLocalizedWrite('replace')
     const project = this.project()
     return this.store.set(this.name, collapseGlobalMedia(data, globalDefinitionOf(project, this.name), componentRegistryOf(project)))
   }
@@ -1071,6 +1157,7 @@ export function createLocalClient(options: LocalClientOptions): TangenLocalClien
         serializeVal: null,
         cacheStrategyVal: null,
         noCacheVal: false,
+        includePathVal: false,
       }, projects, exec) as unknown as LocalObjectBuilder<ContentRow<K>>
     },
 

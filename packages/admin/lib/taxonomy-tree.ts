@@ -1,12 +1,18 @@
 /**
  * File Name: taxonomy-tree.ts
- * Purpose: Builds and manipulates hierarchical taxonomy trees from flat record lists,
- *   with utilities for flattening, searching, and collecting descendant IDs.
+ * Purpose: Builds hierarchical taxonomy trees from flat record lists, with
+ *   utilities for flattening and searching.
  *
  * Author: Raghunath J
  * License: MIT
  *
- * Dependencies/Notes: None
+ * Dependencies/Notes: A tree is only truthful when the WHOLE set is in hand:
+ *          `buildTaxonomyTree` promotes any row whose parent is absent to the
+ *          root, so a paged or filtered list draws children as top-level rows.
+ *          The content list and the parent picker both stopped using it for
+ *          that reason and read each row's server-resolved `_ancestors`
+ *          instead. What remains here serves the callers that genuinely hold
+ *          every row at once.
  */
 
 export interface TaxTreeRow {
@@ -97,29 +103,4 @@ export function filterFlatNodes(nodes: TaxTreeNode[], search: string): TaxTreeNo
     const text = n.row.title != null ? String(n.row.title) : n.row.id
     return text.toLowerCase().includes(q)
   })
-}
-
-/**
- * Returns the IDs of all descendants of the node with `targetId` (not including self).
- * @param nodes - Root-level nodes of the taxonomy tree to search
- * @param targetId - The ID of the node whose descendants to collect
- * @returns Set of descendant IDs, or an empty Set if the target is not found
- */
-export function getDescendantIds(nodes: TaxTreeNode[], targetId: string): Set<string> {
-  function findNode(nodes: TaxTreeNode[]): TaxTreeNode | undefined {
-    for (const n of nodes) {
-      if (n.row.id === targetId) return n
-      const found = findNode(n.children)
-      if (found) return found
-    }
-  }
-  const target = findNode(nodes)
-  if (!target) return new Set()
-
-  const ids = new Set<string>()
-  function collect(nodes: TaxTreeNode[]) {
-    for (const n of nodes) { ids.add(n.row.id); collect(n.children) }
-  }
-  collect(target.children)
-  return ids
 }

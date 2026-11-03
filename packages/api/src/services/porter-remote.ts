@@ -24,6 +24,7 @@ import { importBundleFromTarGz, openBundleReader } from '@tangen/porter'
 import { createRun, getRun, type MigrationRun } from './migration-runs'
 import { validateBundleAgainstEnv } from './porter-import'
 import { resolvePorterLimits, checkLimits, type PorterLimits } from './porter-limits'
+import { assertSafeMediaRef } from '@tangen/porter'
 
 export const TRANSFER_CHUNK_BYTES = 4 * 1024 * 1024   // 4 MB - t2.small friendly
 
@@ -111,6 +112,10 @@ export async function buildMediaUrlMap(
     const asset = (entry as any).asset as { id?: string } | undefined
     const filename = ((entry as any).filename as string | undefined) || 'original'
     if (!asset?.id) continue
+    // The same guard as the importer: these URLs are handed to the receiving
+    // deployment, so a traversing name would point one at a key outside the
+    // bundle it is being told to fetch.
+    assertSafeMediaRef(asset.id, filename)
     const url = storage.publicUrl(`porter/bundles/${bundleId}/media/files/${asset.id}/${filename}`)
     if (!url) return null
     out.push({ assetId: asset.id, filename, url, sha256: (entry as any).sha256 as string | undefined })

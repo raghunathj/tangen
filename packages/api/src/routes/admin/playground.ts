@@ -22,6 +22,10 @@ import { buildDeclaredFeatureResources } from '../../routes/api-keys/manage'
 import { getExtensionAdminRoutes, getExtensionManifest } from '../../hooks/app-hooks-registry'
 import { extensionWiringDeps } from '../../services/extension-server'
 import { requestOrigin } from '../../lib/request-origin'
+// The one place globals are resolved from a project. Every other consumer
+// (REST, the local client, GraphQL, Studio) goes through it, so the picker
+// cannot drift from the routes on what a workspace declares.
+import { globalDefinitionsOf } from '../../services/globals-media'
 
 const MAX_RESPONSE_BYTES = 256 * 1024
 
@@ -72,7 +76,7 @@ export const playgroundRoutes = (app: Elysia) =>
 
       return {
         data: {
-          endpoints: buildPlaygroundCatalog({ schema, apiGroups, customTables, extensions }),
+          endpoints: buildPlaygroundCatalog({ schema, apiGroups, customTables, extensions, globals: globalDefinitionsOf(project) }),
           keys: keys.map((k: any) => ({
             id: k.id, label: k.label, keyPrefix: k.keyPrefix,
             permissions: k.permissions,

@@ -18,7 +18,7 @@ import { eq, and, inArray } from 'drizzle-orm'
 // localization export no contentI18nTables — treat that as "no side tables".
 import * as generated from '@tangen/db/content-tables'
 import type { LocalizationConfig } from '@tangen/types'
-import { isLocalizableFieldType } from '@tangen/types'
+import { isLocalizableFieldType, isOverlayLeafValue } from '@tangen/types'
 import { RequestError } from '../lib/errors'
 import { localizedContainerFields } from '@tangen/schema'
 
@@ -29,7 +29,20 @@ const contentI18nTables: Record<string, any> = (generated as any).contentI18nTab
  * excluded — they localize at the asset level (metadata.localeAssets variants),
  * so the stored reference is shared across locales.
  */
-export function localizedFieldNames(typeDef: { fields: { name: string; fieldType?: string; config?: Record<string, unknown> }[] }): string[] {
+/**
+ * What these helpers need of a type definition, and nothing more.
+ *
+ * It used to be written inline at five signatures as
+ * `config?: Record<string, unknown>`, which a real `ObjectTypeDefinition` does
+ * NOT satisfy: a specific interface has no index signature, so every route
+ * that passed one was a type error in published TypeScript - 6 of them across
+ * `objects/get.ts` and `objects/by-slug.ts` alone. `unknown` is honest about
+ * it, and the bodies already read `config` untyped.
+ */
+export interface I18nFieldShape { name: string; fieldType?: string; config?: unknown }
+export interface I18nTypeDefShape { fields: I18nFieldShape[] }
+
+export function localizedFieldNames(typeDef: I18nTypeDefShape): string[] {
   return (typeDef.fields ?? [])
     .filter((f) => (f.config as any)?.localized === true && isLocalizableFieldType(f.fieldType ?? ''))
     .map((f) => f.name)
@@ -235,7 +248,7 @@ export function publishedI18nMap(raw: Record<string, unknown>): Record<string, R
 export function localizeRow(
   row: Record<string, unknown>,
   side: I18nRow | null | undefined,
-  typeDef: { fields: { name: string; fieldType?: string; config?: Record<string, unknown> }[] },
+  typeDef: I18nTypeDefShape,
 ): Record<string, unknown> {
   if (!side) return row
   const out = { ...row }
@@ -262,7 +275,7 @@ export function localizeRow(
  */
 export function buildI18nMap(
   rows: I18nRow[],
-  typeDef: { fields: { name: string; config?: Record<string, unknown> }[] },
+  typeDef: I18nTypeDefShape,
 ): Record<string, Record<string, unknown>> {
   const localized = new Set(localizedFieldNames(typeDef))
   const containers = new Set(containerFieldNames(typeDef as never))
@@ -319,7 +332,7 @@ function mergeAllowedSubs(into: AllowedSubs, from: AllowedSubs): AllowedSubs {
   return into
 }
 function allowedLocalizedSubs(
-  field: { fieldType?: string; config?: Record<string, unknown> },
+  field: I18nFieldShape,
   registry: Array<Record<string, unknown>>,
   seen: Set<string> = new Set(),
 ): AllowedSubs {
@@ -369,11 +382,14 @@ function assertOverlayShape(fieldName: string, overlay: unknown, allowed: Allowe
           `"${fieldName}.${key}.${sub}" is not localized - shared values are edited in the default locale`, 422)
       }
       const hasSubs = Object.keys(kind.subs).length > 0
-      // A nested map (not a richtext document, which is a leaf value) is
-      // checked against the nested slot; anything else must be a leaf here.
+      // A nested map is checked against the nested slot; a LEAF VALUE is not
+      // descended into. `isOverlayLeafValue` rather than `isContentDoc` on
+      // purpose: richtext is one leaf shape, a localized `link` is another
+      // (`{ type: 'internal', target: {...} }`), and narrowing this to a
+      // document would walk into a link and corrupt it.
       const isMap = !!v && typeof v === 'object' && !Array.isArray(v)
-      const isRichDoc = isMap && typeof (v as { type?: unknown }).type === 'string'
-      if (hasSubs && isMap && !(kind.leaf && isRichDoc)) {
+      const isLeafValue = isMap && isOverlayLeafValue(v)
+      if (hasSubs && isMap && !(kind.leaf && isLeafValue)) {
         assertOverlayShape(`${fieldName}.${key}.${sub}`, v, kind.subs)
       } else if (!kind.leaf) {
         assertOverlayShape(`${fieldName}.${key}.${sub}`, v, kind.subs)
@@ -383,7 +399,7 @@ function assertOverlayShape(fieldName: string, overlay: unknown, allowed: Allowe
 }
 
 export function buildLocalizedUpdate(
-  typeDef: { fields: { name: string; fieldType?: string; config?: Record<string, unknown> }[] },
+  typeDef: I18nTypeDefShape,
   body: Record<string, unknown>,
   registry: Array<Record<string, unknown>> = [],
 ): LocalizedUpdate {

@@ -16,7 +16,7 @@ import { contentTables } from '@tangen/db/content-tables'
 import { RequestError } from '../../lib/errors'
 import { jsonbParam, textArrayParam } from '../../lib/sql-values'
 import { assertObjectPermission } from '../../lib/permissions'
-import { canWriteLocale } from '../../lib/field-access'
+import { canWriteLocale, enforceFieldWrites } from '../../lib/field-access'
 import { projectLocalization } from '../../services/i18n'
 import { createRevision } from '../../lib/revisions'
 import { createExtensionDataStore } from '../../hooks/runner'
@@ -113,7 +113,14 @@ export const objectVersionsRoute = (app: Elysia) =>
     })
 
     // Restore a version — copies snapshot back to the live object
-    .post('/api/v1/objects/:id/versions/:versionId/restore', async (ctx: any) => {
+    .post('/api/v1/objects/:id/versions/:versionId/restore', restoreVersionHandler)
+
+/**
+ * Restore, separate from its mounting so a test can drive it with a real
+ * database and a real member role. A snapshot is a write payload, and this is
+ * the route that wrote one straight past the field ACL (finding 21).
+ */
+export const restoreVersionHandler = async (ctx: any) => {
       const { params, query, db, redis, workspaceId, schema, permissions, apiKeyId, memberId, eventBus } = ctx
       const { id, versionId } = params
       const typeName = query.type as string
@@ -155,7 +162,16 @@ export const objectVersionsRoute = (app: Elysia) =>
         values?: Record<string, unknown>
         extensionData?: Record<string, Record<string, unknown>>
       }
-      const fieldValues = snap.values ?? {}
+      // Field-level access, the same gate create and update run. A snapshot is
+      // a set of field values like any other write payload, so restoring one
+      // wrote every field the member's role is denied - the row's own history
+      // was the way around the ACL (finding 21). `title` and `slug` go through
+      // the same gate because a grant allow-list covers them too.
+      const { values: fieldValues } = enforceFieldWrites(ctx, typeDef, {
+        ...(snap.values ?? {}),
+        ...(snap.title != null ? { title: snap.title } : {}),
+        ...(snap.slug != null ? { slug: snap.slug } : {}),
+      } as Record<string, unknown>)
       const knownFields = new Set(typeDef.fields.map((f: any) => f.name))
       const multiselectFields = new Set(
         typeDef.fields.filter((f: any) => f.fieldType === 'multiselect').map((f: any) => f.name)
@@ -170,10 +186,11 @@ export const objectVersionsRoute = (app: Elysia) =>
       const setClauses: ReturnType<typeof sql>[] = [
         sql`updated_at = NOW()`,
       ]
-      if (snap.title != null) setClauses.push(sql`title = ${snap.title}`)
-      if (snap.slug != null) setClauses.push(sql`slug = ${snap.slug}`)
+      if (fieldValues.title != null) setClauses.push(sql`title = ${fieldValues.title as string}`)
+      if (fieldValues.slug != null) setClauses.push(sql`slug = ${fieldValues.slug as string}`)
 
       for (const [k, v] of Object.entries(fieldValues)) {
+        if (k === 'title' || k === 'slug') continue
         if (!knownFields.has(k)) continue
         if (!isSafeIdent(k)) continue
         const col = sql.raw(`"${k}"`)
@@ -223,4 +240,4 @@ export const objectVersionsRoute = (app: Elysia) =>
       })
 
       return { data: { ...rows[0], type: typeName } }
-    })
+}

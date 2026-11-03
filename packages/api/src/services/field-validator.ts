@@ -8,13 +8,14 @@
  *
  * Dependencies/Notes: @tangen/types (FieldDefinition, FieldValidation, ComponentDef, ConditionalRule).
  */
-import { evalFieldWarning, parseNumrange, formatNumrange } from '@tangen/types'
-import { DEFAULT_LINK_SCHEMES, LINK_LABEL_MAX, externalUrlIssue, isLinkValue } from '@tangen/types'
-import type {
+import { isContentDoc, contentDocText, evalFieldWarning, parseNumrange, formatNumrange } from '@tangen/types'
+import { validateContentDoc, type ContentDocResult } from '@tangen/schema'
+import { DEFAULT_LINK_SCHEMES, DENIED_LINK_SCHEMES, LINK_LABEL_MAX, externalUrlIssue, pathLinkIssue, isLinkValue } from '@tangen/types'
+import type { ContentDocVocabulary,
   FieldDefinition, FieldValidation, ComponentDef, ConditionalRule, ConditionalRuleGroup,
   ConditionalVisibility, ObjectTypeDefinition, FieldType, FieldTypeServerValidate,
 } from '@tangen/types'
-import { flattenFields } from '@tangen/types'
+import { flattenFields, subFieldVisibility } from '@tangen/types'
 
 export type ValidationMode = 'draft' | 'publish'
 
@@ -24,11 +25,39 @@ export type ValidationMode = 'draft' | 'publish'
  * for built-in types and unknown names. Injected at startup from the extension
  * registry (see app-hooks-registry); tests pass a hermetic resolver directly.
  */
-export type CustomFieldTypeResolver = (
-  name: string,
-) => { inherits: FieldType; validate?: FieldTypeServerValidate } | undefined
+export interface CustomFieldTypeResolver {
+  (name: string): { inherits: FieldType; validate?: FieldTypeServerValidate } | undefined
+  /**
+   * The workspace this resolver was built for, when it was built for one.
+   *
+   * It is the scope every other extension-aware check in a validation pass
+   * needs, and it travels here rather than as a seventh positional parameter
+   * threaded through every call site and every recursive descent. Today the
+   * richtext vocabulary reads it: an element a workspace's active extensions
+   * declared is accepted there, and nowhere else.
+   */
+  workspaceId?: string
+}
 
 let _defaultResolver: CustomFieldTypeResolver = () => undefined
+
+/**
+ * How a workspace's richtext vocabulary is looked up.
+ *
+ * A SETTER rather than an import, because `app-hooks-registry` already
+ * imports this module to wire the resolver below - importing it back made the
+ * cycle that left `_defaultResolver` uninitialised and took the release suite
+ * down with it. The dependency stays one-directional and the registry wires
+ * this at its own load, beside `setCustomFieldTypeResolver`.
+ */
+let _vocabularyFor: ((scope?: { workspaceId: string }) => ContentDocVocabulary) | null = null
+
+/** Wires the workspace-aware richtext vocabulary (called once at load). */
+export function setRichtextVocabularyResolver(
+  fn: ((scope?: { workspaceId: string }) => ContentDocVocabulary) | null,
+): void {
+  _vocabularyFor = fn
+}
 
 /** Wires the process-wide custom field type resolver (called once at startup). */
 export function setCustomFieldTypeResolver(resolver: CustomFieldTypeResolver): void {
@@ -37,8 +66,47 @@ export function setCustomFieldTypeResolver(resolver: CustomFieldTypeResolver): v
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/**
+ * How deep sub-field validation recurses. Nesting is bounded by the schema, so
+ * this is insurance against a cyclic component graph (a def holding itself as
+ * an object ref) rather than a product limit; real schemas nest two or three
+ * levels.
+ */
+const MAX_SUBFIELD_DEPTH = 10
+
+/**
+ * A raw sub-field as a field definition, so a row's value goes through the
+ * SAME validator a top-level value does. `config` and `required` are the only
+ * keys a SubField may omit.
+ */
+function asFieldDef(sf: { name: string; label: string; fieldType: string; config?: unknown; required?: boolean }): FieldDefinition {
+  return { ...sf, config: sf.config ?? {}, required: sf.required ?? false } as unknown as FieldDefinition
+}
+
 function isEmpty(value: unknown): boolean {
   return value == null || value === '' || (Array.isArray(value) && value.length === 0)
+}
+
+/**
+ * A richtext document with nothing in it.
+ *
+ * `{ type: 'doc', content: [] }` is not `isEmpty` - it is an object - so a
+ * `required` richtext field used to be satisfied by the empty document the
+ * editor creates before anyone types. A document counts as having content if
+ * it has text, or any node that IS content without text (an image, a rule).
+ */
+function isBlankDocument(value: unknown): boolean {
+  if (!isContentDoc(value)) return false
+  if (contentDocText(value).trim() !== '') return false
+  // An image-only or rule-only document is content, even with no words in it.
+  return !hasNonTextNode(value as { content?: unknown })
+}
+
+const CONTENT_WITHOUT_TEXT = new Set(['image', 'horizontalRule'])
+
+function hasNonTextNode(node: { type?: unknown; content?: unknown }): boolean {
+  if (typeof node.type === 'string' && CONTENT_WITHOUT_TEXT.has(node.type)) return true
+  return Array.isArray(node.content) && node.content.some((c) => hasNonTextNode(c as { content?: unknown }))
 }
 
 function getEmailDomain(email: string): string {
@@ -64,6 +132,7 @@ export function validateFieldValue(
   mode: ValidationMode = 'draft',
   resolve: CustomFieldTypeResolver = _defaultResolver,
   entryValues?: Record<string, unknown>,
+  depth = 0,
 ): string | null {
   const vr: FieldValidation = field.config.validation ?? {}
   const m = vr.messages ?? {}
@@ -72,6 +141,13 @@ export function validateFieldValue(
   if (isEmpty(value)) {
     if (field.required && mode === 'publish') return msg(m.required, `${label} is required`)
     return null
+  }
+
+  // A blank richtext document fails `required` - but it is still SHAPE
+  // CHECKED below, so a document that is both empty and malformed is refused
+  // for the malformation rather than waved through as "empty".
+  if (field.fieldType === 'richtext' && field.required && mode === 'publish' && isBlankDocument(value)) {
+    return msg(m.required, `${label} is required`)
   }
 
   // Custom (extension) field type: validate against the inherited primitive
@@ -131,6 +207,14 @@ export function validateFieldValue(
       const v = String(value).trim()
       let parsed: URL
       try { parsed = new URL(v) } catch { return msg(m.pattern, `${label} must be a valid URL`) }
+      // The same floor the link field has (2026-10-14). A `url` is rendered as
+      // an href by every consumer, and this field has no scheme policy of its
+      // own, so without this ANY writer could store `javascript:` in one. Not
+      // overridable by `messages`, for the reason the link branch gives.
+      const urlScheme = parsed.protocol.replace(/:$/, '').toLowerCase()
+      if ((DENIED_LINK_SCHEMES as readonly string[]).includes(urlScheme)) {
+        return `${label}: the ${urlScheme} scheme cannot be a URL`
+      }
       if (vr.httpsOnly && parsed.protocol !== 'https:') return msg(m.httpsOnly, `${label} must use HTTPS`)
       if (vr.allowedDomains?.length) {
         const host = parsed.hostname.toLowerCase()
@@ -143,10 +227,28 @@ export function validateFieldValue(
       break
     }
 
+    // The document shape, against the declared vocabulary. There was no case
+    // here at all: a richtext value fell through the switch and returned null,
+    // so any shape reached its jsonb column and failed later, in a
+    // serializer, as an empty string.
+    //
+    // It VALIDATES and never normalizes - `object-snapshot` fingerprints the
+    // whole field value, so reshaping on write would make every stored object
+    // read as edited.
+    case 'richtext': {
+      // Scoped when the caller gave a scope: an element a workspace's ACTIVE
+      // extensions declared is part of its vocabulary, and a disabled
+      // extension's element is refused like any unknown node.
+      const scope = resolve.workspaceId ? { workspaceId: resolve.workspaceId } : undefined
+      const res = validateContentDoc(value, _vocabularyFor?.(scope) ?? undefined)
+      if (!res.ok) return msg(m.pattern, richtextMessage(label, res))
+      break
+    }
+
     case 'link': {
       const v = value as Record<string, unknown>
       if (!isLinkValue(v)) {
-        return msg(m.pattern, `${label} must be a link to content (internal) or to a URL (external)`)
+        return msg(m.pattern, `${label} must be a link to content (internal), a URL (external), or a path on this site (path)`)
       }
       const cfg = field.config as {
         allowedKinds?: string[]; allowedTargets?: string[]; anchor?: boolean; query?: boolean; withLabel?: boolean; newTab?: boolean
@@ -190,13 +292,35 @@ export function validateFieldValue(
         }
         break
       }
+      if (v.type === 'path') {
+        // A path is the application's own routing: stored verbatim, handed back
+        // untouched, nothing for Tangen to resolve. The only question is
+        // whether it is a path at all.
+        const issue = pathLinkIssue(v.path)
+        if (issue?.reason === 'absolute') {
+          return msg(m.pattern, issue.scheme
+            ? `${label} is a path on this site, not a ${issue.scheme} URL; use an external link for that`
+            : `${label} must be a path on this site like /about, not one beginning //`)
+        }
+        if (issue) return msg(m.pattern, `${label} must be a path on this site, like /about`)
+        break
+      }
       // External: the URL is the destination, so the scheme policy is the
       // security boundary. `httpsOnly` narrows the list rather than competing
       // with it, so the url field's rule means the same thing here.
       const schemes = vr.httpsOnly ? ['https'] : (vr.allowedSchemes?.length ? vr.allowedSchemes : [...DEFAULT_LINK_SCHEMES])
       const issue = externalUrlIssue(v.url, schemes)
       if (issue?.reason === 'relative') {
-        return msg(m.pattern, `${label} must be an absolute URL; use an internal link for content in this workspace`)
+        // Before the `path` kind existed this said "use an internal link",
+        // which was wrong advice whenever the path was not a content object:
+        // a hand-built route has nothing to pick. It names both branches now.
+        return msg(m.pattern, `${label} must be an absolute URL; use a path link for a route on this site, or an internal link for content in this workspace`)
+      }
+      // Not overridable by `messages`, and the wording says why rather than
+      // which list refused it: listing the scheme in `allowedSchemes` is
+      // exactly what someone reading "not allowed" would try next.
+      if (issue?.reason === 'unsafe') {
+        return `${label}: the ${issue.scheme} scheme cannot be a link destination`
       }
       if (issue?.reason === 'scheme') {
         if (vr.httpsOnly) return msg(m.httpsOnly, `${label} must use HTTPS`)
@@ -345,14 +469,31 @@ export function validateFieldValue(
         if (vr.maxRows != null && n > vr.maxRows) {
           return msg(m.maxRows, `${label} allows at most ${vr.maxRows} row${vr.maxRows !== 1 ? 's' : ''}`)
         }
-        if (mode === 'publish') {
-          const subFields = field.config.fields ?? []
+        // Every row is validated through this same function, in BOTH modes.
+        // It used to check required-ness on publish and nothing else, so a
+        // value of the wrong TYPE was stored silently - a bare string in a
+        // `link` sub-field being the one that cost real data, since the link
+        // editor reads a string back as null. Type-correctness has to hold in
+        // a draft too, because the draft is what reaches the column;
+        // required-ness stays publish-only, which falls out of the empty guard
+        // at the top of this function rather than being repeated here.
+        const subFields = field.config.fields ?? []
+        if (depth < MAX_SUBFIELD_DEPTH) {
           for (let i = 0; i < n; i++) {
             const item = (value as Record<string, unknown>[])[i]
+            if (!item || typeof item !== 'object') continue
             for (const sf of subFields) {
-              if (!sf.required) continue
-              const sv = item[sf.name]
-              if (isEmpty(sv)) return `${label} (row ${i + 1}): ${sf.label} is required`
+              // A sub-field its own rule hides cannot be filled, so requiring
+              // it would make publishing impossible - the same reasoning
+              // validateFieldValues applies to a top-level field. The rule is
+              // read through `subFieldVisibility` because a declaration may
+              // carry it at either level (see its doc comment); reading one
+              // place here and the other in the editor is what made a hidden
+              // sub-field unpublishable.
+              const scv = subFieldVisibility(sf)
+              if (scv && !evalVisibility(scv, (fn) => item[fn])) continue
+              const err = validateFieldValue(asFieldDef(sf), item[sf.name], mode, resolve, item, depth + 1)
+              if (err) return `${label} (row ${i + 1}): ${err}`
             }
           }
         }
@@ -371,14 +512,20 @@ export function validateFieldValue(
         }
         if (vr.allowedComponents?.length) {
           for (const block of value as Record<string, unknown>[]) {
-            const btype = block._component as string | undefined
+            // `_type` first: that is what the admin's block editor writes
+            // (component-block-editor.tsx reads `b._type` throughout) and
+            // nothing in the platform ever writes `_component`, so reading
+            // only the latter made this guard `undefined && ...` on every
+            // real block. `_component` stays accepted as a second spelling
+            // because publish-cascade reads it too.
+            const btype = (block._type ?? block._component) as string | undefined
             if (btype && !vr.allowedComponents.includes(btype)) {
               return msg(m.allowedComponents, `${label}: component type "${btype}" is not allowed here`)
             }
           }
         }
-        if (mode === 'publish') {
-          const componentDefs: ComponentDef[] = field.config.components ?? []
+        const componentDefs: ComponentDef[] = field.config.components ?? []
+        if (depth < MAX_SUBFIELD_DEPTH) {
           for (let i = 0; i < n; i++) {
             const block = (value as Record<string, unknown>[])[i]
             // Eye-hidden blocks are stripped from published output — never validated.
@@ -393,8 +540,13 @@ export function validateFieldValue(
               ? `${def.label} (block ${i + 1} - "${block._label}")`
               : `${def.label} (block ${i + 1})`
             for (const sf of def.fields) {
-              if (!sf.required) continue
-              if (isEmpty(block[sf.name])) return `${blockLabel}: ${sf.label} is required`
+              // Same rule, same reader as a repeater row: a sub-field the
+              // block's own values hide is not validated, because the editor
+              // does not draw it.
+              const scv = subFieldVisibility(sf)
+              if (scv && !evalVisibility(scv, (fn) => block[fn])) continue
+              const err = validateFieldValue(asFieldDef(sf), block[sf.name], mode, resolve, block, depth + 1)
+              if (err) return `${blockLabel}: ${err}`
             }
           }
         }
@@ -640,4 +792,23 @@ export function resolveComponentFieldRefs(
       .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
     return { ...f, config: { ...f.config, components: resolved } } as unknown as FieldDefinition
   })
+}
+
+/**
+ * Why a document was refused, in words an editor can act on. Every case names
+ * the node, mark or attribute that caused it - a validator that says only
+ * "invalid" sends someone hunting through a document by hand.
+ */
+function richtextMessage(label: string, res: Exclude<ContentDocResult, { ok: true }>): string {
+  switch (res.reason) {
+    case 'not-a-document':      return `${label} is not a rich text document`
+    case 'unknown-node':        return `${label} contains "${res.node}", which is not a rich text element here`
+    case 'unknown-mark':        return `${label} contains the formatting "${res.mark}", which is not available here`
+    case 'content-not-allowed': return `${label} has "${res.child}" inside "${res.node}", which cannot hold it`
+    case 'unknown-attr':        return `${label} sets "${res.attr}" on "${res.node}", which does not have it`
+    case 'bad-attr':            return `${label} has an invalid "${res.attr}" on "${res.node}"`
+    case 'missing-attr':        return `${label} is missing "${res.attr}" on "${res.node}"`
+    case 'bad-text':            return `${label} has a text node with no text`
+    case 'too-deep':            return `${label} is nested too deeply`
+  }
 }

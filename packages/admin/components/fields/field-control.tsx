@@ -7,7 +7,7 @@ import { clsx } from 'clsx'
 import { Switch as UiSwitch } from '@tangen/ui'
 import {
   IconImage, IconFilm, IconMusic, IconFileText, IconFile, IconExternalLink,
-  IconGlobe, IconCloud,
+  IconGlobe, IconCloud, IconX,
 } from '@tangen/icons'
 import { Select, SelectItem } from '@/components/ui/select'
 import { MediaPicker } from '@/components/fields/media-picker'
@@ -20,9 +20,11 @@ import { TaxonomyPicker, type TaxonomyPickerConfig } from '@/components/taxonomy
 import { ObjectPicker } from '@/components/fields/object-picker'
 import { LinkField } from '@/components/fields/link-field'
 import { ComponentBlockEditor } from '@/components/fields/component-block-editor'
+import { NumericInput } from '@/components/fields/numeric-input'
 import { RepeaterEditor, type RepeaterItem } from '@/components/fields/repeater-editor'
 import { buildThumbnailUrl, buildFileUrl, formatFileSize, getMediaCategory } from '@/lib/media'
 import { coerceFieldValue, getDateInputType } from '@/lib/editor'
+import { selectChoices, subFieldSelectPlaceholder, toggleSelectValue } from '@/lib/field-presentation'
 import { useEffect } from 'react'
 import { adminFetch } from '@/lib/api'
 import { FIELD_TYPE_UI } from '@/lib/field-type-ui-registry'
@@ -111,6 +113,13 @@ export interface FieldControlProps {
   value: unknown
   onChange: (value: unknown) => void
   workspaceId: string
+  /**
+   * Passed through to a block or repeater editor: 'host' when the caller has
+   * already drawn a header carrying Collapse all. Only the object editor's
+   * top-level fields have one, so this is not defaulted here - a nested
+   * FieldControl leaves it unset and the editor draws its own.
+   */
+  foldControl?: 'self' | 'host'
   /** Parent content type name — required for dynamic select options fetching */
   typeName?: string
   /** Increment to force richtext editor to remount (e.g. after version restore) */
@@ -138,7 +147,7 @@ export interface FieldControlProps {
   blockLocaleCtx?: import('@/lib/editor').BlockLocaleCtx
 }
 
-function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, resetKey = 0, isTaxonomyParent, currentObjectId, taxonomyPickerConfig, assetLocalization = true, getSourceValue, targetTypeDisabled, serverError, blockLocaleCtx }: FieldControlProps) {
+function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, resetKey = 0, isTaxonomyParent, currentObjectId, taxonomyPickerConfig, assetLocalization = true, getSourceValue, targetTypeDisabled, serverError, blockLocaleCtx, foldControl }: FieldControlProps) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [localizeOpen, setLocalizeOpen] = useState(false)
   const localesEnabled = useLocaleStore((s) => s.enabled)
@@ -168,7 +177,11 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
             value={val ?? null}
             onChange={(json) => onChange(json)}
             workspaceId={workspaceId}
-            toolbar={field.config?.toolbar ?? 'basic'}
+            // 'advanced' is the DECLARED default (`RichtextFieldConfig`), and a
+            // call-site default of 'basic' silently overrode it for every
+            // field that did not name one - so a schema written against the
+            // contract lost code, quotes, HR, undo/redo and the HTML view.
+            toolbar={field.config?.toolbar ?? 'advanced'}
             media={field.config?.media ?? false}
             placeholder={field.config?.admin?.placeholder}
           />
@@ -217,7 +230,6 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
           <TaxonomyParentPicker
             workspaceId={workspaceId}
             targetType={field.config.targetType ?? ''}
-            parentField={field.name}
             value={(val as string | null) ?? null}
             onChange={(id) => onChange(id)}
             currentObjectId={currentObjectId ?? null}
@@ -268,13 +280,12 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
         )
       }
       return (
-        <input
-          type="number"
-          value={val == null ? '' : String(val)}
+        <NumericInput
+          value={val}
+          onChange={onChange}
           min={vr?.min}
           max={vr?.max}
-          step={vr?.integer ? 1 : (vr?.step ?? 'any')}
-          onChange={(e) => onChange(coerceFieldValue('number', (e.target as HTMLInputElement).value))}
+          integer={vr?.integer}
           className={fieldInput}
         />
       )
@@ -284,23 +295,29 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
       const r = parseNumrange(val) ?? { min: NaN, max: NaN }
       const emit = (min: number, max: number) =>
         onChange(Number.isFinite(min) && Number.isFinite(max) ? { min, max } : null)
+      // Both ends go through NumericInput for the same reason a lone number
+      // does: typed text used to leave the box reading it while the pair
+      // stored null. NaN is this field's own "absent", so a cleared end
+      // arrives as null and becomes NaN again, which `emit` already refuses.
       return (
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            value={Number.isFinite(r.min) ? String(r.min) : ''}
-            placeholder="min"
-            onChange={(e) => emit(Number((e.target as HTMLInputElement).value), r.max)}
-            className={fieldInput}
-          />
-          <span className="text-fg-subtle">–</span>
-          <input
-            type="number"
-            value={Number.isFinite(r.max) ? String(r.max) : ''}
-            placeholder="max"
-            onChange={(e) => emit(r.min, Number((e.target as HTMLInputElement).value))}
-            className={fieldInput}
-          />
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <NumericInput
+              value={Number.isFinite(r.min) ? r.min : null}
+              onChange={(n) => emit(n ?? NaN, r.max)}
+              aria-label="Minimum"
+              className={fieldInput}
+            />
+          </div>
+          <span className="text-fg-subtle pt-2">–</span>
+          <div className="min-w-0 flex-1">
+            <NumericInput
+              value={Number.isFinite(r.max) ? r.max : null}
+              onChange={(n) => emit(r.min, n ?? NaN)}
+              aria-label="Maximum"
+              className={fieldInput}
+            />
+          </div>
         </div>
       )
     }
@@ -406,30 +423,31 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
 
     case 'geopoint': {
       const point = (val as { lat?: number; lng?: number } | null) ?? null
-      function setPart(part: 'lat' | 'lng', raw: string) {
-        const n = raw === '' ? undefined : Number(raw)
-        const next = { lat: point?.lat, lng: point?.lng, [part]: n }
+      function setPart(part: 'lat' | 'lng', n: number | null) {
+        const next = { lat: point?.lat, lng: point?.lng, [part]: n ?? undefined }
         onChange(next.lat === undefined && next.lng === undefined ? null : next)
       }
       return (
         <div className="grid grid-cols-2 gap-2">
           <div>
             <span className="mb-1 block text-xs text-fg-muted">Latitude</span>
-            <input
-              type="number" step="any" min={-90} max={90}
-              value={point?.lat ?? ''}
-              onChange={(e) => setPart('lat', (e.target as HTMLInputElement).value)}
-              placeholder="12.9716"
+            <NumericInput
+              value={point?.lat ?? null}
+              onChange={(n) => setPart('lat', n)}
+              min={-90}
+              max={90}
+              aria-label="Latitude"
               className={fieldInput}
             />
           </div>
           <div>
             <span className="mb-1 block text-xs text-fg-muted">Longitude</span>
-            <input
-              type="number" step="any" min={-180} max={180}
-              value={point?.lng ?? ''}
-              onChange={(e) => setPart('lng', (e.target as HTMLInputElement).value)}
-              placeholder="77.5946"
+            <NumericInput
+              value={point?.lng ?? null}
+              onChange={(n) => setPart('lng', n)}
+              min={-180}
+              max={180}
+              aria-label="Longitude"
               className={fieldInput}
             />
           </div>
@@ -440,15 +458,11 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
     case 'currency':
       return (
         <div className="relative">
-          <input
-            type="number" step="any"
+          <NumericInput
+            value={val}
+            onChange={onChange}
             min={field.config.validation?.min}
             max={field.config.validation?.max}
-            value={val == null ? '' : String(val)}
-            onChange={(e) => {
-              const raw = (e.target as HTMLInputElement).value
-              onChange(raw === '' ? null : Number(raw))
-            }}
             className={clsx(fieldInput, field.config.currencyCode && 'pr-14')}
           />
           {field.config.currencyCode && (
@@ -475,7 +489,10 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
                 n <= current ? 'text-warning hover:text-warning' : 'text-fg-faint hover:text-fg-subtle',
               )}
             >
-              ★
+              {/* The button is named by its aria-label, so the glyph is the
+                  graphic and not the text - which is also the rule it has to
+                  meet: 3:1 as a control, not 4.5:1 as a sentence. */}
+              <span aria-hidden>★</span>
             </button>
           ))}
           {current > 0 && (
@@ -507,6 +524,13 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
       const opts = fieldOptions.options
       const currentVal = (val as string) ?? ''
       const isOrphaned = currentVal !== '' && !fieldOptions.loading && !opts.some((o) => o.value === currentVal)
+      // The empty state is the FIRST CHOICE, in all three presentations: a
+      // select that is not required has "nothing chosen" as a real value and
+      // had no way back to it here. `selectChoices` is the same list a block's
+      // sub-field select has always drawn, so the two containers answer the
+      // question identically - and because the empty state is an option like
+      // any other, none of the three branches below needs to know about it.
+      const choices = selectChoices(field, opts)
       if (fieldOptions.loading) {
         return <div className={clsx(fieldInput, 'text-fg-subtle')}>Loading options…</div>
       }
@@ -523,7 +547,7 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
           )}
           {field.config?.admin?.displayAs === 'radio' ? (
             <div role="radiogroup" className="space-y-1.5">
-              {opts.map((o) => (
+              {choices.map((o) => (
                 <label key={o.value} className="flex items-center gap-2 text-sm text-fg cursor-pointer">
                   <input
                     type="radio"
@@ -537,12 +561,20 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
               ))}
             </div>
           ) : field.config?.admin?.displayAs === 'segmented' ? (
-            <div className="inline-flex rounded-md border border-border-strong overflow-hidden">
+            // The one presentation that does NOT take its empty state from
+            // `choices`: a third button reading "None" makes a two-way
+            // decision look like a three-way one. The pressed button
+            // un-presses instead - and because a gesture nothing announces is
+            // the same invisible dead end in reverse, the group also draws a
+            // clear while a value is set, inside the group where the value is.
+            <div className="inline-flex rounded-md border border-border-strong overflow-hidden w-fit">
               {opts.map((o, i) => (
                 <button
                   key={o.value}
                   type="button"
-                  onClick={() => onChange(coerceFieldValue('select', o.value))}
+                  aria-pressed={currentVal === o.value}
+                  title={currentVal === o.value ? 'Click again to clear' : undefined}
+                  onClick={() => onChange(coerceFieldValue('select', toggleSelectValue(currentVal, o.value)))}
                   className={clsx(
                     'px-3 py-1.5 text-sm transition-colors',
                     i > 0 && 'border-l border-border-strong',
@@ -552,15 +584,32 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
                   {o.label}
                 </button>
               ))}
+              {currentVal !== '' && (
+                <button
+                  type="button"
+                  aria-label="Clear"
+                  title="Clear"
+                  onClick={() => onChange(coerceFieldValue('select', ''))}
+                  className="grid place-items-center border-l border-border-strong bg-surface px-2 text-fg-subtle transition-colors hover:bg-surface-muted hover:text-fg"
+                >
+                  <IconX className="size-3.5" aria-hidden />
+                </button>
+              )}
             </div>
           ) : (
-            <Select value={currentVal} onValueChange={(v) => onChange(coerceFieldValue('select', v))}>
+            // The placeholder is what the CLOSED select shows while unset and
+            // the empty choice is what the open list offers to get back to it;
+            // both describe one state, so both come from the same default.
+            // Without it the trigger fell back to the ui package's generic
+            // '- Select -' while the list said otherwise, in one control - the
+            // same disagreement a block card had before it passed this.
+            <Select value={currentVal} onValueChange={(v) => onChange(coerceFieldValue('select', v))} placeholder={subFieldSelectPlaceholder(field)}>
               {isOrphaned && (
                 <SelectItem value={currentVal} className="text-warning-fg">
                   ⚠ {currentVal} (removed option)
                 </SelectItem>
               )}
-              {opts.map((o) => (
+              {choices.map((o) => (
                 <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
               ))}
             </Select>
@@ -737,7 +786,7 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
                 </div>
                 <div className="flex gap-2 mt-2">
                   <button type="button" onClick={() => setPickerOpen(true)} className="text-xs text-accent-fg hover:underline">Change</button>
-                  <span className="text-fg-faint">·</span>
+                  <span className="text-fg-faint" aria-hidden>·</span>
                   <button type="button" onClick={() => onChange(null)} className="text-ui-xs text-danger-fg hover:underline">Remove</button>
                 </div>
               </div>
@@ -799,6 +848,7 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
           onChange={onChange}
           maxRows={field.config.validation?.maxRows}
           localeCtx={blockLocaleCtx}
+          foldControl={foldControl}
         />
       )
     }
@@ -813,6 +863,7 @@ function FieldControlBase({ field, value: val, onChange, workspaceId, typeName, 
           getEntryValue={getSourceValue}
           showRequired={!!serverError}
           localeCtx={blockLocaleCtx}
+          foldControl={foldControl}
         />
       )
     }

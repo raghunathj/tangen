@@ -7,18 +7,30 @@
  *
  * Dependencies/Notes: Dynamically imports next/headers to support both Next.js 14 (sync draftMode) and 15+ (async draftMode); gracefully no-ops outside the Next.js runtime.
  */
-const PREVIEW_COOKIE = 'tangen_preview_token'
+import { PREVIEW_COOKIE } from './preview-mode'
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
 /**
- * Extracts the ?token= query parameter from a URL string, returning null if absent or empty.
+ * Extracts the preview token from a request URL, accepting either name.
+ *
+ * `preview_token` is the one the platform actually emits: the admin's Preview
+ * button builds its URL with `buildPreviewUrl`, which appends the token under
+ * that name, and it is the name `docs/live-preview.md` states and the SDK's
+ * preview path reads. This handler read only `token`, so a `frontend.previewUrl`
+ * pointed at it answered `400 Missing token` on every click. `token` is kept
+ * and still wins, for a link a site builds for itself.
+ *
  * @param url - The full request URL string
  * @returns The token string or null
  */
 export function extractToken(url: string): string | null {
-  const token = new URL(url).searchParams.get('token')
-  return token?.trim() || null
+  const params = new URL(url).searchParams
+  for (const name of ['token', 'preview_token']) {
+    const token = params.get(name)?.trim()
+    if (token) return token
+  }
+  return null
 }
 
 /**

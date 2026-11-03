@@ -27,6 +27,28 @@ export function mergeGlobalData(
 }
 
 /**
+ * Carries a global's translations across a full REPLACE.
+ *
+ * A global's locale values live inside its own jsonb under `__i18n`, and a
+ * read overlays them and strips the key - so the obvious round trip (read a
+ * global, change one field, write it back) used to delete every translation of
+ * every field with no warning. A replace addresses the BASE values; the locale
+ * values are written through PATCH with a locale, which is what PUT's own
+ * refusal already tells a caller.
+ *
+ * An explicit `__i18n` in the new data still wins, so an importer or a
+ * migration can replace or clear the whole set deliberately.
+ */
+export function preserveTranslations(
+  existing: Record<string, unknown> | null | undefined,
+  next: Record<string, unknown>,
+): Record<string, unknown> {
+  if (next.__i18n !== undefined) return next
+  const carried = (existing ?? {}).__i18n
+  return carried === undefined ? next : { ...next, __i18n: carried }
+}
+
+/**
  * Creates a GlobalsStore bound to a specific workspace and environment.
  * Exposes get, patch, and set methods that transparently handle DB upserts.
  * @param db - Drizzle database client instance.
@@ -77,7 +99,8 @@ export function createGlobalsStore(
     },
 
     async set(name, data) {
-      await upsert(name, data)
+      const row = await readRow(name)
+      await upsert(name, preserveTranslations(row?.data as Record<string, unknown> | undefined, data))
     },
   }
 }

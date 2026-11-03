@@ -17,6 +17,7 @@
 import { gzipSync, gunzipSync } from 'node:zlib'
 import type { StorageAdapter } from '@tangen/types'
 import { openBundleReader } from './bundle'
+import { assertSafeMediaRef } from './safe-key'
 
 const prefix = (bundleId: string) => `porter/bundles/${bundleId}`
 
@@ -33,7 +34,11 @@ export async function bundleKeys(storage: StorageAdapter, bundleId: string): Pro
   for await (const entry of reader.readSection('media/index')) {
     const asset = (entry as any).asset
     const filename = (entry as any).filename
-    if (asset?.id && filename) keys.push(`media/files/${asset.id}/${filename}`)
+    if (!asset?.id && !filename) continue
+    // Packaging reads each of these keys, so a traversing name here would read
+    // another bundle's bytes into the archive. Same guard as the writer.
+    assertSafeMediaRef(asset?.id, filename)
+    keys.push(`media/files/${asset.id}/${filename}`)
   }
   return keys
 }

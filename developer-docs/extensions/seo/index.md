@@ -119,11 +119,17 @@ tangen extension list
 ```
 Once enabled it adds resolved metadata, canonical URLs, a robots policy that
 differs by deployment role, a generated sitemap and sitemap index, a redirect
-manager in the Admin, and structured data - all driven by the one `resolveUrl`
-function you supply. Its public routes mount under `/api/v1/ext/seo/`,
-including `robots.txt` and `sitemap.xml`.
+manager in the Admin, and structured data. All of it needs one thing: where
+each object lives. A type that declares `path` already says so, and then
+`siteUrl` is the whole configuration; anything else you answer with
+`resolveUrl`. Its public routes mount under `/api/v1/ext/seo/`, including
+`robots.txt` and `sitemap.xml`.
 
 ## Supplying `resolveUrl`
+
+Only for a type that does not declare `path`. A type that does needs nothing
+here beyond `siteUrl`, because Tangen composes its address from the pattern
+and the tree.
 
 It goes in the extension's **options**, in `app/config/extensions.ts`. That is
 also where every other SEO helper lives:
@@ -169,14 +175,29 @@ no rules in it.
 
 ### What `resolveUrl` receives
 
-`{ workspaceId, type, id, slug, locale }` - **not the object's fields**.
-A content type routed by anything other than its slug cannot be resolved here,
-so either derive that type's route from its slug or leave it out of
-`sitemapTypes` and serve it from your own sitemap route.
+`{ workspaceId, type, id, slug, locale }`, plus whatever already answers the
+address:
+
+| key | is |
+|---|---|
+| `path` | the address Tangen composed from the type's declared `path`, locale prefix included. Absent for a type that declares none |
+| `fieldValue` | the value of the field you named in `urlField`, for a type you named |
+
+It does **not** receive the object's other fields. A type routed by something
+Tangen cannot see - a value computed at build time, say - is one to leave out
+of `sitemapTypes` and serve from your own sitemap route.
+
+Returning `null` is a real answer: the object is omitted from the sitemap and
+its canonical stays unset. The order of answers is `resolveUrl`, then
+`urlField`, then the type's `path`.
+
 ## Common mistakes
 
 - **Storing a canonical URL on the object.** It goes stale the moment a slug
-  changes. Derive it from the route.
+  changes. Declare `path` on the type and let Tangen compose it.
+- **Writing a `resolveUrl` for a type that declares `path`.** It is already
+  answered; a resolver that rebuilds the same route is a second route model
+  able to disagree with the first.
 - **Expecting Tangen to serve `/sitemap.xml`.** Your framework serves it;
   Tangen supplies the contents.
 - **Letting staging get indexed.** Your robots policy must differ by

@@ -2,7 +2,7 @@
 /**
  * File Name: tangen.js
  * Purpose: npm executes package bins with node, but the Tangen CLI must run
- *          under bun — it imports TypeScript configs (tangen.config.ts), uses
+ *          under bun - it imports TypeScript configs (tangen.config.ts), uses
  *          Bun APIs, and relies on bun auto-loading the project's .env. This
  *          shim re-launches the real entry under bun.
  *
@@ -17,7 +17,7 @@ const entry = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'index.
 
 const probe = spawnSync('bun', ['--version'], { stdio: 'ignore' })
 if (probe.error) {
-  console.error('tangen: bun is required (https://bun.sh) — install it and re-run.')
+  console.error('tangen: bun is required (https://bun.sh) - install it and re-run.')
   process.exit(1)
 }
 const res = spawnSync('bun', [entry, ...process.argv.slice(2)], { stdio: 'inherit' })

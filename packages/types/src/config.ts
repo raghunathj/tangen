@@ -718,6 +718,15 @@ export function defineMailConfig(config: MailConfig): MailConfig {
 export interface LocaleDef {
   code: string;
   label: string;
+  /**
+   * This locale's own origin, when the site expresses the locale in the HOST
+   * rather than in the path: 'https://de.example.com', 'https://example.de'.
+   * A locale that declares one is never ALSO given a path prefix, so
+   * `de.example.com/de/blog` is not something to remember to avoid - it is
+   * not expressible. Absent means this locale lives under the site's single
+   * origin, and `pathPrefix` decides whether it is prefixed.
+   */
+  url?: string;
 }
 
 /**
@@ -732,6 +741,12 @@ export interface LocalizationConfig {
   defaultLocale: string;
   /** All authorable locales (the default is included automatically). */
   locales: LocaleDef[];
+  /**
+   * How a locale reaches the front of a composed address, for the locales
+   * that declare no `url` of their own. Default 'as-needed', which is what
+   * Next's i18n routing does: the default locale bare, every other prefixed.
+   */
+  pathPrefix?: import("./content-path").PathPrefixMode;
 }
 
 /**

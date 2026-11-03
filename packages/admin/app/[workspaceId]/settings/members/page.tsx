@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
-  Dialog, DialogContent, DialogHeader, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter,
   DialogTitle, DialogDescription, DialogClose,
   Sheet, SheetContent, SheetHeader, SheetBody, SheetFooter,
   SheetTitle, SheetDescription, SheetClose,
@@ -185,7 +185,7 @@ function PasswordRevealDialog({ password, onClose }: { password: string; onClose
             Share this temporary password - it will not be shown again.
           </DialogDescription>
         </DialogHeader>
-        <div className="px-6 py-4">
+        <DialogBody>
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-sunken px-3 py-3">
             <code className="flex-1 font-mono text-sm text-fg">{password}</code>
             <button
@@ -207,7 +207,7 @@ function PasswordRevealDialog({ password, onClose }: { password: string; onClose
               {typeof window !== 'undefined' ? `${window.location.origin}/login` : '/login'}
             </button>
           </p>
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="primary" size="sm" onClick={onClose}>Done</Button>
         </DialogFooter>

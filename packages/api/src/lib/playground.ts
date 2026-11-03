@@ -8,7 +8,7 @@
  * Author: Raghunath J
  * License: MIT
  */
-import type { SchemaDefinition } from '@tangen/types'
+import type { SchemaDefinition, GlobalDefinition } from '@tangen/types'
 
 /**
  * Only same-host Tangen API paths may be dispatched. Must be an absolute
@@ -41,7 +41,9 @@ export function filterRequestHeaders(headers: Record<string, string>): Record<st
 
 export interface CatalogEndpoint {
   label: string
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  /** PUT included: the admin's Method type and the execute route's allowlist
+   *  both carry it, and a global is replaced with one. */
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'
   /** Path template ('/api/v1/…') — pre-filled into the request builder. */
   path: string
   description?: string
@@ -79,7 +81,24 @@ export function sampleValueFor(f: FieldLike): unknown {
     case 'json': return { any: 'json' }
     case 'relation': return cfg.many === true ? ['{{relatedId}}'] : '{{relatedId}}'
     case 'media': return '{{assetId}}'
-    default: return undefined   // richtext/component/repeater/object - too structural to fake usefully
+    case 'component': {
+      // The resolved component defs sit in config.components, so a block
+      // sample is available - and blocks are the LAST thing to leave out of a
+      // sample, being the part of the API whose shape nobody guesses. A
+      // sample without `_type` teaches a model that does not exist.
+      const defs = (cfg.components ?? []) as Array<{ name?: string; fields?: FieldLike[] }>
+      const blocks = defs
+        .filter((d) => typeof d?.name === 'string')
+        .slice(0, 2)
+        .map((d) => ({ _type: d.name as string, ...buildSampleValues(d.fields ?? []) }))
+      return blocks.length ? blocks : undefined
+    }
+    case 'repeater': {
+      const sub = (cfg.fields ?? []) as FieldLike[]
+      const row = buildSampleValues(sub)
+      return Object.keys(row).length ? [row] : undefined
+    }
+    default: return undefined   // richtext/object - too structural to fake usefully
   }
 }
 
@@ -96,14 +115,34 @@ export function buildSampleValues(fields: FieldLike[]): Record<string, unknown> 
   return out
 }
 
-/** Example query body: a real-field filter when a text-ish field exists. */
+/** A field worth filtering on: indexed or unique first, then any plain scalar. */
+export function filterableField(fields: FieldLike[]): FieldLike | undefined {
+  const FILTERABLE = ['text', 'slug', 'email', 'url', 'select', 'number', 'boolean', 'date', 'relation']
+  const scored = fields.filter((f) => FILTERABLE.includes(f.fieldType ?? ''))
+  const cfg = (f: FieldLike) => (f.config ?? {}) as Record<string, any>
+  const indexed = scored.find((f) => (f as { index?: boolean }).index === true || cfg(f).index === true)
+  const unique = scored.find((f) => cfg(f).validation?.unique === true || cfg(f).unique === true)
+  return indexed ?? unique ?? scored[0]
+}
+
+/**
+ * Example query body. Any field can be filtered - that is what `where` is for
+ * - so the sample picks one worth showing: an INDEXED or unique field before
+ * an arbitrary one, with an operator that returns something.
+ *
+ * It used to emit `{ contains: '' }` on the first text-ish field, which
+ * matches every row and reads as a broken example. Worse, it made the picker
+ * look as though `Get by id` were the only way to find a record.
+ */
 export function buildSampleQuery(fields: FieldLike[]): Record<string, unknown> {
-  const textish = fields.find((f) => ['text', 'textarea', 'slug', 'email'].includes(f.fieldType ?? ''))
-  return {
-    ...(textish ? { where: { [textish.name]: { contains: '' } } } : {}),
-    sort: '-created_at',
-    limit: 10,
-  }
+  const f = filterableField(fields)
+  if (!f) return { sort: '-created_at', limit: 10 }
+  const v = sampleValueFor(f)
+  const exact = ['select', 'boolean', 'number', 'relation', 'date'].includes(f.fieldType ?? '')
+  const clause = exact
+    ? { [f.name]: { eq: v ?? null } }
+    : { [f.name]: { contains: String(v ?? '').slice(0, 6) } }
+  return { where: clause, sort: '-created_at', limit: 10 }
 }
 
 export interface CatalogGroup {
@@ -122,6 +161,8 @@ export function buildPlaygroundCatalog(input: {
   customTables: string[]
   /** The ACTIVE extensions' key routes: what a site reads with a workspace key. */
   extensions?: Array<{ id: string; label?: string; routes: Array<{ method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; path: string }> }>
+  /** The workspace's global definitions, resolved by globalDefinitionsOf. */
+  globals?: GlobalDefinition[] | null
 }): CatalogGroup[] {
   const groups: CatalogGroup[] = []
   // PG-2: disabled (soft-deleted) types are invisible everywhere — the catalog too
@@ -139,7 +180,7 @@ export function buildPlaygroundCatalog(input: {
       endpoints: [
         {
           label: 'Query', method: 'POST' as const, path: `/api/v1/objects/${t.name}/query`,
-          description: 'Filter/sort/paginate. Operators: eq, ne, in, nin, gt, lt, contains, startsWith, empty…',
+          description: 'Find by ANY field, not just id. Filter/sort/paginate; operators: eq, ne, in, nin, gt, lt, contains, startsWith, empty… Indexed fields are the cheap ones.',
           sampleBody: buildSampleQuery(fields),
         },
         {
@@ -149,7 +190,7 @@ export function buildPlaygroundCatalog(input: {
         },
         {
           label: 'Get by id', method: 'GET' as const, path: `/api/v1/objects/${t.name}/{{id}}`,
-          description: 'Set an {{id}} variable in the Vars tab, or paste an id into the path.',
+          description: 'By id only. To fetch by a slug, a path or any other field, use Query with a `where`.',
           sampleParams: { depth: '1' },
         },
         {
@@ -176,6 +217,46 @@ export function buildPlaygroundCatalog(input: {
         },
       ],
     })
+  }
+
+  // Globals are singletons declared in code, so they have no list/create/
+  // publish cycle - one read and two writes each, plus the definitions list.
+  // They were missing from this picker entirely: the catalog knew content
+  // types, custom tables, custom routes and extensions, and a workspace's
+  // globals were never an input, so four routes the API serves could not be
+  // reached from the screen built for reaching routes.
+  const globals = (Array.isArray(input.globals) ? input.globals : []).filter((g) => g && typeof g.name === 'string')
+  if (globals.length) {
+    const endpoints: CatalogEndpoint[] = [{
+      label: 'List', method: 'GET' as const, path: '/api/v1/globals',
+      description: 'Every global the workspace declares - definitions only, no authored data.',
+    }]
+    for (const g of globals) {
+      const name = g.label ?? g.name
+      const fields = (g.fields ?? []) as unknown as FieldLike[]
+      const sample = buildSampleValues(fields)
+      endpoints.push(
+        {
+          label: `Get - ${name}`, method: 'GET' as const, path: `/api/v1/globals/${g.name}`,
+          // No depth here on purpose: a global has no depth option, so a
+          // media or relation field comes back as the bare id.
+          description: 'The authored values, at data.values. Media and relations arrive as ids, never expanded.',
+        },
+        {
+          label: `Replace - ${name}`, method: 'PUT' as const, path: `/api/v1/globals/${g.name}`,
+          // The body is the values object itself, NOT a `values` wrapper: the
+          // route hands it straight to collapseGlobalMedia.
+          description: 'Replaces the whole store. The body is the values object itself, not wrapped. Translations go through PATCH.',
+          sampleBody: sample,
+        },
+        {
+          label: `Update - ${name}`, method: 'PATCH' as const, path: `/api/v1/globals/${g.name}`,
+          description: 'Merges onto what is stored - send only the keys you change. Add ?locale=<code> to write a translation.',
+          sampleBody: Object.fromEntries(Object.entries(sample).slice(0, 2)),
+        },
+      )
+    }
+    groups.push({ group: 'Globals', endpoints })
   }
 
   if (input.customTables.length) {

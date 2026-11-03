@@ -322,6 +322,7 @@
     "push",
     "realtime",
     "requires",
+    "richtextNodes",
     "routes",
     "secrets",
     "server",

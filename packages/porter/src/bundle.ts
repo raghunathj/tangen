@@ -19,6 +19,7 @@
  *     media/files/<assetId>/<file>  raw bytes
  */
 import type { StorageAdapter } from '@tangen/types'
+import { assertSafeMediaRef } from './safe-key'
 
 export const BUNDLE_FORMAT_VERSION = '1.0.0'
 
@@ -106,6 +107,7 @@ export function createBundleWriter(
   return {
     section,
     async writeMediaFile(assetId, filename, bytes, contentType) {
+      assertSafeMediaRef(assetId, filename)
       await storage.write(mediaFileKey(bundleId, assetId, filename), bytes, { contentType })
     },
     async seal(manifest) {
@@ -172,6 +174,9 @@ export async function openBundleReader(storage: StorageAdapter, bundleId: string
       }
     },
     readMediaFile(assetId, filename) {
+      // The read side too: a bundle names this, and the write side refusing a
+      // traversal is no use if the read side builds the same path anyway.
+      assertSafeMediaRef(assetId, filename)
       return storage.read(mediaFileKey(bundleId, assetId, filename))
     },
   }

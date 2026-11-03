@@ -20,7 +20,7 @@ import { adminFetch, ApiError } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog, DialogContent, DialogHeader, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter,
   DialogTitle, DialogDescription, DialogClose,
 } from '@/components/ui/dialog'
 
@@ -77,7 +77,7 @@ function CreateReleaseDialog({ onCreated }: { onCreated: (r: Release) => void })
               A reviewable set of drafts that publish together. Approval freezes them; apply publishes them here.
             </DialogDescription>
           </DialogHeader>
-          <div className="px-6 py-4 space-y-4">
+          <DialogBody>
             <div>
               <label className="block text-xs font-medium text-fg mb-1">Release name <span className="text-danger-fg">*</span></label>
               <input type="text" value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder="v1.2 - Homepage update" autoFocus
@@ -90,7 +90,7 @@ function CreateReleaseDialog({ onCreated }: { onCreated: (r: Release) => void })
               <p className="mt-1 text-xs text-fg-subtle">Comma or space-separated object IDs to include in this release. An object belongs to at most one open release.</p>
             </div>
             {error && <p className="text-xs text-danger-fg">{error}</p>}
-          </div>
+          </DialogBody>
           <DialogFooter>
             <DialogClose asChild><Button variant="secondary" size="sm">Cancel</Button></DialogClose>
             <Button variant="primary" size="sm" isLoading={saving} onClick={handleCreate}>Create</Button>

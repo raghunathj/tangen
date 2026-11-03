@@ -57,6 +57,7 @@ These docs describe the current Tangen release line.
 - [Structuring content](https://docs.tangen.app/build/content-modeling/structuring-content.md): Groups, repeaters and components: which one to use for nested and repeating content, and how a component differs from a block on a page.
 - [Relations](https://docs.tangen.app/build/content-modeling/relations.md): Connecting content types, one and many, and what it costs to read them.
 - [Links and navigation](https://docs.tangen.app/build/content-modeling/links.md): Modeling destinations that survive a slug change, and resolving them to URLs in your app.
+- [Addresses and routing](https://docs.tangen.app/build/content-modeling/addresses.md): Declare where a content type lives with `path`, read a composed address with `includePath`, and pin your catch-all route against the pattern so the two cannot drift apart.
 - [Modeling for localization](https://docs.tangen.app/build/content-modeling/localization.md): Deciding which fields translate, before you have translations.
 - [Content](https://docs.tangen.app/build/content.md): Creating, editing, publishing, scheduling and previewing content.
 - [Drafts and publishing](https://docs.tangen.app/build/content/publishing.md): Draft and published status: why a newly created entry is invisible to the Delivery API until it is published, and what a reader sees.
@@ -141,7 +142,7 @@ These docs describe the current Tangen release line.
 - [Environment variables](https://docs.tangen.app/reference/environment-variables.md): Every environment variable Tangen reads, whether it is required, its default, and whether it is a secret.
 - [Deployments](https://docs.tangen.app/reference/deployments.md): One build, one database, one role - what a deployment is, the three roles, and the production safety rules.
 - [Fields](https://docs.tangen.app/reference/fields.md): All 28 built-in field types, their configuration, storage, localization and query behaviour.
-- [Link](https://docs.tangen.app/reference/link.md): The link field: stored shape, resolved shape, routing boundary, and what it deliberately does not do.
+- [Link](https://docs.tangen.app/reference/link.md): The link field: its three branches, stored and resolved shapes, the routing boundary, and what it deliberately does not do.
 - [Preview](https://docs.tangen.app/reference/preview.md): Preview tokens, the draft-read endpoint, TTLs, scoping and the live-preview stream.
 - [Knowledge](https://docs.tangen.app/reference/knowledge.md): Semantic search and ask-with-citations over your own content: the two endpoints, the grants they need, and the three things that must be in place first.
 - [TangenQL](https://docs.tangen.app/reference/tangenql.md): The query language: filters, operators, boolean groups, relations, sorting, pagination, depth and what it refuses.

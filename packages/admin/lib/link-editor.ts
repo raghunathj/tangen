@@ -9,13 +9,14 @@
  * License: MIT
  *
  * Dependencies/Notes: The editor authors the STORED shape - identity for
- *          internal links, a URL for external ones - and never the resolved
+ *          internal links, a URL for external ones, a path for site routes -
+ *          and never the resolved
  *          shape a read returns. A value echoed back from a read is folded to
  *          identity server-side, but the editor reads `targetRef` directly so
  *          what it shows and what it saves agree immediately.
  */
 import type { FieldDefinition, LinkKind, LinkValue, LinkQuery } from '@tangen/types'
-import { normalizeAnchor, normalizeQuery, normalizeLinkLabel, parseLinkPostfix, formatLinkPostfix } from '@tangen/types'
+import { LINK_KINDS, normalizeAnchor, normalizeQuery, normalizeLinkLabel, parseLinkPostfix, formatLinkPostfix } from '@tangen/types'
 
 export interface LinkFieldConfigView {
   kinds: LinkKind[]
@@ -34,10 +35,12 @@ export function linkConfigView(field: Pick<FieldDefinition, 'config'>): LinkFiel
     allowedKinds?: unknown; allowedTargets?: unknown; anchor?: unknown; query?: unknown; withLabel?: unknown; newTab?: unknown
   }
   const declared = Array.isArray(cfg.allowedKinds)
-    ? (cfg.allowedKinds as string[]).filter((k): k is LinkKind => k === 'internal' || k === 'external')
+    ? (cfg.allowedKinds as string[]).filter((k): k is LinkKind => (LINK_KINDS as readonly string[]).includes(k))
     : []
   return {
-    kinds: declared.length > 0 ? declared : ['internal', 'external'],
+    // All three by default. A field that wants fewer says so, and an existing
+    // field that already named two keeps exactly those.
+    kinds: declared.length > 0 ? declared : [...LINK_KINDS],
     allowedTargets: Array.isArray(cfg.allowedTargets) ? (cfg.allowedTargets as string[]) : [],
     anchor: cfg.anchor !== false,
     query: cfg.query !== false,
@@ -73,6 +76,18 @@ export function authoredLink(value: unknown): LinkValue | null {
     return {
       type: 'external',
       url,
+      ...(typeof v.label === 'string' && v.label ? { label: v.label } : {}),
+      ...(v.newTab === true ? { newTab: true } : {}),
+      ...(typeof v.anchor === 'string' && v.anchor ? { anchor: v.anchor } : {}),
+      ...(v.query && typeof v.query === 'object' ? { query: v.query as LinkQuery } : {}),
+    }
+  }
+  if (v.type === 'path') {
+    const path = typeof v.path === 'string' ? v.path : ''
+    if (!path.trim()) return null
+    return {
+      type: 'path',
+      path,
       ...(typeof v.label === 'string' && v.label ? { label: v.label } : {}),
       ...(v.newTab === true ? { newTab: true } : {}),
       ...(typeof v.anchor === 'string' && v.anchor ? { anchor: v.anchor } : {}),
@@ -124,6 +139,7 @@ export function switchKind(value: unknown, kind: LinkKind): LinkValue | null {
   const v = authoredLink(value)
   const carried = carriedOf(v)
   if (kind === 'external') return { type: 'external', url: v?.type === 'external' ? v.url : '', ...carried }
+  if (kind === 'path') return { type: 'path', path: v?.type === 'path' ? v.path : '', ...carried }
   if (v?.type === 'internal') return v
   return null   // an internal link with no target chosen yet is simply empty
 }
@@ -149,6 +165,28 @@ export function setUrl(value: unknown, url: string): LinkValue | null {
   const v = authoredLink(value)
   if (url.trim() === '') return null
   return { type: 'external', url: url.trim(), ...carriedOf(v) }
+}
+
+/**
+ * Type the site path. Empty clears the whole value rather than storing a blank
+ * link, the way `setUrl` does.
+ *
+ * A `?` or `#` typed into the path box is MOVED into the postfix rather than
+ * dropped: `normalizePath` stores the path alone, so without this the query a
+ * person typed would vanish between keystroke and save with nothing said.
+ */
+export function setPath(value: unknown, path: string): LinkValue | null {
+  const v = authoredLink(value)
+  const raw = path.trim()
+  if (raw === '') return null
+  const cut = Math.min(...['?', '#'].map((c) => (raw.indexOf(c) === -1 ? raw.length : raw.indexOf(c))))
+  const body = raw.slice(0, cut)
+  const typedPostfix = raw.slice(cut)
+  const carried = carriedOf(v)
+  if (!typedPostfix) return { type: 'path', path: body, ...carried }
+  // What was typed wins over what was there: it is the more recent intent.
+  const { anchor: _a, query: _q, ...rest } = carried as { anchor?: string; query?: LinkQuery }
+  return { type: 'path', path: body, ...rest, ...parseLinkPostfix(typedPostfix) }
 }
 
 /** Set or clear the anchor. Stored without its `#`, so `#team` and `team` are one value. */
@@ -185,18 +223,26 @@ export function setQueryRows(value: unknown, rows: Array<{ key: string; value: s
  * title and slug when it resolved, and an honest "cannot be found" when it did
  * not, so a broken link looks broken instead of empty.
  */
-export function targetSummary(value: unknown): { label: string; detail: string; broken: boolean } | null {
+export function targetSummary(
+  value: unknown,
+): { label: string; detail: string; broken: boolean; resolved: boolean } | null {
   const v = value as Record<string, any> | null
   if (!v || v.type !== 'internal') return null
   const ref = v.targetRef ?? v.target
   if (!ref?.id) return null
   if (!v.target) {
-    return { label: ref.id, detail: `This ${ref.type} cannot be found`, broken: true }
+    return { label: ref.id, detail: `This ${ref.type} cannot be found`, broken: true, resolved: true }
   }
   const t = v.target
+  // `resolved` separates "the read told us about this target" from "all we
+  // have is what the author picked". A freshly picked target is
+  // `{ type, id }` and nothing else, so `label` below falls back to the id -
+  // which is what the editor showed after choosing a page by its name. The
+  // caller resolves the title itself when this is false.
   return {
     label: t.title || t.id,
     detail: [t.type, t.slug ? `/${t.slug}` : null, t.status !== 'published' ? t.status : null].filter(Boolean).join(' '),
     broken: false,
+    resolved: t.title !== undefined || t.slug !== undefined || t.status !== undefined,
   }
 }

@@ -89,6 +89,25 @@ export interface QueryObject {
   /** Attach each row's operational labels as `_labels: string[]` (one batched query). */
   includeLabels?: boolean
   /**
+   * Compose each row's address from the type's declared `path` and attach it as
+   * `_path` - one batched query per type the pattern reaches, whatever the page
+   * size. Opt in, because an address costs a lookup nobody should pay for
+   * unasked; absent from the response unless requested, and `null` for a type
+   * that declares no path or a row the pattern gives no address.
+   */
+  includePath?: boolean
+  /**
+   * Attach each row's ancestor chain as `_ancestors`, root first and excluding
+   * the row itself, for a type whose `taxonomy` declares `hierarchical`.
+   *
+   * Opt in, like `includePath`, and the same bargain: one recursive query for
+   * the page, whatever its size and however deep the tree. It exists because a
+   * paginated list cannot work the chain out from the rows it was sent - a
+   * row's parent may be on another page entirely - and a reader still has to
+   * be told where the row sits.
+   */
+  includeAncestors?: boolean
+  /**
    * Whether to compute the exact `meta.total`. Defaults to true. Exact counting
    * is linear in the number of qualifying rows and is the dominant database cost
    * of a list over a large type; a caller that paginates by cursor, or only

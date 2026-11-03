@@ -11,6 +11,11 @@
  * Dependencies/Notes: FieldRenderer itself is intentionally NOT memoized — it
  * re-renders with the editor exactly like the inline render function it
  * replaced. What keeps typing cheap is the identity stability of the props it
+ * Every field reaching here is TOP-LEVEL, and the object editor draws a header
+ * bar for each container field, so `foldControl="host"` tells the block and
+ * repeater editors that Collapse all is already placed there. A nested editor
+ * reaches FieldControl without it and draws its own.
+ *
  * FORWARDS to the memoized FieldControl: the editor owns and passes down the
  * onChangeFor closure cache, the sourceValueFnFor cache, the taxonomy config
  * cache ref, and the blockLocaleCtx map. Do not rebuild any of those here.
@@ -186,6 +191,7 @@ export function FieldRenderer(props: FieldRendererProps) {
           getSourceValue={getSourceValue}
           serverError={validationErrors[field.name] ?? null}
           blockLocaleCtx={blockLocaleCtxByField[field.name]}
+          foldControl="host"
           targetTypeDisabled={
             field.fieldType === 'relation'
               ? allTypeDefs.get((field.config as { targetType?: string })?.targetType ?? '')?.disabled === true

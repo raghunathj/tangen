@@ -1,6 +1,6 @@
 
 
-import { useState, useRef, lazy, Suspense } from 'react'
+import { useState, useRef, useMemo, lazy, Suspense } from 'react'
 import { isLocalizableFieldType } from '@tangen/types'
 import { clsx } from 'clsx'
 import { nestedLocaleCtx, type BlockLocaleCtx } from '@/lib/editor'
@@ -9,6 +9,9 @@ import {
   IconArrowUp, IconArrowDown, IconTrash, IconGripDots,
   IconPencil, IconEye, IconEyeOff, IconCopy,
 } from '@tangen/icons'
+import { useFoldState } from '@/lib/use-fold-state'
+import { FoldAllButton } from './fold-all-button'
+import { NumericInput } from './numeric-input'
 import {
   DndContext,
   closestCenter,
@@ -41,6 +44,17 @@ import { RelationPicker } from './relation-picker'
 import { MultiRelationPicker } from './multi-relation-picker'
 import { RepeaterEditor, type RepeaterItem } from './repeater-editor'
 import { useContentTypes } from '@/lib/use-content-types'
+import { activeSubFieldTabs, subFieldAdmin, subFieldGroup, visibleSubFields, fieldColSpanSm, selectChoices, subFieldPlaceholder, subFieldSelectPlaceholder } from '@/lib/field-presentation'
+// The kit's Tabs, used as a CONTROL with the panel rendered below it, which is
+// how field-config-sheet.tsx and container-modal.tsx use it. Its triggers are
+// real tabs (role=tab, aria-selected) and they come from the kit, so no raw
+// control is added to this file's kit-lint budget.
+//
+// Through the narrow components/ui shim rather than the `@/kit` barrel: the
+// barrel transitively reaches the app-ui registry, which imports a VITE
+// VIRTUAL module, so pulling it in here would make this editor unrenderable
+// outside a Vite dev server. Same reason the Button shim exists.
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 // ── Sub-field controls ────────────────────────────────────────────────────────
 
@@ -177,16 +191,12 @@ function SubFieldControl({
       )
     case 'number':
       return (
-        <input
-          type="number"
-          value={value == null ? '' : String(value)}
+        <NumericInput
+          value={value}
+          onChange={onChange}
           min={field.config?.validation?.min}
           max={field.config?.validation?.max}
-          step={field.config?.validation?.integer ? 1 : 'any'}
-          onChange={(e) => {
-            const v = (e.target as HTMLInputElement).value
-            onChange(v === '' ? null : Number(v))
-          }}
+          integer={field.config?.validation?.integer}
           className={subInput}
         />
       )
@@ -203,9 +213,16 @@ function SubFieldControl({
       )
     case 'select': {
       const opts = field.config?.options ?? []
+      // The placeholder is what the CLOSED select shows while unset, and the
+      // empty option is what the open list offers to get back to it. Both
+      // describe one state, so both come from the same default: without the
+      // placeholder the trigger fell back to the ui package's '- Select -'
+      // while the list said otherwise, in one control. The two carry DIFFERENT
+      // wording on purpose: the trigger reports a value, the menu offers an
+      // action next to that same value.
       return (
-        <Select value={(value as string) ?? ''} onValueChange={onChange}>
-          {opts.map((o) => (
+        <Select value={(value as string) ?? ''} onValueChange={onChange} placeholder={subFieldSelectPlaceholder(field)}>
+          {selectChoices(field, opts).map((o) => (
             <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
           ))}
         </Select>
@@ -248,6 +265,7 @@ function SubFieldControl({
           type="text"
           value={(value as string) ?? ''}
           onChange={(e) => onChange((e.target as HTMLInputElement).value)}
+          placeholder={subFieldPlaceholder(field)}
           className={subInput}
         />
       )
@@ -259,6 +277,88 @@ function SubFieldControl({
 
 /** A sub-field whose translations live as a nested map under this block's entry. */
 const isContainerSub = (sf: SubField): boolean => sf.fieldType === 'component' || sf.fieldType === 'repeater'
+
+/**
+ * The tabs a block card offers, in order, labelled with the type's own
+ * vocabulary. "Style" rather than "Design", "Content" rather than "General":
+ * `SubField.group` already says `content | style | advanced`, Gutenberg's block
+ * sidebar says Styles and Webflow's panel says Style, and Studio's inspector
+ * classifies props with the same three words - so one block reads the same
+ * wherever it is edited.
+ *
+ * These are KINDS, not arrangements. The question they answer is "what sort of
+ * thing is this field" - what it says, how it looks, plumbing - which has the
+ * same three answers for every block anyone writes. Author-declared tabs would
+ * answer "how do I want to lay out my form", which drifts per block and would
+ * put a classification and an arrangement in the same row. A block whose
+ * Content grows long wants a fieldset WITHIN the tab, not a fourth tab.
+ */
+// The three kinds live in lib/field-presentation now, because a repeater row
+// sorts by them too and the vocabulary has to mean one thing wherever a
+// sub-field is edited. SUBFIELD_TABS carries the reasoning.
+
+interface BlockSubFieldProps {
+  sf: SubField
+  block: ComponentBlock
+  depth: number
+  forceRequired?: boolean
+  touched: Set<string>
+  setTouched: React.Dispatch<React.SetStateAction<Set<string>>>
+  onChange: (field: string, value: unknown) => void
+  localeCtx?: BlockLocaleCtx
+}
+
+/**
+ * One sub-field of a block, extracted so the content grid and every section
+ * render it from one place rather than repeating the label, the required mark,
+ * the per-locale inputs and the help text per group.
+ */
+function BlockSubField({ sf, block, depth, forceRequired, touched, setTouched, onChange, localeCtx }: BlockSubFieldProps) {
+  const sv = block[sf.name]
+  const empty = sv == null || sv === '' || (Array.isArray(sv) && sv.length === 0)
+  const missing = !!sf.required && empty && (forceRequired || touched.has(sf.name))
+  return (
+    <div className={fieldColSpanSm(isContainerSub(sf) ? 'full' : subFieldAdmin(sf).width)}>
+      <label className={clsx('block text-xs font-medium mb-1', missing ? 'text-danger-fg' : 'text-fg')}>
+        {sf.label}
+        {sf.required && <span className="text-danger-fg ml-0.5">*</span>}
+      </label>
+      <div className={clsx(missing && 'rounded-md ring-1 ring-danger/25')}>
+        <SubFieldControl
+          field={sf}
+          value={block[sf.name]}
+          onChange={(v) => {
+            setTouched((prev) => (prev.has(sf.name) ? prev : new Set(prev).add(sf.name)))
+            onChange(sf.name, v)
+          }}
+          depth={depth}
+          localeCtx={localeCtx && isContainerSub(sf) ? nestedLocaleCtx(localeCtx, block._key, sf.name) : undefined}
+        />
+      </div>
+      {missing && <p className="mt-1 text-[11px] text-danger-fg">Required - publishing will fail while empty.</p>}
+      {/* BL-4: one input per working locale beneath localized sub-fields */}
+      {localeCtx && (sf.config as { localized?: boolean } | undefined)?.localized === true && isLocalizableFieldType(sf.fieldType)
+        && localeCtx.locales.map((loc) => {
+          const overlay = localeCtx.getOverlay(loc.code)
+          const lv = overlay?.[block._key]?.[sf.name] ?? null
+          return (
+            <div key={loc.code} className={clsx('mt-1.5 pl-2 border-l-2', loc.railClass)}>
+              <span className={clsx('inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mb-1', loc.badgeClass)}>{loc.label}</span>
+              <SubFieldControl
+                field={sf}
+                value={lv}
+                onChange={(v) => localeCtx.setSub(loc.code, block._key, sf.name, v)}
+                depth={depth}
+              />
+            </div>
+          )
+        })}
+      {subFieldAdmin(sf).helpText && (
+        <p className="mt-1 text-[11px] text-fg-subtle">{subFieldAdmin(sf).helpText}</p>
+      )}
+    </div>
+  )
+}
 
 // ── Single block card ─────────────────────────────────────────────────────────
 
@@ -282,20 +382,51 @@ interface BlockCardProps {
   forceRequired?: boolean
   /** Per-locale inputs for localized sub-fields (BL-4). */
   localeCtx?: BlockLocaleCtx
+  /** Owned by the field, so one control can fold every block and a reload remembers it. */
+  expanded: boolean
+  onToggle: () => void
 }
 
 function BlockCard({
   block, def, index, total, depth, isDragging, dragHandleProps,
   onChange, onRemove, onMoveUp, onMoveDown, onRename, onToggleDisabled, onDuplicate, onCopy,
-  forceRequired, localeCtx,
+  forceRequired, localeCtx, expanded, onToggle,
 }: BlockCardProps) {
-  const [expanded, setExpanded] = useState(true)
   // Required-empty marks only appear once a sub-field was interacted with — a
   // freshly added block must not open covered in red.
   const [touched, setTouched] = useState<Set<string>>(() => new Set())
   const [renaming, setRenaming] = useState(false)
   const [renameVal, setRenameVal] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
+
+  // Grouping is presentation only: `group` classifies a field for the
+  // inspector and stores nothing, so sections cost no migration and a block
+  // that declares none is unaffected.
+  const [tab, setTab] = useState<string | null>(null)
+  // A sub-field its own rule hides is not drawn, is not counted as missing,
+  // and does not put its tab in the strip - the same answer the validator
+  // gives, from the same reader. Its stored value is kept.
+  const shown = visibleSubFields(def.fields, block)
+  const grouped = (g: string) => shown.filter((f) => subFieldGroup(f) === g)
+  const isMissing = (sf: SubField) => {
+    const sv = block[sf.name]
+    const empty = sv == null || sv === '' || (Array.isArray(sv) && sv.length === 0)
+    return !!sf.required && empty && (forceRequired || touched.has(sf.name))
+  }
+  const missingIn = (g: string) => grouped(g).some(isMissing)
+  const activeTabs = activeSubFieldTabs(shown)
+  // Before the editor has picked a tab, a tab holding a required-empty field
+  // wins: an error behind a tab nobody opened is worse than no grouping. Once
+  // they click, their choice holds - computed rather than an effect, so it
+  // reacts to a failed publish without fighting them afterwards.
+  const activeKey = tab ?? activeTabs.find(({ key }) => missingIn(key))?.key ?? activeTabs[0]?.key ?? 'content'
+  // A tab of shared settings says so while locales are in play. A note, never
+  // a disabled state: there is no non-base editing mode, so the base input is
+  // the only surface a shared value has.
+  const noteShared = Boolean(localeCtx)
+    && activeKey !== 'content'
+    && !grouped(activeKey).some((f) => (f.config as { localized?: boolean } | undefined)?.localized === true)
+  const subProps = (sf: SubField) => ({ sf, block, depth, forceRequired, touched, setTouched, onChange, localeCtx })
 
   const isDisabled = !!block._disabled
   const customLabel = block._label as string | undefined
@@ -349,7 +480,8 @@ function BlockCard({
         ) : (
           <button
             type="button"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={onToggle}
+            aria-expanded={expanded}
             className="flex-1 min-w-0 text-left"
           >
             <span className={clsx(
@@ -454,56 +586,40 @@ function BlockCard({
         </div>
       )}
 
-      {/* Sub-fields */}
+      {/* Fields by kind. One kind present means no tab row at all: a lonely
+          tab is chrome for nothing, and a content-only block stays as bare as
+          it was before tabs existed. Only the active tab's fields are in the
+          DOM, which is the kit's Tabs used as a control the way
+          field-config-sheet does it. */}
       {expanded && (
-        <div className="px-3 py-3 space-y-3">
-          {def.fields.map((sf) => {
-            const sv = block[sf.name]
-            const empty = sv == null || sv === '' || (Array.isArray(sv) && sv.length === 0)
-            const missing = !!sf.required && empty && (forceRequired || touched.has(sf.name))
-            return (
-            <div key={sf.name}>
-              <label className={clsx('block text-xs font-medium mb-1', missing ? 'text-danger-fg' : 'text-fg')}>
-                {sf.label}
-                {sf.required && <span className="text-danger-fg ml-0.5">*</span>}
-              </label>
-              <div className={clsx(missing && 'rounded-md ring-1 ring-danger/25')}>
-                <SubFieldControl
-                  field={sf}
-                  value={block[sf.name]}
-                  onChange={(v) => {
-                    setTouched((prev) => (prev.has(sf.name) ? prev : new Set(prev).add(sf.name)))
-                    onChange(sf.name, v)
-                  }}
-                  depth={depth}
-                  localeCtx={localeCtx && isContainerSub(sf) ? nestedLocaleCtx(localeCtx, block._key, sf.name) : undefined}
-                />
-              </div>
-              {missing && <p className="mt-1 text-[11px] text-danger-fg">Required - publishing will fail while empty.</p>}
-              {/* BL-4: one input per working locale beneath localized sub-fields */}
-              {localeCtx && (sf.config as { localized?: boolean } | undefined)?.localized === true && isLocalizableFieldType(sf.fieldType)
-                && localeCtx.locales.map((loc) => {
-                  const overlay = localeCtx.getOverlay(loc.code)
-                  const lv = overlay?.[block._key]?.[sf.name] ?? null
-                  return (
-                    <div key={loc.code} className={clsx('mt-1.5 pl-2 border-l-2', loc.railClass)}>
-                      <span className={clsx('inline-block px-1.5 py-0.5 rounded text-[10px] font-medium mb-1', loc.badgeClass)}>{loc.label}</span>
-                      <SubFieldControl
-                        field={sf}
-                        value={lv}
-                        onChange={(v) => localeCtx.setSub(loc.code, block._key, sf.name, v)}
-                        depth={depth}
-                      />
-                    </div>
-                  )
-                })}
-              {sf.admin?.helpText && (
-                <p className="mt-1 text-[11px] text-fg-subtle">{sf.admin.helpText}</p>
-              )}
+        <>
+          {activeTabs.length > 1 && (
+            <Tabs value={activeKey} onValueChange={setTab} variant="underline">
+              <TabsList className="px-3">
+                {activeTabs.map(({ key, label }) => (
+                  <TabsTrigger
+                    key={key}
+                    value={key}
+                    {...(missingIn(key) ? { 'data-tab-missing': key } : {})}
+                  >
+                    {label}
+                    {missingIn(key) && <span className="ml-1 text-danger-fg" aria-hidden="true">*</span>}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
+          <div className="px-3 py-3">
+            {noteShared && (
+              <p className="mb-2 text-[11px] text-fg-subtle">
+                Shared across every language. Change it once and it applies everywhere.
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-6">
+              {grouped(activeKey).map((sf) => <BlockSubField key={sf.name} {...subProps(sf)} />)}
             </div>
-            )
-          })}
-        </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -556,9 +672,16 @@ export interface ComponentBlockEditorProps {
   showRequired?: boolean
   /** Per-locale inputs for localized sub-fields (BL-4). */
   localeCtx?: BlockLocaleCtx
+  /**
+   * Who draws Collapse all. 'host' means the caller already drew a header and
+   * put it there, which is how a top-level field spends no extra height on it.
+   * Defaults to 'self', so a nested editor keeps the control it would
+   * otherwise silently lose.
+   */
+  foldControl?: 'self' | 'host'
 }
 
-export function ComponentBlockEditor({ components, value, onChange, getEntryValue, showRequired, localeCtx }: ComponentBlockEditorProps) {
+export function ComponentBlockEditor({ components, value, onChange, getEntryValue, showRequired, localeCtx, foldControl = 'self' }: ComponentBlockEditorProps) {
   const [requiredLatched, setRequiredLatched] = useState(false)
   if (showRequired && !requiredLatched) setRequiredLatched(true)
   const forceRequired = !!showRequired || requiredLatched
@@ -571,6 +694,13 @@ export function ComponentBlockEditor({ components, value, onChange, getEntryValu
   const hiddenCount = blocks.filter((b) => components.some((c) => c.name === b._type) && !visibleComponents.some((c) => c.name === b._type)).length
   const depth = useComponentDepth()
   const [pasteError, setPasteError] = useState<string | null>(null)
+  // Only the blocks that actually RENDER: a block hidden by a visibility rule
+  // must not decide whether the control says Collapse all.
+  const foldKeys = useMemo(
+    () => blocks.filter((b) => visibleComponents.some((c) => c.name === b._type)).map((b) => b._key),
+    [blocks, visibleComponents],
+  )
+  const fold = useFoldState(foldKeys)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -653,6 +783,17 @@ export function ComponentBlockEditor({ components, value, onChange, getEntryValu
 
   return (
     <div className="space-y-2">
+      {/*
+        The control sits in the FIELD HEADER for a top-level field, where it
+        costs no height; `foldControl` is how that caller says so. A nested
+        editor - a repeater inside a block card - has no header to put it in,
+        so it draws its own.
+      */}
+      {foldControl === 'self' && foldKeys.length > 1 && (
+        <div className="flex justify-end">
+          <FoldAllButton anyExpanded={fold.anyExpanded} onToggle={() => fold.setAll(fold.anyExpanded)} noun="sections" />
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -684,6 +825,8 @@ export function ComponentBlockEditor({ components, value, onChange, getEntryValu
                 onCopy={() => handleCopy(i)}
                 forceRequired={forceRequired}
                 localeCtx={localeCtx}
+                expanded={!fold.isCollapsed(block._key)}
+                onToggle={() => fold.toggle(block._key)}
               />
             )
           })}

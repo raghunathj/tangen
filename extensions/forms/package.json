@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-forms",
-  "version": "0.2.1",
+  "version": "0.2.5",
   "description": "Forms for a Tangen site: a builder, public embeds, headless schema and submit routes, submissions, notifications, webhooks, spam protection and localization",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -30,10 +30,10 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/types": "*",
-    "@tangen/cms": "*",
-    "@tangen/icons": "*",
-    "@tangen/ui": "*",
+    "@tangen/types": "^0.5.0",
+    "@tangen/cms": "^0.2.4",
+    "@tangen/icons": "^0.1.2",
+    "@tangen/ui": "^0.2.6",
     "drizzle-orm": "*",
     "react": "*",
     "@dnd-kit/core": "*",

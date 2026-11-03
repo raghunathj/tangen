@@ -43,8 +43,12 @@ export function PropertyRow({
   label, icon, control, value, placeholder, onEdit, layout = 'inline', required, help, error, labelExtras, htmlFor, className, ...props
 }: PropertyRowProps) {
   const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
+  // A stacked row's label sits ABOVE its control, where it is doing the same
+  // job as the editor's own field label rather than heading a value column -
+  // so it takes the same weight the main stage gives that label. Left light,
+  // a stacked property read as a caption over an unexplained control.
   const labelNode = (
-    <label htmlFor={htmlFor} className="flex min-w-0 items-center gap-1.5 text-ui-sm text-fg-muted">
+    <label htmlFor={htmlFor} className={cx('flex min-w-0 items-center gap-1.5 text-ui-sm text-fg-muted', layout === 'stacked' && 'font-medium')}>
       {icon && <span className="flex shrink-0 items-center text-fg-subtle [&_svg]:size-4">{icon}</span>}
       <span className="truncate">{label}</span>
       {required && <span className="text-danger" aria-hidden>*</span>}

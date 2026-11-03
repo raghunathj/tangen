@@ -33,6 +33,7 @@ import type { RealtimeIdentity } from '../realtime/authorize'
 import { contributions, contributionsGeneration, noteContributionWarning } from '../kernel/contributions'
 import { extensionWiringDeps, extensionExecution, bindExtensionCtx } from '../services/extension-server'
 import { dispatchExecution } from '../kernel/intersect'
+import { canReadTable, canReadGlobals } from '../lib/permissions'
 
 type GraphqlModule = typeof import('@tangen/graphql')
 let graphqlModule: GraphqlModule | null | undefined
@@ -217,6 +218,11 @@ async function handle(ctx: any): Promise<Response> {
     canWrite: config.mutations ? (type: string) => gql.canWriteType(permissions, type) : undefined,
     canPublish: config.mutations ? (type: string) => gql.canPublishTypeObjects(permissions, type) : undefined,
     canReadDrafts: (type: string) => gql.canReadDraftsType(permissions, type),
+    // Custom tables and globals are their own permission families, and these
+    // two fields had no gate here while REST asserted one. Same predicates,
+    // derived from the same asserts the REST routes call.
+    canReadTable: (name: string) => canReadTable(permissions, name, { isMember: !!ctx.memberId }),
+    canReadGlobals: (name: string) => canReadGlobals(permissions as never, name),
   })
   // K8.4: a contributed resolver runs with its extension's ctx bound to THIS caller - the caller's
   // permissions ∩ the extension's grants - and only while the extension is active here.

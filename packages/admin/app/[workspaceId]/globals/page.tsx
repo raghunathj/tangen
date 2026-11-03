@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { IconGlobe, IconSave, IconLoader } from '@tangen/icons'
-import { DynamicIcon } from '@/components/dynamic-icon'
+import { GlobalIcon } from '@/components/global-icon'
 import { adminFetch } from '@/lib/api'
 import { usePageHeader } from '@/lib/page-header'
 import { useLocaleStore } from '@/lib/locale'
@@ -12,20 +12,8 @@ import { toast } from '@/lib/toast'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetBody, SheetFooter, SheetTitle, SheetDescription } from '@/kit'
 import { IconChevronRight } from '@tangen/icons'
-import { FieldControl } from '@/components/fields/field-control'
-import type { GlobalDefinition, GlobalField } from '@tangen/types'
-import type { FieldDefinition } from '@tangen/types'
-
-const toFieldDef = (f: GlobalField): FieldDefinition => ({
-  ...f, previousName: f.previousName ?? [], required: f.required ?? false,
-})
-
-// ── Dynamic icon ──────────────────────────────────────────────────────────────
-
-function GlobalIcon({ name, className }: { name?: string | { src: string }; className?: string }) {
-  if (!name) return null
-  return <DynamicIcon name={name} className={className} />
-}
+import { GlobalFieldRow } from '@/components/global-field-row'
+import type { GlobalDefinition } from '@tangen/types'
 
 // ── Global edit sheet ─────────────────────────────────────────────────────────
 
@@ -81,11 +69,9 @@ function GlobalEditSheet({ def, workspaceId, open, onOpenChange }: {
       <SheetContent className="sm:max-w-2xl">
         <SheetHeader>
           <div className="flex items-start gap-3">
-            {def.icon && (
-              <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken border border-border">
-                <GlobalIcon name={def.icon} className="size-4.5 text-fg-muted" />
-              </div>
-            )}
+            <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken border border-border">
+              <GlobalIcon name={def.icon} className="size-4.5 text-fg-muted" />
+            </div>
             <div className="min-w-0">
               <SheetTitle>{def.label}</SheetTitle>
               {def.description && <SheetDescription className="mt-0.5">{def.description}</SheetDescription>}
@@ -105,26 +91,21 @@ function GlobalEditSheet({ def, workspaceId, open, onOpenChange }: {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-              {def.fields.map((f) => {
-                const adminWidth = f.config?.admin?.width
-                const isNaturallyWide = f.fieldType === 'textarea' || f.fieldType === 'richtext' || f.fieldType === 'json'
-                const spanFull = adminWidth === 'full' || (!adminWidth && isNaturallyWide)
-                return (
-                  <div key={f.name} className={spanFull ? 'sm:col-span-2' : ''}>
-                    <label className="block text-sm font-medium text-fg mb-1.5">
-                      {f.label}
-                      {f.required && <span className="text-danger-fg ml-0.5">*</span>}
-                    </label>
-                    <FieldControl
-                      field={toFieldDef(f)}
-                      value={values[f.name]}
-                      onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))}
-                      workspaceId={workspaceId}
-                    />
-                  </div>
-                )
-              })}
+            // Six columns, like the object editor, and an absent width means
+            // FULL as the field type documents. This grid used to read an
+            // absent width as HALF and span full only for textarea, richtext
+            // and json, so every other structured field - a repeater above
+            // all - was authored in half a side sheet.
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-6">
+              {def.fields.map((f) => (
+                <GlobalFieldRow
+                  key={f.name}
+                  field={f}
+                  value={values[f.name]}
+                  onChange={(v) => setValues((prev) => ({ ...prev, [f.name]: v }))}
+                  workspaceId={workspaceId}
+                />
+              ))}
             </div>
           )}
         </SheetBody>

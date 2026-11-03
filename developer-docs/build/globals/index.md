@@ -5,9 +5,9 @@ audience: site-developer
 type: guide
 status: stable
 package: "@tangen/cms"
-lastVerified: 2026-09-02
+lastVerified: 2026-10-13
 verification: executable
-verifiedBy: stage-g6/ch4+ch7
+verifiedBy: stage-g6/ch4+ch7, globals-no-push 2026-10-13
 ---
 
 # Globals
@@ -52,7 +52,15 @@ export default defineGlobals([
 ])
 ```
 
-Then import it in your workspace config as `globals` and run `tangen push`.
+Then import it in your workspace config as `globals`.
+
+**Globals need no push and no migration.** `tangen push` never reads them: the
+definitions are code, loaded with the project config and read on each request,
+and the `globals` table stores only the authored DATA, keyed by name. So adding,
+renaming or reordering a global takes a restart of the API, not a schema change.
+Two consequences worth knowing: a global appears in the admin as soon as the API
+reloads, and removing one ORPHANS its data row rather than dropping it, so the
+values come back if you put the global back.
 
 > A Global's `fields` is an **array**, not the keyed builder map content types
 > use: each entry names itself with `name` and states its `fieldType`. Every field
@@ -117,20 +125,42 @@ The common pattern: a repeater of items, each with a label and a
 {
   name: 'navigation',
   label: 'Navigation',
-  fields: {
-    primary: field.repeater({
-      label: 'Primary menu',
-      // A repeater's rows are plain sub-field objects under config.fields;
-      // the field.* builders describe top-level fields only.
-      config: { fields: [
-        { name: 'label', label: 'Label', fieldType: 'text', required: true, localized: true },
-        { name: 'target', label: 'Target', fieldType: 'link', config: { allowedTargets: ['page', 'article'] } },
-      ] },
-    }),
-    footer: field.repeater({ label: 'Footer menu', config: { fields: [ /* … */ ] } }),
-  },
+  // The ARRAY form, like every global. A repeater's rows are plain sub-field
+  // objects under config.fields; the field.* builders emit no `name`, so they
+  // describe top-level fields of a content TYPE and never a global's.
+  fields: [
+    {
+      name: 'primary', label: 'Primary menu', fieldType: 'repeater',
+      config: {
+        admin: { helpText: 'Drag to reorder. The order here is the order on the page.' },
+        fields: [
+          { name: 'label', label: 'Label', fieldType: 'text', required: true, config: { localized: true } },
+          { name: 'target', label: 'Target', fieldType: 'link', config: { allowedTargets: ['page', 'article'] } },
+          // A repeater nests. One level is usually all an IA needs.
+          { name: 'children', label: 'Sub-items', fieldType: 'repeater', config: { fields: [
+            { name: 'label', label: 'Label', fieldType: 'text', required: true },
+            { name: 'target', label: 'Target', fieldType: 'link', required: true },
+          ] } },
+        ],
+      },
+    },
+    { name: 'footer', label: 'Footer menu', fieldType: 'repeater', config: { fields: [ /* … */ ] } },
+  ],
 }
 ```
+
+Two things that are easy to get wrong here, both of them the array form's doing:
+
+- **`localized` goes under `config`**, on a global's fields and on a sub-field
+  alike. It does not exist at a field's top level, so putting it there is a TYPE
+  ERROR rather than a silent no-op. Mind that `tangen check` will not catch it:
+  that command type-checks `app/content-objects` and `app/generated` only, so a
+  globals file that does not compile still passes `check` and `push`. `tangen dev`
+  uses the full tsconfig and does catch it.
+- **`admin` belongs under `config` on a global's field** (`config: { admin: { width, helpText } }`),
+  because a global's field is a field definition. On a RAW SUB-FIELD inside a
+  repeater, `admin` may sit at the top level instead, and both are read. See
+  [the fields reference](/reference/fields#admin-options-on-a-sub-field).
 
 Then in your app:
 

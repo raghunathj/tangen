@@ -35,6 +35,7 @@ import { readTitles, writeTitle } from './titles'
 import { optimizeObject } from './optimize'
 import { parseRedirectCsv, toRedirectCsv } from '../lib/redirects-csv'
 import { objectUrl, urlFieldName, urlFieldValue } from '../lib/object-url'
+import { composedPath, typeDeclaresPath } from '../lib/composed-path'
 
 const XML = { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=300' }
 const TEXT = { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=300' }
@@ -549,17 +550,28 @@ async function resolveDestination(ctx: ExtensionServerCtx, redirect: SeoRedirect
   if (redirect.destination.kind === 'path') return redirect.destination.path
   const helpers = helpersOf(ctx)
   const { type, id } = redirect.destination
-  // Read the ONE field the site declared for this type, and only when it did:
-  // a redirect map of 10,000 rules must not become 10,000 object reads.
+  // Read the object only when something on it could answer the address: the
+  // ONE field the site declared for this type, or the type's own `path`. A
+  // redirect map of 10,000 rules must not become 10,000 object reads, and a
+  // type with neither has no address to find.
+  const wantsField = !!urlFieldName(helpers, type)
+  // A type's own declaration, read from the vocabulary rather than guessed:
+  // without it this is the ONE place that would read an object per rule for
+  // nothing, because the page above resolves every rule it lists.
+  const wantsPath = typeDeclaresPath(ctx, type)
   let fieldValue: string | null = null
-  if (urlFieldName(helpers, type) && ctx.tangen) {
+  let pathValue: string | null = null
+  if ((wantsField || wantsPath) && ctx.tangen) {
     try {
-      const res = await ctx.tangen.objects(type as never).status('any').find(id)
-      fieldValue = urlFieldValue(helpers, type, (res.data ?? null) as Record<string, unknown> | null)
+      const builder = ctx.tangen.objects(type as never).status('any')
+      const res = await (wantsPath ? builder.includePath() : builder).find(id)
+      const row = (res.data ?? null) as Record<string, unknown> | null
+      fieldValue = urlFieldValue(helpers, type, row)
+      pathValue = composedPath(row)
     } catch { /* an object that cannot be read has no URL, which is the answer below */ }
   }
   try {
-    const url = await objectUrl({ helpers, workspaceId: ctx.workspaceId, type, id, locale: null, fieldValue })
+    const url = await objectUrl({ helpers, workspaceId: ctx.workspaceId, type, id, locale: null, fieldValue, pathValue })
     if (!url) return null
     const checked = validateCanonical(url)
     return checked.ok ? checked.url : null

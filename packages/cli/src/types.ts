@@ -9,7 +9,7 @@
  * Dependencies/Notes: Imports ObjectTypeDefinition, FieldDefinition, and AdminConfig
  *                     from @tangen/types.
  */
-import type { ObjectTypeDefinition, FieldDefinition, AdminConfig } from '@tangen/types'
+import type { ObjectTypeDefinition, FieldDefinition, AdminConfig, StoredContentPath } from '@tangen/types'
 
 /** A single field as it exists in the live database, used for diffing against the code schema. */
 export interface RuntimeField {
@@ -21,6 +21,13 @@ export interface RuntimeField {
   previousNames: string[]
   required: boolean
   disabled?: boolean
+  /**
+   * Where the editor draws it. Carried here so the diff can SEE the stored
+   * order: without it nothing compared order, so reordering fields in the
+   * schema file was a no-op and a new field landed wherever its operation
+   * happened to sit in the push.
+   */
+  position: number
 }
 
 /** An object type as it exists in the live database, including its current field list. */
@@ -36,6 +43,9 @@ export interface RuntimeObjectType {
   adminConfig: Record<string, unknown>
   /** The extension that provides this type, or null when the site's own code declares it. */
   providedBy?: string | null
+  /** The declared address as the column holds it, or null/absent when the type
+   *  has none (absent on a database that predates the column). */
+  path?: StoredContentPath | null
   fields: RuntimeField[]
 }
 
@@ -56,16 +66,27 @@ export type ChangeOperation =
   | { op: 'UPDATE_TYPE_DISABLED'; typeId: string; typeName: string; disabled: boolean }
   | { op: 'UPDATE_TYPE_LOCALIZED'; typeId: string; typeName: string; localized: boolean }
   | { op: 'UPDATE_TYPE_PLURAL'; typeId: string; typeName: string; plural: string | null }
+  | { op: 'UPDATE_TYPE_PATH'; typeId: string; typeName: string; path: StoredContentPath | null }
   | { op: 'UPDATE_TYPE_LABEL'; typeId: string; typeName: string; label: string }
   | { op: 'UPDATE_TYPE_ADMIN_CONFIG'; typeId: string; typeName: string; admin: AdminConfig | undefined }
   /** Ownership moved: an extension now provides this type, or the site took it over (`null`). Registry-only. */
   | { op: 'UPDATE_TYPE_PROVIDED_BY'; typeId: string; typeName: string; providedBy: string | null }
-  | { op: 'ADD_FIELD'; typeId: string; typeName: string; field: FieldDefinition }
+  /** `position` is the field's index in the DECLARED type; absent means append. */
+  | { op: 'ADD_FIELD'; typeId: string; typeName: string; field: FieldDefinition; position?: number }
   | { op: 'RENAME_FIELD'; typeId: string; typeName: string; fieldId: string; from: string; to: string }
   | { op: 'UPDATE_FIELD_CONFIG'; typeId: string; typeName: string; fieldId: string; field: FieldDefinition }
   | { op: 'UPDATE_FIELD_REQUIRED'; typeId: string; typeName: string; fieldId: string; fieldName?: string; required: boolean }
   | { op: 'UPDATE_FIELD_DISABLED'; typeId: string; typeName: string; fieldId: string; fieldName?: string; disabled: boolean }
   | { op: 'DROP_FIELD'; typeId: string; typeName: string; fieldId: string; name: string; fieldType: string; warned: true }
+  /**
+   * The editor's field order, as the schema file declares it. Registry-only and
+   * never destructive: it rewrites `position` to each name's index.
+   *
+   * It exists because the schema file is the source of truth for everything
+   * else about a field and was not for where it appears. `names` is every
+   * field the type declares, in order, including a `group` container.
+   */
+  | { op: 'SET_FIELD_ORDER'; typeId: string; typeName: string; names: string[] }
   | { op: 'DROP_TYPE'; typeId: string; name: string; warned: true }
   | { op: 'CREATE_INDEX'; typeId: string; typeName: string; field: FieldDefinition }
   | { op: 'DROP_INDEX'; typeId: string; typeName: string; fieldName: string }

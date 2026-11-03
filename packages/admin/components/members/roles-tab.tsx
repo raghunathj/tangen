@@ -189,7 +189,7 @@ export function RolesTab({ canManage, members = [] }: { canManage: boolean; memb
       className: 'w-40',
       cell: (role) => {
         const holders = holdersOf(role.slug)
-        if (holders.length === 0) return <span className="text-fg-faint">-</span>
+        if (holders.length === 0) return <span className="text-fg-subtle">-</span>
         const shown = holders.slice(0, 4)
         return (
           <span className="inline-flex items-center" title={holders.map((h) => h.name || h.email).join(', ')}>

@@ -51,6 +51,20 @@ fields: {
 
 `field.text('subtitle', { … })` is not the API.
 
+A map still has an order, and **the order you write them in is the order the
+editor draws them**. Put the fields someone fills first at the top, and move
+one by moving it in the file; `tangen push` reports it as `field order follows
+the schema file`.
+
+Two fields on one row is `admin: { width: 'half' }` on each, and they share a
+row only while they are adjacent in the map - so the pairing is also something
+the order decides.
+
+`admin: { editorView: { sidebar: [...] } }` on the TYPE moves fields out of the
+main column into the properties sidebar. It suits a field that is one pick from
+a list kept elsewhere; a relation at the top of the main column pushes the
+words the entry is about below the fold.
+
 ## What you get without asking
 
 Every type has `id`, `title`, `slug`, `status`, `publishedAt`, `scheduledAt`,

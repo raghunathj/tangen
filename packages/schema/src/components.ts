@@ -42,8 +42,54 @@ export function resolveComponentRefs(refs: ComponentRef[], registry: ComponentDe
   })
 }
 
-type AnyField = { fieldType?: string; config?: Record<string, unknown>; [k: string]: unknown }
+/**
+ * The presentation controls the PLATFORM owns, for a project to spread.
+ *
+ * Only two, and both earn it by being universal rather than a design decision:
+ * an anchor id is a DOM id and a URL fragment, and a class list is the one
+ * escape hatch that cannot misbehave. Which tones or spacing steps exist is a
+ * project's business and belongs in the project.
+ *
+ * A project SPREADS this into the blocks that want it, usually through one
+ * shared function of its own, so a block's schema file says what the block
+ * has. Nothing injects it: a file that lists six fields while the block has
+ * ten is how an author loses track of their own component.
+ *
+ * Both sit in `advanced`, which is where Gutenberg puts an HTML anchor and
+ * additional CSS classes too. A class list is applied VERBATIM and never
+ * parsed back, the same contract Studio gives its escape-hatch classes: a
+ * class that does not exist simply does nothing, which is what separates this
+ * from a free-form stylesheet field.
+ *
+ * A function, not a const: these objects are handed to every block in a
+ * workspace, and one shared instance would let any consumer's mutation reach
+ * all of them.
+ */
+export function blockPresentationFields(): SubField[] {
+  return [
+    {
+      name: 'anchorId', label: 'Anchor ID', fieldType: 'text', group: 'advanced',
+      config: {
+        validation: { pattern: '^[a-z][a-z0-9-]*$' },
+        admin: { width: 'half', helpText: 'For in-page links: /about#our-work. Lowercase and hyphens.' },
+      },
+    },
+    {
+      name: 'className', label: 'CSS classes', fieldType: 'text', group: 'advanced',
+      config: {
+        // A NEGATED set, deliberately. The value is rendered into a class
+        // attribute, so what matters is that it cannot close that attribute or
+        // open a tag - not that it matches some allow-list of utility syntax
+        // we would get wrong (arbitrary values, fractions, `!` prefixes all
+        // have to keep working).
+        validation: { pattern: '^[^"\'<>\n\r]*$' },
+        admin: { width: 'half', helpText: 'Design-system utility classes, applied as written. Unknown classes do nothing.' },
+      },
+    },
+  ]
+}
 
+type AnyField = { fieldType?: string; config?: Record<string, unknown>; [k: string]: unknown }
 /** Recursively resolve component refs on component fields, descending containers. */
 function resolveFields(fields: AnyField[], registry: ComponentDef[]): AnyField[] {
   return fields.map((f) => {

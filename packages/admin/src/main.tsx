@@ -18,3 +18,8 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Disarms index.html's boot fallback. Reaching this line means the module
+// graph loaded and React mounted; without it the fallback would replace a
+// working admin with its "could not load" message.
+;(window as unknown as { __tangenBooted?: boolean }).__tangenBooted = true

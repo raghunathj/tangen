@@ -16,6 +16,7 @@ verifiedBy: stage-g4/content-model
 - [Structuring content](/build/content-modeling/structuring-content) - groups, components and repeaters
 - [Relations](/build/content-modeling/relations) - connecting types
 - [Links and navigation](/build/content-modeling/links) - referencing content safely
+- [Addresses and routing](/build/content-modeling/addresses) - declaring where content lives
 - [Modeling for localization](/build/content-modeling/localization) - deciding what translates
 
 Exact field shapes, options and validation rules are in

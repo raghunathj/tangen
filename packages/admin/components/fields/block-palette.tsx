@@ -7,7 +7,7 @@ import { clsx } from 'clsx'
 import type { ComponentDef } from '@tangen/types'
 import { filterComponents } from '@/lib/component-editor'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle,
 } from '@/components/ui/dialog'
 
 interface BlockPaletteProps {
@@ -57,88 +57,96 @@ export function BlockPalette({ components, onSelect }: BlockPaletteProps) {
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl p-0 overflow-hidden" showClose={false}>
-          <DialogHeader className="px-5 pt-5 pb-0">
+        {/* `p-0` here never reached the sections below: withDialogPadding wraps
+            every child that is not a Header or a Footer in a DialogBody of its
+            own, and that body is padded - so each `px-5` section sat at 40px
+            under a header at 20. The body is declared and unpadded now. */}
+        <DialogContent className="max-w-2xl overflow-hidden" showClose={false}>
+          {/* `pr-5` reclaims the room reserved for a close button this dialog
+              does not render. */}
+          <DialogHeader className="pr-5">
             <DialogTitle className="text-base font-semibold text-fg">Add New Block</DialogTitle>
           </DialogHeader>
 
-          {/* Search */}
-          <div className="px-5 pt-3">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-sunken border border-border focus-within:border-accent focus-within:ring-2 focus-within:ring-indigo-100 transition">
-              <IconSearch className="size-4 text-fg-subtle shrink-0" />
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={(e) => {
-                  setQuery((e.target as HTMLInputElement).value)
-                  setActiveGroup('All')
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') { setOpen(false); return }
-                  if (e.key === 'Enter' && filtered.length === 1) { pick(filtered[0]); return }
-                }}
-                placeholder="Search blocks…"
-                className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
-              />
+          <DialogBody className="flex flex-col p-0">
+            {/* Search */}
+            <div className="shrink-0 px-5 pt-3">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-sunken border border-border focus-within:border-accent focus-within:ring-2 focus-within:ring-indigo-100 transition">
+                <IconSearch className="size-4 text-fg-subtle shrink-0" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery((e.target as HTMLInputElement).value)
+                    setActiveGroup('All')
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') { setOpen(false); return }
+                    if (e.key === 'Enter' && filtered.length === 1) { pick(filtered[0]); return }
+                  }}
+                  placeholder="Search blocks…"
+                  className="flex-1 min-w-0 bg-transparent text-sm text-fg placeholder:text-fg-subtle outline-none"
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Group filter tabs */}
-          {groups.length > 1 && (
-            <div className="px-5 pt-3 flex gap-1.5 flex-wrap">
-              {groups.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setActiveGroup(g)}
-                  className={clsx(
-                    'px-3 py-1 rounded-full text-xs font-medium transition-colors',
-                    activeGroup === g
-                      ? 'bg-accent-strong text-white'
-                      : 'bg-surface-hover text-fg-muted hover:bg-surface-hover',
-                  )}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Block grid */}
-          <div className="px-5 py-4 overflow-y-auto max-h-80">
-            {filtered.length === 0 ? (
-              <p className="text-sm text-fg-subtle italic text-center py-8">No blocks match</p>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {filtered.map((def) => (
+            {/* Group filter tabs */}
+            {groups.length > 1 && (
+              <div className="px-5 pt-3 flex gap-1.5 flex-wrap">
+                {groups.map((g) => (
                   <button
-                    key={def.name}
+                    key={g}
                     type="button"
-                    onClick={() => pick(def)}
-                    className="text-left px-3 py-3 rounded-lg border border-border bg-surface hover:border-accent hover:bg-accent-muted hover:shadow-sm transition-all group"
+                    onClick={() => setActiveGroup(g)}
+                    className={clsx(
+                      'px-3 py-1 rounded-full text-xs font-medium transition-colors',
+                      activeGroup === g
+                        ? 'bg-accent-strong text-white'
+                        : 'bg-surface-hover text-fg-muted hover:bg-surface-hover',
+                    )}
                   >
-                    <div className="flex items-center gap-1.5">
-                      {def.icon && <DynamicIcon name={def.icon as never} className="size-4 shrink-0 text-fg-subtle group-hover:text-accent-fg" />}
-                      <p className="text-sm font-medium text-fg group-hover:text-accent-fg leading-tight">
-                        {def.label}
-                      </p>
-                    </div>
-                    {def.group && (
-                      <p className="mt-0.5 text-[10px] text-fg-subtle font-medium uppercase tracking-wide">
-                        {def.group}
-                      </p>
-                    )}
-                    {def.description && (
-                      <p className="mt-1 text-xs text-fg-muted leading-snug line-clamp-2">
-                        {def.description}
-                      </p>
-                    )}
+                    {g}
                   </button>
                 ))}
               </div>
             )}
-          </div>
+
+            {/* Block grid */}
+            <div className="px-5 py-4 overflow-y-auto max-h-80">
+              {filtered.length === 0 ? (
+                <p className="text-sm text-fg-subtle italic text-center py-8">No blocks match</p>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {filtered.map((def) => (
+                    <button
+                      key={def.name}
+                      type="button"
+                      onClick={() => pick(def)}
+                      className="text-left px-3 py-3 rounded-lg border border-border bg-surface hover:border-accent hover:bg-accent-muted hover:shadow-sm transition-all group"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {def.icon && <DynamicIcon name={def.icon as never} className="size-4 shrink-0 text-fg-subtle group-hover:text-accent-fg" />}
+                        <p className="text-sm font-medium text-fg group-hover:text-accent-fg leading-tight">
+                          {def.label}
+                        </p>
+                      </div>
+                      {def.group && (
+                        <p className="mt-0.5 text-[10px] text-fg-subtle font-medium uppercase tracking-wide">
+                          {def.group}
+                        </p>
+                      )}
+                      {def.description && (
+                        <p className="mt-1 text-xs text-fg-muted leading-snug line-clamp-2">
+                          {def.description}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogBody>
         </DialogContent>
       </Dialog>
     </>

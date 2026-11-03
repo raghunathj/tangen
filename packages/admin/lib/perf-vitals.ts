@@ -10,14 +10,16 @@
  * License: MIT
  *
  * Dependencies/Notes: web-vitals (ratings come from the library's own CWV
- *          thresholds - we never hand-roll bands). Route changes are detected
- *          by patching history.pushState/replaceState so the timer starts
- *          BEFORE the new page's mount effects fire their fetches (React
- *          effect ordering would start it after). Search-param-only changes
- *          (filter sync uses replaceState) never restart the timer.
+ *          thresholds - we never hand-roll bands), loaded DYNAMICALLY - see
+ *          startVitals. Route changes are detected by patching
+ *          history.pushState/replaceState so the timer starts BEFORE the new
+ *          page's mount effects fire their fetches (React effect ordering
+ *          would start it after). Search-param-only changes (filter sync uses
+ *          replaceState) never restart the timer.
  */
 import { create } from 'zustand'
-import { onLCP, onCLS, onINP, onTTFB, onFCP, type Metric } from 'web-vitals'
+// Type-only: erased at build, so importing this module requests nothing.
+import type { Metric } from 'web-vitals'
 
 export type CwvRating = 'good' | 'needs-improvement' | 'poor'
 export type VitalName = 'LCP' | 'CLS' | 'INP' | 'TTFB' | 'FCP'
@@ -140,21 +142,59 @@ function ensureTicking(): void {
 export function perfFetchStart(): void { timer?.fetchStart(); ensureTicking() }
 export function perfFetchEnd(): void { timer?.fetchEnd() }
 
+/** The slice of web-vitals this module uses. */
+type VitalsModule = {
+  onLCP: (cb: (m: Metric) => void) => void
+  onCLS: (cb: (m: Metric) => void) => void
+  onINP: (cb: (m: Metric) => void) => void
+  onTTFB: (cb: (m: Metric) => void) => void
+  onFCP: (cb: (m: Metric) => void) => void
+}
+
+/**
+ * Registers the CWV callbacks, and answers whether it managed to. The library
+ * is loaded on demand and the failure is SWALLOWED on purpose: `web-vitals`
+ * is a name several privacy filter lists match, so whether the request
+ * arrives is the viewer's browser extension's decision, not ours. A refused
+ * import must cost the pill's Page section and nothing else - it used to sit
+ * in the eager boot graph (main.tsx -> shared-runtime -> runtime-extensions
+ * -> api -> here), where a blocked request left the admin a white page with
+ * nothing to read.
+ *
+ * Registering after an await still collects: web-vitals reads BUFFERED
+ * performance entries, so LCP, FCP and TTFB that happened before this ran are
+ * reported anyway.
+ *
+ * @param load Injected in tests; defaults to the real dynamic import.
+ */
+export async function startVitals(
+  load: () => Promise<VitalsModule> = () => import('web-vitals') as unknown as Promise<VitalsModule>,
+): Promise<boolean> {
+  try {
+    const { onLCP, onCLS, onINP, onTTFB, onFCP } = await load()
+    const record = (m: Metric) =>
+      usePerfStore.getState().setVital(m.name as VitalName, Math.round(m.value * 1000) / 1000, m.rating)
+    onLCP(record)
+    onCLS(record)
+    onINP(record)
+    onTTFB(record)
+    onFCP(record)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Starts vitals collection + route timing. Idempotent; call from the pill
- * once the member is known to have Devspace access.
+ * once the member is known to have Devspace access. Route timing is wired
+ * synchronously and does not wait on the vitals library.
  */
 export function initPerfMonitor(): void {
   if (initialized || typeof window === 'undefined') return
   initialized = true
 
-  const record = (m: Metric) =>
-    usePerfStore.getState().setVital(m.name as VitalName, Math.round(m.value * 1000) / 1000, m.rating)
-  onLCP(record)
-  onCLS(record)
-  onINP(record)
-  onTTFB(record)
-  onFCP(record)
+  void startVitals()
 
   const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
   const captureLoad = () => {

@@ -17,6 +17,7 @@ import { deriveAction } from '../../lib/api-key-auth'
 import { requireCapability } from '../../lib/member-access'
 import { RequestError } from '../../lib/errors'
 import { assertApiKeyPermissions } from '../../lib/api-key-permissions'
+import { assertApiKeyContained } from '../../lib/api-key-containment'
 import { resolveActorId } from '../../lib/actor'
 import { getExtensionManifest, getExtensionServer } from '../../hooks/app-hooks-registry'
 import { extensionWiringDeps } from '../../services/extension-server'
@@ -184,6 +185,11 @@ export const apiKeyRoutes = (app: Elysia) =>
       assertAdmin(permissions, ctx.memberId)
 
       const payload = buildCreateApiKeyPayload(body)
+      // A credential may not out-rank its minter (finding 22). The catalogue
+      // check above says the document is WELL FORMED; this says the minter
+      // holds what it asks for. `manage:apiKeys` is the right to issue
+      // credentials, not the authority they carry.
+      assertApiKeyContained(payload.permissions, permissions)
       const { raw, keyPrefix, keyHash } = deriveKeyParts()
       const id = `key_${randomBytes(6).toString('hex')}`
 
@@ -247,7 +253,7 @@ export const apiKeyRoutes = (app: Elysia) =>
       assertAdmin(permissions, ctx.memberId)
 
       const b = body as Record<string, unknown>
-      const newPermissions = assertApiKeyPermissions(b?.permissions)
+      const newPermissions = assertApiKeyContained(assertApiKeyPermissions(b?.permissions), permissions)
 
       await db
         .update(apiKeys)

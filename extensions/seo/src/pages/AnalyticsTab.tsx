@@ -141,7 +141,7 @@ export function Stat({ label, summary, metric, format }: { label: string; summar
       <p className="mt-1.5 text-2xl font-semibold tracking-tight text-fg tabular-nums">{format(summary[metric])}</p>
       {change ? (
         <p className={`text-ui-xs font-semibold ${change.better ? 'text-success-fg' : 'text-danger-fg'}`}>
-          {change.delta >= 0 ? '+' : ''}{(change.delta * 100).toFixed(1)}% <span className="font-medium text-fg-faint">vs previous {summary.days} days</span>
+          {change.delta >= 0 ? '+' : ''}{(change.delta * 100).toFixed(1)}% <span className="font-medium text-fg-subtle">vs previous {summary.days} days</span>
         </p>
       ) : (
         <p className="text-ui-xs text-fg-subtle">No earlier window to compare</p>

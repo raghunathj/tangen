@@ -14,7 +14,22 @@ import type { ResolvedDeployment } from './deployment'
 
 export interface DeploymentFinding {
   severity: 'error' | 'warning' | 'info'
-  code: ConfigFinding['code'] | 'LOCAL_MEDIA_PRODUCTION' | 'LOCAL_MEDIA_REPLICAS' | 'LOCAL_DEFAULT_DATABASE' | 'STORAGE_ADAPTER_UNKNOWN'
+  /**
+   * Config resolution's own codes, plus every code a deployment check emits.
+   *
+   * The second group had fallen behind the code: `tangen doctor --deployment`
+   * and `doctor-connections.ts` were pushing nine codes this union did not
+   * name, so the findings they produce were a type error in published
+   * TypeScript. These are deployment findings, which is what this type is for,
+   * so they belong here rather than in a widened local alias.
+   */
+  code:
+    | ConfigFinding['code']
+    | 'LOCAL_MEDIA_PRODUCTION' | 'LOCAL_MEDIA_REPLICAS' | 'LOCAL_DEFAULT_DATABASE' | 'STORAGE_ADAPTER_UNKNOWN'
+    | 'DANGLING_GRANT' | 'COARSE_CAPABILITY'
+    | 'CONNECTION_UNREADABLE' | 'CONNECTIONS_KEY_DERIVED'
+    | 'CONNECTION_PROVIDER_CONFLICT' | 'CONNECTION_DORMANT' | 'CONNECTION_PENDING'
+    | 'CONNECTION_HEALTH_FAILED' | 'CONNECTION_NEEDS_CAPABILITY' | 'CONNECTOR_PACK_DISABLED'
   message: string
   workspace?: string
   key?: string

@@ -28,7 +28,7 @@ import { Elysia } from 'elysia'
 import { collectCorsOrigins } from './lib/cors-origins'
 import { setTrustedProxy, resolveTrustedProxy } from './lib/client-ip'
 import { logCorsPosture, logCorsMode } from './lib/cors-policy'
-import { gatewayPlugin, gatewayCors, resolveCorsMode, cachedDomainLookup, gatewayRateLimit, resolveRateLimitStore, setActiveRateLimitStore, gatewayRequestLimits, gatewaySurfaceExposure, assertPublicRowsExposed, installRealtimeLimits, realtimeConnectionClosed } from './gateway'
+import { gatewayPlugin, gatewayCors, resolveCorsMode, cachedDomainLookup, gatewayRateLimit, resolveRateLimitStore, setActiveRateLimitStore, gatewayRequestLimits, gatewaySurfaceExposure, assertPublicRowsExposed, installRealtimeLimits, realtimeConnectionClosed, RATE_LIMIT_DEFAULT_NOTE } from './gateway'
 import { workspaceDomains } from '@tangen/db'
 import { eq } from 'drizzle-orm'
 import type { ExtensionServerCtx, WorkspaceProject } from '@tangen/types'
@@ -272,7 +272,7 @@ export function composeServer(projects: WorkspaceProject[] = [], caps: ServerCap
   // holds across processes.
   setActiveRateLimitStore(rateLimitStore)
   getLogger(['tangen', 'api', 'gateway', 'rate-limit']).info(
-    `rate-limit counters: ${rateLimitStore.kind}${rateLimitStore.distributed ? '' : ' (one process only)'}; enforcement follows gateway.rateLimit.enabled per workspace, default observe`,
+    `rate-limit counters: ${rateLimitStore.kind}${rateLimitStore.distributed ? '' : ' (one process only)'}; enforcement follows gateway.rateLimit.enabled per workspace, ${RATE_LIMIT_DEFAULT_NOTE}`,
   )
   // Realtime R5 (the Gateway half): connection ceilings and the message
   // budget, resolved per workspace and counted in the same store; the hub

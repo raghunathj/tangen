@@ -1,0 +1,54 @@
+{
+  "pages": {
+    "/_not-found/page": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/chunks/app/_not-found/page-de7e1c6b3ea2f4ae.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/css/b1139cf2add92ac2.css",
+      "static/chunks/app/layout-41a8e63f9c064699.js"
+    ],
+    "/api/revalidate/route": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/chunks/app/api/revalidate/route-633db1d562ba8cbe.js"
+    ],
+    "/page": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/chunks/app/page-8053266a5c489889.js"
+    ],
+    "/studio/[slug]/page": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/chunks/app/studio/[slug]/page-633db1d562ba8cbe.js"
+    ],
+    "/[locale]/studio/[slug]/page": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/chunks/app/[locale]/studio/[slug]/page-633db1d562ba8cbe.js"
+    ],
+    "/posts/[slug]/page": [
+      "static/chunks/webpack-4a462cecab786e93.js",
+      "static/chunks/4bd1b696-c023c6e3521b1417.js",
+      "static/chunks/255-37e0f0325134c4d7.js",
+      "static/chunks/main-app-eb7513b2d8ee9f43.js",
+      "static/chunks/app/posts/[slug]/page-633db1d562ba8cbe.js"
+    ]
+  }
+}

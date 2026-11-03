@@ -92,6 +92,65 @@ export interface SchemaWriteDeps {
 }
 
 /**
+ * A `?type=` scope, validated. `--type` takes one name or a comma list, and
+ * every segment must be a schema type name - the same `assertSafeName` shape
+ * the schema writer has always required of a name it puts on disk.
+ *
+ * It returns `undefined` for an absent or empty value, which is the
+ * whole-codebase preview.
+ */
+export function assertSafeTypeScope(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  if (typeof raw !== 'string') throw new RequestError('VALIDATION_ERROR', 'type must be a string', 422)
+  const segments = raw.split(',').map((s) => s.trim())
+  for (const segment of segments) assertSafeName(segment)
+  return segments.join(',')
+}
+
+/**
+ * The push command as an ARGV ARRAY, never a shell string.
+ *
+ * This is the fix for security finding 18. Every one of these spawners used to
+ * build a command line and hand it to `sh -c`, quoting the variable parts with
+ * `JSON.stringify`. `JSON.stringify` is not a shell escape: it escapes `"`,
+ * `\` and control characters, and `sh` expands `$(...)` and backticks INSIDE
+ * double quotes. A request-controlled value reaching any of these - and
+ * `?type=` on `pending-plan` reached `spawnPlanPreview` straight off the query
+ * string - executed as the server user.
+ *
+ * An argv array cannot be re-parsed. The value is one element however it is
+ * spelled, so there is nothing left to escape and nothing left to forget.
+ */
+function pushArgv(monorepoCli: string, args: string[]): { file: string; argv: string[] } {
+  return existsSync(monorepoCli)
+    ? { file: 'bun', argv: [monorepoCli, 'push', ...args] }
+    : { file: 'tangen', argv: ['push', ...args] }
+}
+
+/** `--type <name>` as argv elements, or nothing. */
+const typeArgs = (scopeType?: string): string[] => (scopeType ? ['--type', scopeType] : [])
+
+/** One `--approve <token>` per destructive operation (C2); never a blanket flag. */
+const approveArgs = (approvals: string[] = []): string[] => approvals.flatMap((a) => ['--approve', a])
+
+/**
+ * The detached push wrapper, as a FIXED script that takes its command on argv.
+ *
+ * Three jobs that have to outlive this process, which is why they are not done
+ * on the parent side: the sleep (the push is spawned BEFORE the schema files
+ * are written, because a spawn afterwards races the dev-watch restart and
+ * loses), the output capture, and the exit code. On a dev server the schema
+ * write restarts this process, so a parent-side timer or a parent-side
+ * `close` handler would simply never run and the push would be lost.
+ */
+const PUSH_WRAPPER = [
+  'sleep 1',
+  'log=$1; status=$2; shift 2',
+  '"$@" >"$log" 2>&1',
+  'echo $? >"$status"',
+].join('\n')
+
+/**
  * Best-effort `tangen push` from the app root. Never throws.
  *
  * DEV-RESTART SURVIVAL: on a dev server (bun --watch) the schema write restarts THIS
@@ -104,13 +163,8 @@ export async function spawnPush(appContentDir: string, runId: string, approvals:
   const appRoot = dirname(appContentDir) // <root>/app (holds tangen.config.ts)
   const repoRoot = dirname(appRoot)
   const monorepoCli = join(repoRoot, 'packages', 'cli', 'src', 'index.ts')
-  // C2: one --approve per destructive operation the caller decided on; never a blanket flag.
-  const confirmFlag = approvals.map((a) => ` --approve ${JSON.stringify(a)}`).join('')
   // --type scopes the apply to one content type (+ its out-of-sync deps).
-  const typeFlag = scopeType ? ` --type ${JSON.stringify(scopeType)}` : ''
-  const cmd = existsSync(monorepoCli)
-    ? `bun ${JSON.stringify(monorepoCli)} push${confirmFlag}${typeFlag}`
-    : `tangen push${confirmFlag}${typeFlag}`
+  const { file, argv } = pushArgv(monorepoCli, [...approveArgs(approvals), ...typeArgs(scopeType)])
   const runDir = ensurePushRunDir()
   const logFile = join(runDir, `${runId}.log`)
   const statusFile = join(runDir, `${runId}.status`)
@@ -120,8 +174,14 @@ export async function spawnPush(appContentDir: string, runId: string, approvals:
       // The wrapper sleeps first: it is spawned BEFORE the schema files are written (a
       // spawn after the write races the dev-watch restart and loses), so it waits for
       // the write that happens right after it starts.
-      const script = `sleep 1; ${cmd} > ${JSON.stringify(logFile)} 2>&1; echo $? > ${JSON.stringify(statusFile)}`
-      const child = spawn('sh', ['-c', script], { cwd: appRoot, detached: true, stdio: 'ignore' })
+      // The script is a CONSTANT. Every variable part - the log path, the
+      // status path, the command and its flags - arrives as an argv element
+      // and is only ever read back through a quoted positional expansion,
+      // which `sh` does not re-split and does not re-expand. Nothing is
+      // interpolated into the text, so there is nothing to escape.
+      const child = spawn('sh', ['-c', PUSH_WRAPPER, 'tangen-push', logFile, statusFile, file, ...argv], {
+        cwd: appRoot, detached: true, stdio: 'ignore',
+      })
       child.unref()
       child.on('error', (e) => resolvePromise({ ok: false, output: String(e) }))
       const startedAt = Date.now()
@@ -156,14 +216,12 @@ export async function spawnPlanPreview(appContentDir: string, scopeType?: string
   const appRoot = dirname(appContentDir)
   const repoRoot = dirname(appRoot)
   const monorepoCli = join(repoRoot, 'packages', 'cli', 'src', 'index.ts')
-  const typeFlag = scopeType ? ` --type ${JSON.stringify(scopeType)}` : ''
-  const cmd = existsSync(monorepoCli)
-    ? `bun ${JSON.stringify(monorepoCli)} push --plan --json${typeFlag}`
-    : `tangen push --plan --json${typeFlag}`
+  const { file, argv } = pushArgv(monorepoCli, ['--plan', '--json', ...typeArgs(scopeType)])
   const fail = { ok: false, affectedTypes: [], hasDestructive: false }
   return new Promise<PlanPreview>((resolvePromise) => {
     try {
-      const child = spawn('sh', ['-c', cmd], { cwd: appRoot, stdio: ['ignore', 'pipe', 'ignore'] })
+      // No shell: this is the sink `?type=` reached (finding 18).
+      const child = spawn(file, argv, { cwd: appRoot, stdio: ['ignore', 'pipe', 'ignore'] })
       let out = ''
       child.stdout?.on('data', (d) => { out += d.toString() })
       child.on('error', () => resolvePromise(fail))
@@ -198,16 +256,16 @@ export async function spawnPreflight(appContentDir: string, candidate: SchemaCan
   const monorepoCli = join(repoRoot, 'packages', 'cli', 'src', 'index.ts')
   const runDir = ensurePushRunDir()
   const candidateFile = join(runDir, `${newPushRunId()}.candidate.json`)
-  const typeFlag = opts.scopeType ? ` --type ${JSON.stringify(opts.scopeType)}` : ''
-  const confirmFlag = (opts.approvals ?? []).map((a) => ` --approve ${JSON.stringify(a)}`).join('')
-  const base = existsSync(monorepoCli) ? `bun ${JSON.stringify(monorepoCli)} push` : 'tangen push'
-  const cmd = `${base} --plan --json${typeFlag}${confirmFlag} --candidate ${JSON.stringify(candidateFile)}`
+  const { file, argv } = pushArgv(monorepoCli, [
+    '--plan', '--json', ...typeArgs(opts.scopeType), ...approveArgs(opts.approvals),
+    '--candidate', candidateFile,
+  ])
   return new Promise<PreflightOutcome>((resolvePromise) => {
     let settled = false
     const done = (o: PreflightOutcome) => { if (!settled) { settled = true; try { rmSync(candidateFile, { force: true }) } catch { /* gone */ } resolvePromise(o) } }
     try {
       writeFileSync(candidateFile, JSON.stringify(candidate))
-      const child = spawn('sh', ['-c', cmd], { cwd: appRoot, stdio: ['ignore', 'pipe', 'pipe'] })
+      const child = spawn(file, argv, { cwd: appRoot, stdio: ['ignore', 'pipe', 'pipe'] })
       let out = ''
       let err = ''
       child.stdout?.on('data', (d) => { out += d.toString() })
@@ -391,7 +449,7 @@ export function makeSchemaWriteRoute(deps: SchemaWriteDeps) {
         assertNoReservedFieldNames(type.fields)
         {
           const empties = validateContainerEmptiness([type as never])
-          if (empties.length > 0) throw new RequestError('VALIDATION_ERROR', empties[0], 422, { containers: empties })
+          if (empties.length > 0) throw new RequestError('VALIDATION_ERROR', empties[0], 422, undefined, { containers: empties })
         }
         assertColumnNamespace(type)
         // confirm=true → the admin asked the user about the fields this save REMOVES
@@ -482,7 +540,11 @@ export function makeSchemaWriteRoute(deps: SchemaWriteDeps) {
         const dir = await gate(deps, ctx)
         // ?type=<name> → scoped preview: what a `--type` apply would touch + the out-of-sync
         // dependencies it pulls in (`extraTypes`). No type → the full whole-codebase preview.
-        const preview = await deps.planPreview(dir, ctx.query?.type || undefined)
+        // The name is validated here as the SECOND line: the spawner takes an
+        // argv array now, so nothing here can reach a shell, but a value going
+        // into a child process still has to be a type name and not a flag or a
+        // path. `--type` accepts a comma list, so each segment is checked.
+        const preview = await deps.planPreview(dir, assertSafeTypeScope(ctx.query?.type))
         return { data: preview }
       })
 
@@ -524,13 +586,13 @@ export function makeSchemaWriteRoute(deps: SchemaWriteDeps) {
         // field: the migration counts occurrences, and would move them.
         {
           const problems = componentRenameConflicts(comp as never)
-          if (problems.length > 0) throw new RequestError('VALIDATION_ERROR', problems[0], 422, { renames: problems })
+          if (problems.length > 0) throw new RequestError('VALIDATION_ERROR', problems[0], 422, undefined, { renames: problems })
         }
         if (!comp?.name) throw new RequestError('VALIDATION_ERROR', 'name is required', 422)
         assertSafeName(comp.name)
         {
           const empties = validateContainerEmptiness([], [comp as never])
-          if (empties.length > 0) throw new RequestError('VALIDATION_ERROR', empties[0], 422, { containers: empties })
+          if (empties.length > 0) throw new RequestError('VALIDATION_ERROR', empties[0], 422, undefined, { containers: empties })
         }
         const push = startDeferredWrite(deps, null, () => writeComponent(dir, comp))
         return { data: { written: [`${comp.name}/schema.ts`, 'index.ts'], push } }
@@ -602,7 +664,7 @@ export function makeSchemaWriteRoute(deps: SchemaWriteDeps) {
             assertNoReservedFieldNames(it.fields as Array<{ name?: string }> | undefined)
             {
               const empties = validateContainerEmptiness([it as never])
-              if (empties.length > 0) throw new RequestError('VALIDATION_ERROR', empties[0], 422, { containers: empties })
+              if (empties.length > 0) throw new RequestError('VALIDATION_ERROR', empties[0], 422, undefined, { containers: empties })
             }
             assertColumnNamespace(it as unknown as CodegenObjectType)
             jobs.push(() => writeContentType(contentDir, it as unknown as CodegenObjectType))

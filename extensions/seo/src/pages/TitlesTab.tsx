@@ -115,13 +115,13 @@ export function SeoTitlesPage() {
       key: 'title', header: 'SEO title', icon: <IconText />, sortKey: 'title',
       cell: (r) => r.published.title
         ? <span className="line-clamp-1 text-fg-muted">{r.published.title}</span>
-        : <span className="text-fg-faint">Falls back to the page title</span>,
+        : <span className="text-fg-subtle">Falls back to the page title</span>,
     },
     {
       key: 'description', header: 'Meta description', icon: <IconFileText />,
       cell: (r) => r.published.description
         ? <span className="line-clamp-1 text-fg-muted">{r.published.description}</span>
-        : <span className="text-fg-faint">Not set</span>,
+        : <span className="text-fg-subtle">Not set</span>,
     },
     {
       key: 'state', header: 'State', icon: <IconListChecks />, sortKey: 'state',

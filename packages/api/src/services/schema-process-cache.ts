@@ -39,6 +39,9 @@ interface TypeRow {
   schemaVersion: number
   previousNames: string[] | null
   providedBy?: string | null
+  /** The declared address, as the push stored it. Absent on a database that
+   *  predates the column; null and absent both mean "no address". */
+  path?: unknown
 }
 
 interface FieldRow {
@@ -82,6 +85,10 @@ export function buildSchemaDefinition(types: TypeRow[], fieldRows: FieldRow[]): 
       ...(t.disabled ? { disabled: true } : {}),
       ...(t.localized ? { localized: true } : {}),
       ...(t.providedBy ? { providedBy: t.providedBy } : {}),
+      // The ADDRESS. This is the only route a declaration has to the Admin:
+      // the request schema is rebuilt from this table and travels through
+      // Redis as JSON, so nothing code-side reaches here (slice 8).
+      ...(t.path ? { path: t.path as never } : {}),
       admin: (t.adminConfig as SchemaDefinition['types'][number]['admin']) ?? {},
       fields: fieldRows
         .filter((f) => f.typeId === t.id)

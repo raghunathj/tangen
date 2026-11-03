@@ -46,18 +46,28 @@ export async function mintPreviewToken(objectId: string, expiresInSeconds = 3600
  * Pure so it's unit-testable. When the template lacks `{id}`, the id/type ride as query params
  * so a bare `https://site/preview` template still works.
  */
-export function buildPreviewUrl(template: string, opts: { id: string; type: string; slug?: string; locale?: string; token?: string }): string {
+export function buildPreviewUrl(template: string, opts: { id: string; type: string; slug?: string; locale?: string; token?: string; path?: string | null }): string {
   const hasIdPlaceholder = /\{id\}/.test(template)
   const hasSlugPlaceholder = /\{slug\}/.test(template)
+  const hasPathPlaceholder = /\{path\}/.test(template)
   const hasLocalePlaceholder = /\{locale\}/.test(template)
   let url = template
     .replace(/\{id\}/g, encodeURIComponent(opts.id))
     .replace(/\{type\}/g, encodeURIComponent(opts.type))
     .replace(/\{slug\}/g, encodeURIComponent(opts.slug ?? ''))
+    // The composed address, for a type that declares `path`: a nested page
+    // lives at /about/company and a `{slug}` template could never reach it.
+    // NOT encoded as a whole - it is a path, its separators are real, and the
+    // composer already escaped each segment.
+    .replace(/\{path\}/g, opts.path ?? '')
     .replace(/\{locale\}/g, encodeURIComponent(opts.locale ?? ''))
   const params: string[] = []
   // Ensure the frontend can identify the object even for a bare `/preview` template.
-  if (!hasIdPlaceholder && !hasSlugPlaceholder) { params.push(`id=${encodeURIComponent(opts.id)}`, `type=${encodeURIComponent(opts.type)}`) }
+  // `{path}` identifies the object only when there WAS one: a template that
+  // names it and gets nothing for a type with no declared path would
+  // otherwise be a bare origin with nothing to resolve.
+  const pathIdentifies = hasPathPlaceholder && !!opts.path
+  if (!hasIdPlaceholder && !hasSlugPlaceholder && !pathIdentifies) { params.push(`id=${encodeURIComponent(opts.id)}`, `type=${encodeURIComponent(opts.type)}`) }
   if (opts.locale && !hasLocalePlaceholder) params.push(`preview_locale=${encodeURIComponent(opts.locale)}`)
   if (opts.token) params.push(`preview_token=${encodeURIComponent(opts.token)}`)
   for (const p of params) url += (url.includes('?') ? '&' : '?') + p

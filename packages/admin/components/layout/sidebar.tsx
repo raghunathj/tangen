@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuthStore } from '@/lib/auth'
 
 import { clsx } from 'clsx'
 import { useCan } from '@/lib/use-can'
@@ -34,6 +35,8 @@ import { useCapabilities } from '@/lib/use-capabilities'
 import { aiSectionVisible } from '@/lib/ai-nav'
 import {
   toggleInSet, togglePinned, isPinned, pushRecent, filterByLabel, splitOverflow,
+  pinsKey,
+  recentsKey,
   type NavRef,
 } from '@/lib/sidebar-prefs'
 
@@ -62,8 +65,6 @@ interface SidebarProps {
 const STORAGE_KEY = 'tangen-sidebar-collapsed'
 const TAXONOMY_EXPANDED_KEY = 'tangen-sidebar-taxonomy-expanded'
 const SECTIONS_COLLAPSED_KEY = 'tangen-sidebar-sections-collapsed'
-const PINS_KEY = 'tangen-sidebar-pins'
-const RECENTS_KEY = 'tangen-sidebar-recents'
 /** Beyond this many items, a section folds its tail under "More…". */
 const SECTION_OVERFLOW_LIMIT = 8
 
@@ -171,8 +172,12 @@ export function Sidebar({ workspaceId, workspaceName, workspaces, onSearchOpen, 
   const [contentFilter, setContentFilter] = useState('')
   // Recomputed on every render before (the sidebar re-renders per navigation).
   const groupedTypes = useMemo(() => groupTypesBySidebar(types), [types])
-  const [pins, setPins] = useState<NavRef[]>(() => loadList(PINS_KEY))
-  const [recents, setRecents] = useState<NavRef[]>(() => loadList(RECENTS_KEY))
+  // No member means no prefs rather than shared ones: the sidebar renders on
+  // the way in and out of a session, and an unscoped fallback key is exactly
+  // the leak this scoping removes.
+  const memberId = useAuthStore((s) => s.member?.memberId ?? null)
+  const [pins, setPins] = useState<NavRef[]>(() => (memberId ? loadList(pinsKey(memberId)) : []))
+  const [recents, setRecents] = useState<NavRef[]>(() => (memberId ? loadList(recentsKey(memberId)) : []))
 
   const [contentMoreOpen, setContentMoreOpen] = useState(false)
   const isSectionCollapsed = (name: string) => collapsedSections.has(name)
@@ -188,7 +193,7 @@ export function Sidebar({ workspaceId, workspaceName, workspaces, onSearchOpen, 
   function togglePin(item: NavRef) {
     setPins((prev) => {
       const next = togglePinned(prev, item)
-      try { localStorage.setItem(PINS_KEY, JSON.stringify(next)) } catch {}
+      try { if (memberId) localStorage.setItem(pinsKey(memberId), JSON.stringify(next)) } catch {}
       return next
     })
   }
@@ -201,10 +206,10 @@ export function Sidebar({ workspaceId, workspaceName, workspaces, onSearchOpen, 
     setRecents((prev) => {
       const next = pushRecent(prev, { to: pathname, label }, 5)
       if (next === prev) return prev
-      try { localStorage.setItem(RECENTS_KEY, JSON.stringify(next)) } catch {}
+      try { if (memberId) localStorage.setItem(recentsKey(memberId), JSON.stringify(next)) } catch {}
       return next
     })
-  }, [pathname, workspaceId, recentsEnabled])
+  }, [pathname, workspaceId, recentsEnabled, memberId])
 
   function toggleCollapsed() {
     setUserCollapsed((c) => {

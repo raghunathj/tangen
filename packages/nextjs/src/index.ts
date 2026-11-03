@@ -8,5 +8,15 @@
  * Dependencies/Notes: None
  */
 export { createPreviewHandler, disablePreview } from './preview-handler'
+export {
+  PREVIEW_COOKIE,
+  isDraftMode,
+  getPreviewToken,
+  previewStatus,
+  statusFor,
+  readPreviewCookie,
+  settle,
+} from './preview-mode'
 export { TangenSsrTimings } from './ssr-timings'
 export type { PreviewHandlerConfig } from './preview-handler'
+export type { ReadStatus, CookieReader } from './preview-mode'

@@ -52,21 +52,39 @@ top-level fields. See [Globals](/build/globals).
 
 `allowedKinds` restricts to internal or external; `allowedTargets` restricts
 which content types an internal link may point at; `anchor` and `query` toggle
-those inputs.
+those inputs. `withLabel` is the one option that defaults OFF, so without it
+the editor gets a destination and no words to click.
+
+**Name `allowedTargets` when you can.** It is the rule the server enforces on
+save, and it is also what the picker opens on: left absent, an internal link
+may point at any type, so the picker offers a type selector over all of them
+and the editor has one more decision to make before they can search. The picker
+searches and pages one type at a time on the server, newest first, so the
+narrower the rule the shorter the path to the entry they want.
+
+**`allowedKinds` is what the editor is offered.** Naming `['internal',
+'external']` means no **Page path** tab, so an author cannot type an arbitrary
+route - which is the point when every destination should be a real entry or a
+real URL. Add `'path'` back when the site has routes that are not entries here:
+a search page, a route your app renders itself. All three are offered when the
+option is omitted.
 
 ## Resolve it in your app
 
-Tangen gives you identity and the target's current facts. **Your router builds
-the URL** - Tangen does not know your routes, and inventing one is the thing it
-refuses to do.
+Tangen gives you identity and the target's current facts. Where the target's
+type declares a `path`, it also gives you the finished URL: `target.path` is
+the destination's address and `href` is that address with the query and anchor
+appended. Where it declares none, **your router builds the URL** - Tangen will
+not invent a route it was never told about.
 
 ```ts app/lib/link.ts
-import { isInternalLink, isExternalLink, isLinkResolved, linkSuffix } from '@tangen/sdk'
+import { isInternalLink, isLinkResolved, linkHref, linkSuffix } from '@tangen/sdk'
 import type { ResolvedLink } from '@tangen/sdk'
 
 export function hrefFor(link: ResolvedLink): string | null {
   if (!isLinkResolved(link)) return null
-  if (isExternalLink(link)) return link.href
+  const href = linkHref(link)              // external, path, and any declared path
+  if (href) return href
   if (isInternalLink(link) && link.target) {
     const path = link.target.type === 'page'
       ? `/${link.target.slug}`
@@ -77,8 +95,9 @@ export function hrefFor(link: ResolvedLink): string | null {
 }
 ```
 
-`linkSuffix()` returns the `?query#anchor` part, or `''`. There is no
-`hrefOf()` that handles both branches, and there will not be.
+Declare `path` on the types your links point at and the second branch stops
+being reached at all - see [Addresses and routing](/build/content-modeling/addresses). `linkSuffix()` returns the `?query#anchor` part, or `''`,
+for the types that have no declared address.
 
 ## Render an unresolved link as text
 

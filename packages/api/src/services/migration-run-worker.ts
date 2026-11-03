@@ -171,7 +171,7 @@ async function executeRemoteSend(deps: WorkerDeps, run: MigrationRun): Promise<v
         'content-type': 'application/octet-stream',
         'x-chunk-sha256': createHash('sha256').update(chunk).digest('hex'),
       },
-      body: chunk as unknown as BodyInit,
+      body: chunk,
     })
     if (!res.ok) {
       throw new Error(`receiver refused chunk ${i} (HTTP ${res.status}): ${(await res.text()).slice(0, 500)}`)

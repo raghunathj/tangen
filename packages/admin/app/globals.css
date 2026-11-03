@@ -45,6 +45,7 @@
   --tg-surface-selected: oklch(0 0 0 / 0.06);
   --tg-surface-overlay:  oklch(0 0 0 / 0.12);           /* the dialog scrim */
   --tg-surface-inverted: oklch(0.1591 0 0);
+  --tg-scrollbar-thumb:  oklch(0 0 0 / 0.35);          /* the opt-in native thumb */
   /* The settings page and its cards (the benchmark, 2026-09-08): a white page,
      a card a hair darker on it. In the dark ramp the card is a hair LIGHTER. */
   --tg-page:             #ffffff;
@@ -130,6 +131,7 @@
   --tg-surface-selected: oklch(1 0 0 / 0.06);
   --tg-surface-overlay:  oklch(0 0 0 / 0.50);
   --tg-surface-inverted: oklch(0.96 0 0);
+  --tg-scrollbar-thumb:  oklch(1 0 0 / 0.35);
   --tg-page:             #171717;
   --tg-card:             #1c1c1c;
   --tg-border-subtle:    oklch(1 0 0 / 0.09);
@@ -210,6 +212,7 @@
   --tg-surface-selected: #43464d;
   --tg-surface-overlay:  rgb(0 0 0 / 0.6);
   --tg-surface-inverted: #f2f2f3;
+  --tg-scrollbar-thumb:  rgb(255 255 255 / 0.35);      /* as the dark ramp: light on a dark tool */
   /* lines - low contrast, or a dark tool turns into a wireframe */
   --tg-border-subtle:    #33363b;
   --tg-border:           #3c3f45;
@@ -452,62 +455,60 @@ select {
 *:not(.native-scrollbar):not(.classic-scrollbar *)::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
 * { scrollbar-width: none; }
 ::-webkit-scrollbar-corner { background: transparent; }
-.native-scrollbar, .classic-scrollbar * { scrollbar-width: thin; scrollbar-color: oklch(0 0 0 / 0.35) transparent; }
-.dark .native-scrollbar, .dark.classic-scrollbar * { scrollbar-color: oklch(1 0 0 / 0.35) transparent; }
+.native-scrollbar, .classic-scrollbar * { scrollbar-width: thin; scrollbar-color: var(--tg-scrollbar-thumb) transparent; }
 .native-scrollbar::-webkit-scrollbar, .classic-scrollbar *::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
-.native-scrollbar::-webkit-scrollbar-thumb, .classic-scrollbar *::-webkit-scrollbar-thumb { background: oklch(0 0 0 / 0.35); border-radius: 4px; }
-.dark .native-scrollbar::-webkit-scrollbar-thumb, .dark.classic-scrollbar *::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 0.35); }
+.native-scrollbar::-webkit-scrollbar-thumb, .classic-scrollbar *::-webkit-scrollbar-thumb { background: var(--tg-scrollbar-thumb); border-radius: 4px; }
 
 /* ── Richtext (Tiptap) editor content styles ─────────────────────────────── */
-.tiptap { outline: none; }
-.tiptap > * + * { margin-top: 0.5em; }
-.tiptap p { line-height: 1.65; }
-.tiptap h1 { font-size: 1.6em; font-weight: 700; line-height: 1.25; margin-top: 1em; }
-.tiptap h2 { font-size: 1.35em; font-weight: 700; line-height: 1.3; margin-top: 0.9em; }
-.tiptap h3 { font-size: 1.15em; font-weight: 600; line-height: 1.35; margin-top: 0.85em; }
-.tiptap h4 { font-size: 1em; font-weight: 600; line-height: 1.4; margin-top: 0.8em; }
-.tiptap h5 { font-size: 0.9em; font-weight: 600; margin-top: 0.75em; }
-.tiptap h6 { font-size: 0.85em; font-weight: 600; color: #6b7280; margin-top: 0.75em; }
-.tiptap ul { list-style-type: disc; padding-left: 1.5em; }
-.tiptap ol { list-style-type: decimal; padding-left: 1.5em; }
-.tiptap li { margin: 0.2em 0; line-height: 1.6; }
-.tiptap li::marker { color: #9ca3af; }
-.tiptap blockquote {
-  border-left: 3px solid #d1d5db;
+.tg-richtext { outline: none; }
+.tg-richtext > * + * { margin-top: 0.5em; }
+.tg-richtext p { line-height: 1.65; }
+.tg-richtext h1 { font-size: 1.6em; font-weight: 700; line-height: 1.25; margin-top: 1em; }
+.tg-richtext h2 { font-size: 1.35em; font-weight: 700; line-height: 1.3; margin-top: 0.9em; }
+.tg-richtext h3 { font-size: 1.15em; font-weight: 600; line-height: 1.35; margin-top: 0.85em; }
+.tg-richtext h4 { font-size: 1em; font-weight: 600; line-height: 1.4; margin-top: 0.8em; }
+.tg-richtext h5 { font-size: 0.9em; font-weight: 600; margin-top: 0.75em; }
+.tg-richtext h6 { font-size: 0.85em; font-weight: 600; color: var(--tg-fg-subtle); margin-top: 0.75em; }
+.tg-richtext ul { list-style-type: disc; padding-left: 1.5em; }
+.tg-richtext ol { list-style-type: decimal; padding-left: 1.5em; }
+.tg-richtext li { margin: 0.2em 0; line-height: 1.6; }
+.tg-richtext li::marker { color: var(--tg-fg-faint); }
+.tg-richtext blockquote {
+  border-left: 3px solid var(--tg-border-strong);
   padding: 0.25em 0 0.25em 1em;
-  color: #6b7280;
+  color: var(--tg-fg-subtle);
   font-style: italic;
   margin: 0.75em 0;
 }
-.tiptap code {
+.tg-richtext code {
   font-family: var(--font-mono);
   font-size: 0.85em;
-  background: #f3f4f6;
-  color: #6d28d9;
+  background: var(--tg-surface-sunken);
+  color: var(--tg-accent-fg);
   padding: 0.1em 0.35em;
   border-radius: 0.25em;
 }
-.tiptap pre {
-  background: #1e1b4b;
-  color: #c7d2fe;
+.tg-richtext pre {
+  background: var(--tg-surface-sunken);
+  color: var(--tg-fg);
   padding: 1em 1.25em;
   border-radius: 0.5em;
   overflow-x: auto;
   margin: 0.75em 0;
 }
-.tiptap pre code { background: none; color: inherit; padding: 0; font-size: 0.875em; }
-.tiptap hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.25em 0; }
-.tiptap a { color: #4f46e5; text-decoration: underline; cursor: pointer; }
-.tiptap a:hover { color: #4338ca; }
-.tiptap strong { font-weight: 700; }
-.tiptap em { font-style: italic; }
-.tiptap s { text-decoration: line-through; color: #9ca3af; }
-.tiptap u { text-decoration: underline; }
-.tiptap img { max-width: 100%; height: auto; border-radius: 0.375em; display: block; margin: 0.5em 0; }
-.tiptap img.ProseMirror-selectednode { outline: 2px solid #6366f1; border-radius: 0.375em; }
-.tiptap p.is-editor-empty:first-child::before {
+.tg-richtext pre code { background: none; color: inherit; padding: 0; font-size: 0.875em; }
+.tg-richtext hr { border: none; border-top: 1px solid var(--tg-border); margin: 1.25em 0; }
+.tg-richtext a { color: var(--tg-accent-fg); text-decoration: underline; cursor: pointer; }
+.tg-richtext a:hover { color: var(--tg-accent-strong); }
+.tg-richtext strong { font-weight: 700; }
+.tg-richtext em { font-style: italic; }
+.tg-richtext s { text-decoration: line-through; color: var(--tg-fg-faint); }
+.tg-richtext u { text-decoration: underline; }
+.tg-richtext img { max-width: 100%; height: auto; border-radius: 0.375em; display: block; margin: 0.5em 0; }
+.tg-richtext img.ProseMirror-selectednode { outline: 2px solid var(--tg-focus-border); border-radius: 0.375em; }
+.tg-richtext p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #9ca3af;
+  color: var(--tg-fg-faint);
   pointer-events: none;
   float: left;
   height: 0;
@@ -549,8 +550,25 @@ select {
 
 .genai-border {
   border: 1.5px solid transparent;
+  /* The padding-box fill MUST be a token. It was a literal `#fff`, so in the
+     dark ramp the button kept a white interior while `text-accent-fg` resolved
+     to indigo-300: light lavender on white, which is unreadable and is what a
+     screenshot of the dark top bar showed.
+
+     `surface-raised` is the right one by meaning as well as by value - the
+     ramp reserves it for "popovers, menus, dialogs, inputs", and this is a
+     control. It is #ffffff in light, so light mode is byte-identical to
+     before, and oklch(0.24) in dark, where indigo-300 sits at about 6.5:1.
+
+     It also has to stay OPAQUE: the conic gradient is painted on the border
+     box underneath, so a translucent fill would let the gradient show through
+     the face of the button. Both ramps define this token opaque.
+
+     The border gradient's own stops stay literal on purpose: they are a brand
+     ornament, not a surface, they read on either ground, and tokenising five
+     stops would invent five tokens nothing else uses. */
   background:
-    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(var(--tg-surface-raised), var(--tg-surface-raised)) padding-box,
     conic-gradient(from var(--genai-angle), #6366f1, #a78bfa, #ec4899, #8b5cf6, #6366f1) border-box;
   animation: genai-rotate 3.5s linear infinite;
 }
@@ -593,7 +611,7 @@ select {
 .rdp-custom .rdp-today:not(.rdp-selected) .rdp-day_button { color: var(--tg-accent-fg); font-weight: 600; }
 /* Selected: the accent square (the base accent, the one the primary button wears), white numeral */
 .rdp-custom .rdp-selected { font-size: inherit; }
-.rdp-custom .rdp-selected .rdp-day_button { background: var(--tg-accent); border: none; box-shadow: none; color: var(--tg-accent-contrast, #fff); font-weight: 600; }
+.rdp-custom .rdp-selected .rdp-day_button { background: var(--tg-accent); border: none; box-shadow: none; color: var(--tg-accent-contrast); font-weight: 600; }
 /* Disabled: faded out, cursor tells the rest */
 .rdp-custom .rdp-disabled:not(.rdp-selected) { opacity: 0.35; }
 

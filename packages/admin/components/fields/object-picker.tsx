@@ -7,12 +7,17 @@ import {
   IconLink, IconPlus, IconCheck,
 } from '@tangen/icons'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Select, SelectItem } from '@/components/ui/select'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { adminFetch } from '@/lib/api'
 import { timeAgo } from '@/lib/webhook-logs'
-import { statusBadge, type RelationStatusFilter } from '@/lib/relation-picker'
+import { type RelationStatusFilter } from '@/lib/relation-picker'
+import { useContentTypes } from '@/lib/use-content-types'
+import { usePickableObjects } from '@/lib/use-pickable-objects'
+import { pickableTypeNames, pickerSortFor } from '@/lib/pickable-objects'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,8 +41,6 @@ export interface ObjectPickerProps {
   onChange: (v: ObjectValue | ObjectValues) => void
 }
 
-const PAGE_SIZE = 10
-
 const STATUS_FILTERS: { label: string; value: RelationStatusFilter }[] = [
   { label: 'All', value: 'all' },
   { label: 'Published', value: 'published' },
@@ -46,15 +49,6 @@ const STATUS_FILTERS: { label: string; value: RelationStatusFilter }[] = [
 ]
 
 // ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatusChip({ status }: { status: string }) {
-  const { label, className } = statusBadge(status)
-  return (
-    <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border', className)}>
-      {label}
-    </span>
-  )
-}
 
 function TypeBadge({ type }: { type: string }) {
   return (
@@ -68,176 +62,77 @@ function TypeBadge({ type }: { type: string }) {
 
 function ObjectPickerModal({
   open, onOpenChange, include, workspaceId,
-  many, currentIds, onSelectSingle, onSelectMany,
+  many, current, onSelectSingle, onSelectMany,
 }: {
   open: boolean
   onOpenChange: (v: boolean) => void
   include: string[]
   workspaceId: string
   many: boolean
-  currentIds: string[]
+  /** The full refs, not just ids: see the note on `draft` below. */
+  current: { id: string; type: string }[]
   onSelectSingle: (obj: ObjectRef) => void
   onSelectMany: (ids: { id: string; type: string }[]) => void
 }) {
   const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState<RelationStatusFilter>('all')
-  const [results, setResults] = useState<ObjectRef[]>([])
-  const [loading, setLoading] = useState(false)
-  const [offset, setOffset] = useState(0)
-  const [hasMore, setHasMore] = useState(false)
   const [draft, setDraft] = useState<{ id: string; type: string }[]>([])
-
   const searchRef = useRef<HTMLInputElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  // Stores full merged list for multi-type client-side pagination
-  const mergedCacheRef = useRef<ObjectRef[]>([])
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const visibleTypes = include.length > 0 ? include : []
+  // An empty `include` means "any readable type", which the picker used to
+  // render as NOTHING: `visibleTypes` was [] and every fetch returned early,
+  // so a link field that declared no `allowedTargets` offered an empty list
+  // and no way to choose a type. The workspace's own types are that list.
+  const allTypes = useContentTypes()
+  const pickableTypes = pickableTypeNames(include, allTypes)
+  const labelOf = (name: string) => allTypes.find((t) => t.name === name)?.label ?? name
 
-  // ── Fetch helpers ─────────────────────────────────────────────────────────
+  // ONE type at a time, always, and no "All types".
+  //
+  // Across several types there is no honest page: each type has its own
+  // offset, so a merged list can only be assembled by taking a fixed slice of
+  // each and sorting what arrived. That is what this did - 50 per type - and
+  // past 50 of any one type the rest were unreachable, the search covered
+  // only what had been fetched, and the "pages" after the first walked a
+  // cache rather than the data. A type filter that actually narrows is both
+  // what makes paging correct and what the picker needed anyway.
+  const [typeFilter, setTypeFilter] = useState('')
+  const activeType = typeFilter || pickableTypes[0] || ''
 
-  async function fetchSingleType(type: string, q: string, off: number, sf: RelationStatusFilter): Promise<{ items: ObjectRef[]; more: boolean }> {
-    const body: Record<string, unknown> = { limit: PAGE_SIZE, offset: off }
-    body.status = sf === 'all' ? 'any' : sf
-    if (q) body.query = { title: { contains: q } }
-    const res = await adminFetch<{ data: any[] }>(`/objects/${type}/query`, {
-      method: 'POST', body: JSON.stringify(body),
-    })
-    const items = (res.data ?? []).map((obj) => ({ ...obj, type })) as ObjectRef[]
-    return { items, more: items.length === PAGE_SIZE }
-  }
-
-  async function fetchAllTypes(types: string[], q: string, sf: RelationStatusFilter): Promise<ObjectRef[]> {
-    const groups = await Promise.all(
-      types.map(async (type) => {
-        try {
-          const body: Record<string, unknown> = { limit: 50, offset: 0 }
-          body.status = sf === 'all' ? 'any' : sf
-          if (q) body.query = { title: { contains: q } }
-          const res = await adminFetch<{ data: any[] }>(`/objects/${type}/query`, {
-            method: 'POST', body: JSON.stringify(body),
-          })
-          return (res.data ?? []).map((obj) => ({ ...obj, type })) as ObjectRef[]
-        } catch {
-          return [] as ObjectRef[]
-        }
-      }),
-    )
-    return groups.flat().sort((a, b) => {
-      const at = a.updated_at ?? a.updatedAt ?? ''
-      const bt = b.updated_at ?? b.updatedAt ?? ''
-      return bt.localeCompare(at)
-    })
-  }
-
-  // ── Initial fetch (first page) ────────────────────────────────────────────
-
-  async function loadFirst(q: string, tf: string, sf: RelationStatusFilter) {
-    const types = tf === 'all' ? visibleTypes : [tf]
-    if (types.length === 0) return
-    setLoading(true)
-    try {
-      if (types.length === 1) {
-        const { items, more } = await fetchSingleType(types[0], q, 0, sf)
-        setResults(items)
-        setOffset(items.length)
-        setHasMore(more)
-      } else {
-        const all = await fetchAllTypes(types, q, sf)
-        mergedCacheRef.current = all
-        const page = all.slice(0, PAGE_SIZE)
-        setResults(page)
-        setOffset(page.length)
-        setHasMore(page.length < all.length)
-      }
-    } catch {
-      setResults([])
-      setHasMore(false)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Load next page ────────────────────────────────────────────────────────
-
-  async function loadMore(q: string, tf: string, sf: RelationStatusFilter, currentOffset: number) {
-    const types = tf === 'all' ? visibleTypes : [tf]
-    if (types.length === 0 || loading) return
-    setLoading(true)
-    try {
-      if (types.length === 1) {
-        const { items, more } = await fetchSingleType(types[0], q, currentOffset, sf)
-        setResults((prev) => [...prev, ...items])
-        setOffset(currentOffset + items.length)
-        setHasMore(more)
-      } else {
-        const next = mergedCacheRef.current.slice(currentOffset, currentOffset + PAGE_SIZE)
-        setResults((prev) => [...prev, ...next])
-        setOffset(currentOffset + next.length)
-        setHasMore(currentOffset + next.length < mergedCacheRef.current.length)
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Reset + initial load when modal opens ─────────────────────────────────
+  const { rows, loading, loadingMore, total, hasMore, loadMore, error } = usePickableObjects({
+    typeName: activeType,
+    search,
+    enabled: open && activeType !== '',
+    status: statusFilter === 'all' ? 'any' : statusFilter,
+    sort: pickerSortFor(statusFilter),
+  })
 
   useEffect(() => {
     if (!open) return
     setSearch('')
-    setTypeFilter('all')
     setStatusFilter('all')
-    setResults([])
-    setOffset(0)
-    setHasMore(false)
-    mergedCacheRef.current = []
-    setDraft(currentIds.map((id) => ({ id, type: '' })))
-    loadFirst('', 'all', 'all')
+    setTypeFilter('')
+    // The refs AS THEY ARE, with their types. Seeding this from ids alone
+    // meant every entry the author did not re-tick was written back as
+    // `{ id, type: '' }` on Done - a stored reference to a type that does not
+    // exist, from simply opening the picker and confirming.
+    setDraft(current.map((r) => ({ ...r })))
     setTimeout(() => searchRef.current?.focus(), 50)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Debounced refetch on search / type / status filter change ─────────────
-
-  const isFirstRender = useRef(true)
-  useEffect(() => {
-    // Skip the initial trigger from the open effect's resets above
-    if (isFirstRender.current) { isFirstRender.current = false; return }
-    if (!open) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      setResults([])
-      setOffset(0)
-      setHasMore(false)
-      mergedCacheRef.current = []
-      loadFirst(search, typeFilter, statusFilter)
-    }, 300)
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
-  }, [search, typeFilter, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reset isFirstRender when modal closes so it's ready for next open
-  useEffect(() => {
-    if (!open) { isFirstRender.current = true }
-  }, [open])
-
-  // ── Infinite scroll ───────────────────────────────────────────────────────
-
+  // Infinite scroll: the sentinel asks for the next page, and the hook ignores
+  // the ask while a read is in flight or there is nothing left.
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading) {
-          loadMore(search, typeFilter, statusFilter, offset)
-        }
-      },
+      (entries) => { if (entries[0]?.isIntersecting) loadMore() },
       { threshold: 0.1 },
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [hasMore, loading, offset, search, typeFilter, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadMore])
 
   function toggleDraft(obj: ObjectRef) {
     setDraft((prev) => {
@@ -246,137 +141,169 @@ function ObjectPickerModal({
     })
   }
 
+  const currentIds = current.map((r) => r.id)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden" showClose={false}>
-        <DialogHeader className="px-4 pt-4 pb-0">
+      {/* `lg` is the documented picker size; `p-0` here never reached the body,
+          because withDialogPadding wraps stray children in a DialogBody of its
+          own - so the search block below carried that body's px-5 on top of
+          its own px-4 and sat indented under a header that was not. */}
+      <DialogContent size="lg" className="overflow-hidden" showClose={false}>
+        {/* `pr-5` reclaims the room the primitive reserves for a close button
+            this dialog does not render. */}
+        <DialogHeader className="pr-5">
           <DialogTitle className="text-sm font-semibold text-fg">
             {many ? 'Select objects' : 'Select object'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="px-4 pt-3 pb-2 space-y-2 border-b border-border">
-          {/* Search */}
-          <div className="relative">
-            <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-fg-subtle pointer-events-none" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search objects…"
-              className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-surface outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border transition"
-            />
-          </div>
-
-          {/* Status filter tabs */}
-          <div className="flex gap-1">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setStatusFilter(f.value)}
-                className={clsx(
-                  'px-2.5 py-1 rounded-md text-xs font-medium transition-colors border',
-                  statusFilter === f.value
-                    ? 'bg-accent-strong text-white border-accent'
-                    : 'bg-surface text-fg-muted border-border hover:border-border-strong hover:bg-surface-sunken',
-                )}
+        <DialogBody className="flex flex-col p-0">
+          <div className="shrink-0 space-y-2 border-b border-border-subtle px-5 py-3">
+            {/* Type first: it decides what the search below searches. */}
+            {pickableTypes.length > 1 && (
+              <Select
+                value={activeType}
+                onValueChange={(v) => setTypeFilter(v)}
+                aria-label="Type to pick from"
+                className="w-full"
               >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Type filter dropdown (only when multiple types) */}
-          {visibleTypes.length > 1 && (
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full text-sm border border-border rounded-md px-2.5 py-1.5 bg-surface text-fg outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border transition"
-            >
-              <option value="all">All types</option>
-              {visibleTypes.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Results list */}
-        <div className="overflow-y-auto max-h-72">
-          {results.length === 0 && !loading ? (
-            <p className="text-sm text-fg-subtle text-center py-8">No objects found</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {results.map((obj) => {
-                const isSelected = many
-                  ? draft.some((d) => d.id === obj.id)
-                  : currentIds[0] === obj.id
-                const updatedAt = obj.updated_at ?? obj.updatedAt
-
-                return (
-                  <li key={`${obj.type}-${obj.id}`}>
-                    <button
-                      type="button"
-                      onClick={() => many ? toggleDraft(obj) : onSelectSingle(obj)}
-                      className={clsx(
-                        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                        isSelected ? 'bg-accent-muted' : 'hover:bg-surface-sunken',
-                      )}
-                    >
-                      {many && (
-                        <div className={clsx(
-                          'size-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
-                          isSelected ? 'bg-accent-strong border-accent' : 'border-border-strong bg-surface',
-                        )}>
-                          {isSelected && <IconCheck className="size-3 text-white" />}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className={clsx(
-                          'text-sm truncate',
-                          isSelected ? 'font-medium text-accent-fg' : 'text-fg',
-                        )}>
-                          {obj.title ?? <span className="italic text-fg-subtle">{obj.id}</span>}
-                        </p>
-                        {updatedAt && (
-                          <p className="text-[11px] text-fg-subtle mt-0.5">Updated {timeAgo(updatedAt)}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {visibleTypes.length > 1 && <TypeBadge type={obj.type} />}
-                        <StatusChip status={obj.status} />
-                        <a
-                          href={`/${workspaceId}/objects/${obj.type}/${obj.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1 rounded text-fg-faint hover:text-fg-muted hover:bg-surface-hover transition-colors"
-                        >
-                          <IconExternalLink className="size-3.5" />
-                        </a>
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-          {/* Scroll sentinel + inline loader */}
-          <div ref={sentinelRef} className="flex justify-center py-3">
-            {loading && (
-              <div className="flex items-center gap-2 text-fg-subtle">
-                <IconLoader className="size-4 animate-spin" />
-                <span className="text-xs">Loading…</span>
-              </div>
+                {pickableTypes.map((t) => (
+                  <SelectItem key={t} value={t}>{labelOf(t)}</SelectItem>
+                ))}
+              </Select>
             )}
+
+            <div className="relative">
+              <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-fg-subtle pointer-events-none" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={activeType ? `Search ${labelOf(activeType)}\u2026` : 'Search\u2026'}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-surface outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border transition"
+              />
+            </div>
+
+            {/* Status filter tabs */}
+            <div className="flex gap-1">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setStatusFilter(f.value)}
+                  className={clsx(
+                    'rounded-control px-2.5 py-1 text-xs font-medium transition-colors motion-fast',
+                    statusFilter === f.value
+                      ? 'bg-accent-strong text-accent-contrast'
+                      : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+
+          {/* Results list */}
+          <div className="overflow-y-auto max-h-72">
+            {error ? (
+              <p role="alert" className="text-sm text-danger-fg text-center py-8">{error}</p>
+            ) : pickableTypes.length === 0 && allTypes.length > 0 ? (
+              <p className="text-sm text-fg-subtle text-center py-8">There are no content types to pick from.</p>
+            ) : rows.length === 0 && !loading ? (
+              <p className="text-sm text-fg-subtle text-center py-8">
+                {search.trim() ? `Nothing matches \u201c${search.trim()}\u201d.` : 'No objects found'}
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {rows.map((row) => {
+                  const obj = { ...row, type: activeType } as unknown as ObjectRef
+                  const isSelected = many
+                    ? draft.some((d) => d.id === obj.id)
+                    : currentIds[0] === obj.id
+                  // The date the ORDER is by, so the list explains its own
+                  // sequence instead of being sorted on one date and labelled
+                  // with another.
+                  const byPublished = statusFilter === 'published'
+                  const stamp = byPublished
+                    ? (row.published_at ?? row.publishedAt) as string | undefined
+                    : (row.updated_at ?? row.updatedAt) as string | undefined
+
+                  return (
+                    <li key={obj.id}>
+                      <button
+                        type="button"
+                        onClick={() => many ? toggleDraft(obj) : onSelectSingle(obj)}
+                        className={clsx(
+                          'w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors motion-fast',
+                          isSelected ? 'bg-accent-muted' : 'hover:bg-surface-sunken',
+                        )}
+                      >
+                        {many && (
+                          <div className={clsx(
+                            'size-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors',
+                            isSelected ? 'bg-accent-strong border-accent' : 'border-border-strong bg-surface',
+                          )}>
+                            {isSelected && <IconCheck className="size-3 text-white" />}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={clsx(
+                            'text-sm truncate',
+                            isSelected ? 'font-medium text-accent-fg' : 'text-fg',
+                          )}>
+                            {obj.title ?? <span className="italic text-fg-subtle">{obj.id}</span>}
+                          </p>
+                          {stamp && (
+                            <p className="text-[11px] text-fg-subtle mt-0.5">
+                              {byPublished ? 'Published' : 'Updated'} {timeAgo(stamp)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <StatusBadge status={obj.status} />
+                          <a
+                            href={`/${workspaceId}/objects/${obj.type}/${obj.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1 rounded text-fg-faint hover:text-fg-muted hover:bg-surface-hover transition-colors"
+                          >
+                            <IconExternalLink className="size-3.5" />
+                          </a>
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Scroll sentinel + inline loader */}
+            <div ref={sentinelRef} className="flex justify-center py-3">
+              {(loading || loadingMore) && (
+                <div className="flex items-center gap-2 text-fg-subtle">
+                  <IconLoader className="size-4 animate-spin" />
+                  <span className="text-xs">Loading…</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* What is on screen against what there is, so a first page of 50 out
+              of 1,000 says so rather than reading as the whole list. */}
+          {rows.length > 0 && total != null && (
+            <p className="shrink-0 border-t border-border-subtle px-5 py-2 text-xs text-fg-subtle">
+              Showing {rows.length} of {total}
+              {hasMore ? '. Scroll for more, or search to narrow it down.' : '.'}
+            </p>
+          )}
+        </DialogBody>
 
         {many && (
-          <DialogFooter className="px-4 py-3 border-t border-border flex justify-between items-center">
+          <DialogFooter className="justify-between">
             <p className="text-xs text-fg-subtle">{draft.length} selected</p>
             <Button size="sm" onClick={() => { onSelectMany(draft); onOpenChange(false) }}>
               Done ({draft.length})
@@ -414,7 +341,10 @@ export function ObjectPicker({ workspaceId, include, value, onChange, many }: Ob
     ).then(setLoadedItems)
   }, [JSON.stringify(many ? manyVal : singleVal)]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const currentIds = loadedItems.map((i) => i.id)
+  // The refs the modal seeds its draft from. Full refs, because an id alone
+  // loses the type and `Done` then wrote `{ id, type: '' }` back for every
+  // entry the author did not re-tick.
+  const currentRefs = loadedItems.map((i) => ({ id: i.id, type: i.type }))
 
   if (!many) {
     const item = loadedItems[0] ?? null
@@ -425,7 +355,7 @@ export function ObjectPicker({ workspaceId, include, value, onChange, many }: Ob
             <span className="flex-1 text-sm text-fg truncate">{item.title ?? item.id}</span>
             <div className="flex items-center gap-1 shrink-0">
               <TypeBadge type={item.type} />
-              <StatusChip status={item.status} />
+              <StatusBadge status={item.status} />
               <a
                 href={`/${workspaceId}/objects/${item.type}/${item.id}`}
                 target="_blank" rel="noopener noreferrer"
@@ -454,7 +384,7 @@ export function ObjectPicker({ workspaceId, include, value, onChange, many }: Ob
         <ObjectPickerModal
           open={open} onOpenChange={setOpen}
           include={include} workspaceId={workspaceId}
-          many={false} currentIds={currentIds}
+          many={false} current={currentRefs}
           onSelectSingle={(obj) => {
             setLoadedItems([obj])
             onChange({ id: obj.id, type: obj.type })
@@ -513,7 +443,7 @@ export function ObjectPicker({ workspaceId, include, value, onChange, many }: Ob
       <ObjectPickerModal
         open={open} onOpenChange={setOpen}
         include={include} workspaceId={workspaceId}
-        many={true} currentIds={currentIds}
+        many={true} current={currentRefs}
         onSelectSingle={() => {}}
         onSelectMany={(selected) => {
           onChange(selected)

@@ -1,9 +1,11 @@
 {
   "name": "@tangen/cli",
-  "version": "0.2.1",
-  "description": "Tangen CLI — push schemas, scaffold workspaces, generate types",
+  "version": "0.2.5",
+  "description": "Tangen CLI \u2014 push schemas, scaffold workspaces, generate types",
   "homepage": "https://github.com/raghunathj/tangen#readme",
-  "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
+  "bugs": {
+    "url": "https://github.com/raghunathj/tangen/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -39,12 +41,13 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@tangen/types": "workspace:^",
-    "@tangen/schema": "workspace:^",
-    "@tangen/db": "workspace:^",
-    "drizzle-orm": "^0.45.2",
     "@paralleldrive/cuid2": "^2.2.2",
+    "@tangen/db": "workspace:^",
+    "@tangen/knowledge": "workspace:^",
+    "@tangen/schema": "workspace:^",
+    "@tangen/types": "workspace:^",
+    "drizzle-orm": "^0.45.2",
     "ioredis": "5.11.1",
-    "@tangen/knowledge": "workspace:^"
+    "postgres": "^3.4.4"
   }
 }

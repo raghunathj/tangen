@@ -70,9 +70,9 @@ export default function TelemetryPage() {
     setLoading(true); setError(null)
     try {
       const [o, e] = await Promise.all([
-        adminFetch<{ data: Overview }>('/admin/telemetry/overview'),
+        adminFetch<{ data: Overview }>('/admin/runtime/overview'),
         adminFetch<{ data: TelemetryEvent[]; meta: { filtered: boolean; kept: number; written: number } }>(
-          '/admin/telemetry/events', undefined,
+          '/admin/runtime/events', undefined,
           {
             ...(name && name !== 'all' ? { name } : {}),
             ...(severity && severity !== 'all' ? { severity } : {}),
@@ -157,7 +157,7 @@ export default function TelemetryPage() {
 
       {overview && overview.series.length > 0 && (
         <div className="rounded-lg border border-border overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="min-w-full text-xs">
             <thead className="bg-surface-sunken">
               <tr>
                 {['Series', 'Count', 'Failed', 'p50', 'p95', 'Max'].map((h) => (

@@ -89,6 +89,11 @@ Use a relation when the connection is part of the model. Use a
 - **Required relations affect publishing.** Publishing an object whose required
   relation points at a draft is refused with `NEEDS_CASCADE`. Publish the
   dependency, or publish with the cascade.
+- **The picker offers every entry, newest first.** Searching, filtering,
+  ordering and paging are the server's, so a relation to a type with 1,000
+  entries offers all 1,000 and the footer says "Showing 50 of 1,000". Nothing
+  to configure. A `config.filter` narrows what may be chosen, and the author's
+  search narrows within it rather than escaping it.
 
 ## Related
 

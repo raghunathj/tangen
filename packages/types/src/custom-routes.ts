@@ -102,6 +102,14 @@ export interface LocalObjectBuilder<T = Record<string, unknown>> {
   cacheStrategy(strategy: CacheStrategy): LocalObjectBuilder<T>;
   /** Serve localized fields in this locale (per-field fallback to the default locale). */
   locale(code: LocaleCode): LocalObjectBuilder<T>;
+  /**
+   * Also answer each row's composed address as `_path`, from the type's
+   * declared `path`. Opt in, like `depth` and `populate`: it costs one
+   * batched query per type the pattern reaches, whatever the page size.
+   * `_path` is `null` for a type that declares no path, and carries the
+   * locale prefix when the read asked for a locale.
+   */
+  includePath(include?: boolean): LocalObjectBuilder<T>;
   noCache(): LocalObjectBuilder<T>;
   get(): Promise<QueryResult<T>>;
   find(id: string): Promise<{ data: T }>;
@@ -128,6 +136,20 @@ export interface LocalGlobalsAccessor<T = Record<string, unknown>> {
   get(): Promise<T>;
   patch(data: Partial<T>): Promise<void>;
   set(data: T): Promise<void>;
+  /**
+   * Read this global in one locale: a translation overlays the base value per
+   * field, and a field with no translation keeps the base. Returns a new
+   * accessor, so the one it is called on keeps serving the base.
+   *
+   * `'all'` answers every locale's values at once, left where they are, which
+   * is the read a translation tool wants and the one the route also serves.
+   *
+   * Read only - a localized WRITE is refused, because which roles may write
+   * which locale is a rule the globals route enforces and an extension here
+   * acts under its own authority. Write a translation through
+   * `PATCH /globals/:name?locale=`.
+   */
+  locale(code: LocaleCode | "all"): LocalGlobalsAccessor<T>;
 }
 
 export interface LocalTableBuilder<T = Record<string, unknown>> {

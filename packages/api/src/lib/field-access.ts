@@ -195,3 +195,39 @@ export function canWriteLocale(
   // (a key's `locales` grant, a member's bundle, an admin's fast path).
   return decide(actorFromContext(ctx), { kind: 'locale', action: 'write', locale, defaultLocale: defaultLocale ?? null }).allow
 }
+
+/** The request decorations the enforcement helper needs beyond the identity. */
+type WriteHeaderSink = { set?: { headers?: Record<string, string> } }
+
+/**
+ * THE field-ACL gate for a write payload. Every route that writes field values
+ * calls this and nothing else: it refuses a field outside a grant allow-list
+ * (K1.3), strips the fields a role may not write, and reports the stripped
+ * names on `X-Tangen-Restricted-Fields`.
+ *
+ * It exists because the control was assembled per route from three separate
+ * functions, and three security passes in a row found a route that assembled
+ * only some of them: a field a role is denied was writable through bulk update
+ * and through a version restore long after create and update had been fixed.
+ * One function is the only shape that a fifth write route cannot get wrong,
+ * and `field-write-paths.test.ts` is the gate that says every route reaches it.
+ *
+ * `assertAlso` carries values that are written but are not part of the payload
+ * the caller will go on to use (create's `title`), so a grant that does not
+ * cover them refuses here rather than at the insert.
+ */
+export function enforceFieldWrites<T extends Record<string, unknown>>(
+  ctx: LegacyIdentityContext & WriteHeaderSink,
+  typeDef: (Pick<ObjectTypeDefinition, 'fields'> & { name?: string }) | undefined,
+  values: T,
+  opts?: { assertAlso?: Record<string, unknown> },
+): { values: T; stripped: string[]; restricted: Set<string> } {
+  const accessCtx = fieldAccessContext(ctx)
+  assertGrantedWrite(opts?.assertAlso ? { ...values, ...opts.assertAlso } : values, typeDef, accessCtx)
+  const restricted = restrictedWriteFields(typeDef, accessCtx)
+  const { values: next, stripped } = stripRestrictedWrites(values, restricted)
+  if (stripped.length > 0 && ctx.set?.headers) {
+    ctx.set.headers['X-Tangen-Restricted-Fields'] = stripped.join(',')
+  }
+  return { values: next, stripped, restricted }
+}

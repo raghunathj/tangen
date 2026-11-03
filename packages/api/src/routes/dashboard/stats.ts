@@ -109,7 +109,11 @@ export function buildQuickActions(
   }
 
   actions.push({ label: 'Upload Media', href: '/media', icon: 'RiImageAddLine' })
-  actions.push({ label: 'API Keys', href: '/api-keys', icon: 'RiKeyLine' })
+  // `/settings/api-keys`, not `/api-keys`: api-keys is declared only inside the
+  // admin's settings subtree. The API-key stat widgets below get this right,
+  // which is why the quick action went unnoticed - it is the same destination
+  // written twice, once correctly.
+  actions.push({ label: 'API Keys', href: '/settings/api-keys', icon: 'RiKeyLine' })
 
   for (const a of configured) {
     actions.push({ label: a.label, href: a.href, icon: a.icon, external: a.external })

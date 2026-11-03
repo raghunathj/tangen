@@ -63,6 +63,10 @@ export function formatTypesResponse(schema: SchemaDefinition) {
     localized: (t as { localized?: boolean }).localized === true,
     /** The extension that provisioned this type, or null when the site's code declares it. */
     providedBy: (t as { providedBy?: string }).providedBy ?? null,
+    /** The declared address in its stored shape, or null. The type settings
+     *  sheet reads this: `{ pattern, root? }` is editable, `{ field }` names a
+     *  column, `{ fn: true }` says the address is built in code. */
+    path: (t.path ?? null) as never,
     admin: t.admin ?? {},
     fields: t.fields,
   }))

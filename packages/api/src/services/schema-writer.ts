@@ -17,6 +17,7 @@
 import { readdirSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { generateObjectTypeSource, generateSchemaBarrel, generateComponentSource, generateComponentsBarrel, generateGlobalsFileContent, type CodegenObjectType, type CodegenComponent, type CodegenGlobal } from '@tangen/schema'
+import { isSafeIdent } from '@tangen/types'
 import { RequestError } from '../lib/errors'
 
 /** A valid content-type name: lowercase, starts with a letter, [a-z0-9_]. */
@@ -33,6 +34,57 @@ const DIR_NAME_RE = /^[a-z][a-z0-9_-]*$/
 export function assertSafeName(name: string): void {
   if (!NAME_RE.test(name)) {
     throw new RequestError('VALIDATION_ERROR', `Invalid content type name "${name}" - use lowercase letters, digits, and underscores`, 422)
+  }
+}
+
+/**
+ * A valid field TYPE as written to disk: the built-ins and an
+ * extension-contributed custom name alike are lowercase identifier shapes.
+ * It is deliberately not a closed list - a custom field type is a real thing
+ * and the writer is not the registry - but it IS a shape, which is what the
+ * generated source needs.
+ */
+const FIELD_TYPE_RE = /^[a-z][a-z0-9_]*$/
+
+/**
+ * Every field name and field type of a schema about to be written, validated.
+ *
+ * Security finding 19: nothing validated a field name anywhere on this path.
+ * The builder's own name went through `assertSafeName`; the FIELDS did not, and
+ * a field name was emitted as a bare object key in the generated `schema.ts`
+ * while its `fieldType` was emitted inside a single-quoted literal. The dev
+ * server imports that file on the next watch cycle, so the text ran. The
+ * generated-source sinks are safe on their own now (`@tangen/schema`
+ * `emitKey`), and this is the refusal that goes with them: a name Tangen
+ * cannot use is named back to the caller, never quietly rewritten.
+ *
+ * A field name becomes a database column, so the rule is the identifier
+ * contract every SQL path already uses.
+ */
+export function assertSafeFields(
+  fields: ReadonlyArray<{ name?: unknown; fieldType?: unknown }> | undefined,
+  where: string,
+): void {
+  for (const f of fields ?? []) {
+    if (!isSafeIdent(f?.name)) {
+      throw new RequestError('VALIDATION_ERROR', `Invalid field name "${String(f?.name)}" on ${where} - use letters, digits and underscores, not starting with a digit`, 422)
+    }
+    if (typeof f?.fieldType !== 'string' || !FIELD_TYPE_RE.test(f.fieldType)) {
+      throw new RequestError('VALIDATION_ERROR', `Invalid field type "${String(f?.fieldType)}" on ${where}.${String(f?.name)} - use lowercase letters, digits and underscores`, 422)
+    }
+    // A component field's refs become IMPORT SPECIFIERS in the generated file:
+    // a folder name and a local identifier. The codegen quotes the path and
+    // reduces the identifier to word characters, so a hostile ref cannot be
+    // code - but it can name a folder that is not there, and a generated
+    // import of a module that does not exist is a schema nobody can push.
+    const refs = (f as { config?: { components?: unknown } }).config?.components
+    if (Array.isArray(refs)) {
+      for (const ref of refs) {
+        if (typeof ref === 'string' && !DIR_NAME_RE.test(ref)) {
+          throw new RequestError('VALIDATION_ERROR', `Invalid component reference "${ref}" on ${where}.${String(f.name)} - use lowercase letters, digits, underscores and hyphens`, 422)
+        }
+      }
+    }
   }
 }
 
@@ -59,6 +111,7 @@ export interface WriteResult { written: string[] }
  */
 export function writeContentType(appContentDir: string, type: CodegenObjectType): WriteResult {
   assertSafeName(type.name)
+  assertSafeFields(type.fields as never, type.name)
   const dir = join(appContentDir, type.name)
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'schema.ts'), generateObjectTypeSource(type))
@@ -97,6 +150,7 @@ function writeComponentsBarrel(appComponentsDir: string): void {
 /** Create or update a reusable component: write `<name>/schema.ts` + refresh the registry. */
 export function writeComponent(appComponentsDir: string, comp: CodegenComponent): WriteResult {
   assertSafeName(comp.name)
+  assertSafeFields(comp.fields as never, comp.name)
   mkdirSync(join(appComponentsDir, comp.name), { recursive: true })
   writeFileSync(join(appComponentsDir, comp.name, 'schema.ts'), generateComponentSource(comp))
   writeComponentsBarrel(appComponentsDir)
@@ -128,7 +182,7 @@ export function removeGlobal(globals: CodegenGlobal[], name: string): CodegenGlo
 
 /** Writes the whole app/globals/index.ts from the full globals array. */
 export function writeGlobals(appGlobalsDir: string, globals: CodegenGlobal[]): WriteResult {
-  for (const g of globals) assertSafeName(g.name)
+  for (const g of globals) { assertSafeName(g.name); assertSafeFields(g.fields as never, g.name) }
   mkdirSync(appGlobalsDir, { recursive: true })
   writeFileSync(join(appGlobalsDir, 'index.ts'), generateGlobalsFileContent(globals))
   return { written: ['globals/index.ts'] }

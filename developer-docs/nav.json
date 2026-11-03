@@ -76,6 +76,7 @@
             "build/content-modeling/structuring-content",
             "build/content-modeling/relations",
             "build/content-modeling/links",
+            "build/content-modeling/addresses",
             "build/content-modeling/localization"
           ]
         },

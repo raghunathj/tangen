@@ -42,31 +42,13 @@ export function defineContentHooks<K extends ContentName>(
  * const text = extractText(ctx.nextData.body)
  * const words = text.split(/\s+/).filter(Boolean).length
  */
-export function extractText(json: unknown): string {
-  if (!json || typeof json !== 'object') return ''
-  try {
-    return _walk(json as Record<string, unknown>).trim()
-  } catch {
-    return ''
-  }
-}
+import { contentDocText } from './content-doc'
 
-function _walk(node: Record<string, unknown>): string {
-  if (node.type === 'text' && typeof node.text === 'string') {
-    return node.text
-  }
-  const children = node.content
-  if (!Array.isArray(children)) return ''
-  return children
-    .map((child) => {
-      const text = _walk(child as Record<string, unknown>)
-      // Block-level nodes get a space separator so words don't run together
-      const isBlock = ['paragraph', 'heading', 'blockquote', 'listItem', 'codeBlock'].includes(
-        (child as Record<string, unknown>).type as string,
-      )
-      return isBlock ? text + ' ' : text
-    })
-    .join('')
+export function extractText(json: unknown): string {
+  // One walker for the platform (`contentDocText`), with the SPACE separator
+  // this helper always used: a hook author counting words wants tokens that
+  // do not fuse, not a readable rendering.
+  return contentDocText(json, { separator: ' ' })
 }
 
 // ─── forType ─────────────────────────────────────────────────────────────────

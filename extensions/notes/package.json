@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-notes",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "description": "Editor notes for Tangen: internal, per-entry notes for the people who work on the content - never delivered to a site",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -27,9 +27,9 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*",
-    "@tangen/icons": "*",
-    "@tangen/ui": "*",
+    "@tangen/cms": "^0.2.4",
+    "@tangen/icons": "^0.1.2",
+    "@tangen/ui": "^0.2.6",
     "react": "*"
   },
   "devDependencies": {

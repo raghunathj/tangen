@@ -140,7 +140,11 @@ export const workspaceSetupRoute = new Elysia()
       throw new RequestError('SETUP_COMPLETE', 'This workspace is already set up', 410)
     }
 
-    let ownerName: string
+    // `members.name` is nullable, and an existing account may genuinely have
+    // no name. Narrowing this to `string` forced the two reads of
+    // `existing.name` to be type errors; coercing to '' would store an empty
+    // string where the column means "not given".
+    let ownerName: string | null
     let passwordHash: string
 
     if (payload.name && payload.password) {

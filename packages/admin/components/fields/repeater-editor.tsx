@@ -1,17 +1,22 @@
 
 
-import { useState, lazy, Suspense } from 'react'
+import { useState, useMemo, lazy, Suspense } from 'react'
 import { isLocalizableFieldType } from '@tangen/types'
 import { useParams } from 'react-router-dom'
 import { ConfirmTrash } from './confirm-trash'
 import { DatePicker } from '@/components/ui/date-picker'
 import { clsx } from 'clsx'
 import { nestedLocaleCtx, type BlockLocaleCtx } from '@/lib/editor'
+import { activeSubFieldTabs, fieldColSpanSm, rowDelegatesToFieldControl, subFieldAdmin, selectChoices, subFieldGroup, visibleSubFields, subFieldPlaceholder, subFieldSelectPlaceholder } from '@/lib/field-presentation'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import * as Switch from '@radix-ui/react-switch'
 import {
   IconArrowUp, IconArrowDown, IconTrash, IconGripDots, IconPlus,
   IconChevronDown, IconChevronRight,
 } from '@tangen/icons'
+import { useFoldState } from '@/lib/use-fold-state'
+import { FoldAllButton } from './fold-all-button'
+import { NumericInput } from './numeric-input'
 import {
   DndContext,
   closestCenter,
@@ -51,7 +56,9 @@ function buildEmptyItem(fields: SubField[]): RepeaterItem {
 function buildPreview(item: RepeaterItem, fields: SubField[]): string {
   const SKIP = new Set(['richtext', 'media', 'relation', 'component', 'repeater'])
   const parts: string[] = []
-  for (const f of fields) {
+  // Hidden by its own rule means out of the preview too, or a collapsed row
+  // names a value that is no longer in effect.
+  for (const f of visibleSubFields(fields, item)) {
     if (parts.length >= 3) break
     if (SKIP.has(f.fieldType)) continue
     const raw = item[f.name]
@@ -92,29 +99,32 @@ function SubFieldControl({ field, value, onChange, localeCtx }: {
   /** Already scoped to THIS row field's slot (`overlay[row._key][field]`) - only set for container row fields. */
   localeCtx?: BlockLocaleCtx
 }) {
+  // Anything the row has no compact control for goes to the REAL FieldControl.
+  // The fallback used to be a text box, which for a colour meant no picker and
+  // for a link meant a hand-typed path stored as a string where the value is an
+  // object - see ROW_COMPACT_FIELD_TYPES for why that was never caught.
+  if (rowDelegatesToFieldControl(field.fieldType)) {
+    return <DelegatedSubControl field={field} value={value} onChange={onChange} localeCtx={localeCtx} />
+  }
   switch (field.fieldType) {
     case 'textarea':
       return (
         <textarea
           rows={3}
           value={(value as string) ?? ''}
-          placeholder={field.config?.admin?.placeholder}
+          placeholder={subFieldPlaceholder(field)}
           onChange={(e) => onChange((e.target as HTMLTextAreaElement).value)}
           className={subInput + ' resize-none'}
         />
       )
     case 'number':
       return (
-        <input
-          type="number"
-          value={value == null ? '' : String(value)}
+        <NumericInput
+          value={value}
+          onChange={onChange}
           min={field.config?.validation?.min}
           max={field.config?.validation?.max}
-          step={field.config?.validation?.integer ? 1 : 'any'}
-          onChange={(e) => {
-            const v = (e.target as HTMLInputElement).value
-            onChange(v === '' ? null : Number(v))
-          }}
+          integer={field.config?.validation?.integer}
           className={subInput}
         />
       )
@@ -138,10 +148,16 @@ function SubFieldControl({ field, value, onChange, localeCtx }: {
       )
     case 'select': {
       const opts = field.config?.options ?? []
+      // The placeholder is what the CLOSED select shows while unset, and the
+      // empty option is what the open list offers to get back to it. Both
+      // describe one state, so both come from the same default: without the
+      // placeholder the trigger fell back to the ui package's '- Select -'
+      // while the list said otherwise, in one control. The two carry DIFFERENT
+      // wording on purpose: the trigger reports a value, the menu offers an
+      // action next to that same value.
       return (
-        <Select value={(value as string) ?? ''} onValueChange={onChange}>
-          <SelectItem value="">- select -</SelectItem>
-          {opts.map((o) => (
+        <Select value={(value as string) ?? ''} onValueChange={onChange} placeholder={subFieldSelectPlaceholder(field)}>
+          {selectChoices(field, opts).map((o) => (
             <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
           ))}
         </Select>
@@ -186,18 +202,12 @@ function SubFieldControl({ field, value, onChange, localeCtx }: {
         <input type="tel" value={(value as string) ?? ''}
           onChange={(e) => onChange((e.target as HTMLInputElement).value)} className={subInput} />
       )
-    case 'richtext':
-    case 'media':
-    case 'relation':
-    case 'component':
-    case 'repeater':
-      return <DelegatedSubControl field={field} value={value} onChange={onChange} localeCtx={localeCtx} />
     default:
       return (
         <input
           type="text"
           value={(value as string) ?? ''}
-          placeholder={field.config?.admin?.placeholder}
+          placeholder={subFieldPlaceholder(field)}
           onChange={(e) => onChange((e.target as HTMLInputElement).value)}
           className={subInput}
         />
@@ -219,11 +229,32 @@ interface RowCardProps {
   onRemove: () => void
   onMoveUp: () => void
   onMoveDown: () => void
+  /** Owned by the field, so one control can fold every row and a reload remembers it. */
+  expanded: boolean
+  onToggle: () => void
 }
 
-function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onChange, onRemove, onMoveUp, onMoveDown, localeCtx }: RowCardProps) {
-  const [expanded, setExpanded] = useState(true)
+function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onChange, onRemove, onMoveUp, onMoveDown, localeCtx, expanded, onToggle }: RowCardProps) {
   const preview = expanded ? '' : buildPreview(item, fields)
+  // A row honours `group` the way a block card does, so one declaration reads
+  // the same whichever container it sits in. A row that declares none has a
+  // single group, so `activeTabs.length > 1` is false and nothing changes for
+  // it: no strip, the same flat grid, no migration.
+  const [tab, setTab] = useState<string | null>(null)
+  // Hidden by its own rule means not drawn here either, on this row's values -
+  // the validator skips the same field, so drawing it would ask for a branch
+  // the author did not choose and mark it required.
+  const shown = useMemo(() => visibleSubFields(fields, item), [fields, item])
+  const activeTabs = useMemo(() => activeSubFieldTabs(shown), [shown])
+  const inGroup = (g: string) => shown.filter((f) => subFieldGroup(f) === g)
+  // A required field left empty decides which tab OPENS. Unlike a block card
+  // this does not also mark it red, because a row tracks no touched set: the
+  // point here is only that an error never hides behind a tab nobody opened.
+  const missingIn = (g: string) => inGroup(g).some((f) => {
+    const v = item[f.name]
+    return !!f.required && (v == null || v === '' || (Array.isArray(v) && v.length === 0))
+  })
+  const activeKey = tab ?? activeTabs.find(({ key }) => missingIn(key))?.key ?? activeTabs[0]?.key ?? 'content'
 
   return (
     <div className={clsx(
@@ -241,7 +272,8 @@ function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onCh
         </button>
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={onToggle}
+          aria-expanded={expanded}
           className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
         >
           {expanded
@@ -267,10 +299,24 @@ function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onCh
         </div>
       </div>
 
+      {expanded && activeTabs.length > 1 && (
+        <Tabs value={activeKey} onValueChange={setTab} variant="underline">
+          <TabsList className="px-3">
+            {activeTabs.map(({ key, label }) => (
+              <TabsTrigger key={key} value={key} {...(missingIn(key) ? { 'data-tab-missing': key } : {})}>
+                {label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      )}
+
       {expanded && (
-        <div className="px-3 py-3 space-y-3">
-          {fields.map((f) => (
-            <div key={f.name}>
+        <div className="px-3 py-3 grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-6">
+          {inGroup(activeKey).map((f) => (
+            // A container sub-field spans the row whatever it declared: a
+            // nested repeater in a half column is the layout this fixes.
+            <div key={f.name} className={fieldColSpanSm(isContainerSub(f) ? 'full' : subFieldAdmin(f).width)}>
               <label className="block text-xs font-medium text-fg mb-1">
                 {f.label}
                 {f.required && <span className="text-danger-fg ml-0.5">*</span>}
@@ -292,8 +338,8 @@ function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onCh
                     </div>
                   )
                 })}
-              {f.admin?.helpText && (
-                <p className="mt-1 text-[11px] text-fg-subtle">{f.admin.helpText}</p>
+              {subFieldAdmin(f).helpText && (
+                <p className="mt-1 text-[11px] text-fg-subtle">{subFieldAdmin(f).helpText}</p>
               )}
             </div>
           ))}
@@ -327,11 +373,15 @@ export interface RepeaterEditorProps {
   maxRows?: number
   /** Per-locale inputs for localized row fields (BL-4). */
   localeCtx?: BlockLocaleCtx
+  /** Who draws Collapse all; see ComponentBlockEditor. Defaults to 'self'. */
+  foldControl?: 'self' | 'host'
 }
 
-export function RepeaterEditor({ fields, value, onChange, maxRows, localeCtx }: RepeaterEditorProps) {
+export function RepeaterEditor({ fields, value, onChange, maxRows, localeCtx, foldControl = 'self' }: RepeaterEditorProps) {
   const items: RepeaterItem[] = Array.isArray(value) ? value : []
   const atMax = maxRows != null && items.length >= maxRows
+  const keys = useMemo(() => items.map((r) => r._key), [items])
+  const fold = useFoldState(keys)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -380,6 +430,17 @@ export function RepeaterEditor({ fields, value, onChange, maxRows, localeCtx }: 
 
   return (
     <div className="space-y-2">
+      {/*
+        The control sits in the FIELD HEADER for a top-level field, where it
+        costs no height; `foldControl` is how that caller says so. A nested
+        editor - a repeater inside a block card - has no header to put it in,
+        so it draws its own.
+      */}
+      {foldControl === 'self' && items.length > 1 && (
+        <div className="flex justify-end">
+          <FoldAllButton anyExpanded={fold.anyExpanded} onToggle={() => fold.setAll(fold.anyExpanded)} noun="items" />
+        </div>
+      )}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={items.map((r) => r._key)} strategy={verticalListSortingStrategy}>
           {items.map((item, i) => (
@@ -394,6 +455,8 @@ export function RepeaterEditor({ fields, value, onChange, maxRows, localeCtx }: 
               onMoveUp={() => handleMoveUp(i)}
               onMoveDown={() => handleMoveDown(i)}
               localeCtx={localeCtx}
+              expanded={!fold.isCollapsed(item._key)}
+              onToggle={() => fold.toggle(item._key)}
             />
           ))}
         </SortableContext>

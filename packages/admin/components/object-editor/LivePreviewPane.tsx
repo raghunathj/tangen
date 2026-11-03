@@ -11,6 +11,7 @@
  * License: MIT
  */
 import { useEffect, useRef, useState } from 'react'
+import { NumericInput } from '@/components/fields/numeric-input'
 import { clsx } from 'clsx'
 import {
   IconPlus, IconX,
@@ -206,8 +207,10 @@ export function PreviewBreakpoints({ bp, bare, collapseCustom }: {
       </div>
       {adding && (
         <form onSubmit={(e) => { e.preventDefault(); addBreakpoint() }} className="flex items-center gap-1">
-          <input autoFocus type="number" min={200} max={3840} value={draftW} placeholder="px"
-            onChange={(e) => setDraftW((e.target as HTMLInputElement).value)}
+          {/* A breakpoint is a whole number of pixels, so `integer` refuses a
+              typed decimal point instead of rounding it silently. */}
+          <NumericInput autoFocus integer min={200} max={3840} value={draftW} placeholder="px"
+            onChange={(n) => setDraftW(n == null ? '' : String(n))}
             className="w-16 px-2 py-1 text-xs rounded-md border border-border bg-surface outline-none focus:ring-2 focus:ring-indigo-200" />
           <button type="submit" className="px-2 py-1 text-xs rounded-md bg-accent-strong text-white">Add</button>
         </form>

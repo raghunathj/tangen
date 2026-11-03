@@ -1,0 +1,9 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/icon.svg/route": "/icon.svg",
+  "/api/revalidate/route": "/api/revalidate",
+  "/page": "/",
+  "/studio/[slug]/page": "/studio/[slug]",
+  "/[locale]/studio/[slug]/page": "/[locale]/studio/[slug]",
+  "/posts/[slug]/page": "/posts/[slug]"
+}

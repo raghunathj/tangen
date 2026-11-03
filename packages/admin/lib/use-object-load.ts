@@ -20,6 +20,16 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import type { FieldDefinition } from '@tangen/types'
 import { adminFetch, etagOf } from '@/lib/api'
+
+/**
+ * The two address keys off a response that asked for them. A save answers
+ * them too, because moving a page under a different parent is the one edit
+ * that changes an address and only the server knows the new one.
+ */
+export function readPathInfo(row: Record<string, unknown> | null | undefined): { path: string | null; template: string | null } {
+  const str = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)
+  return { path: str(row?._path), template: str(row?._pathTemplate) }
+}
 import { extractFieldValues, normalizeObjectData } from '@/lib/editor'
 
 /** Admin-only audit block from GET /objects/:id — who created/updated/published. */
@@ -56,6 +66,12 @@ export function useObjectLoad<TObj extends { id: string; title: string | null; s
   } = opts
 
   const [object, setObject] = useState<TObj | null>(null)
+  /**
+   * The object's composed address and its shape, for the URL preview under
+   * the slug box. Both are null for a type that declares no `path`, which is
+   * what makes the preview absent rather than an empty slash.
+   */
+  const [pathInfo, setPathInfo] = useState<{ path: string | null; template: string | null }>({ path: null, template: null })
   const [audit, setAudit] = useState<AuditInfo | null>(null)
   // C4: extension panels (and any editor chrome) can force a full re-run of
   // the object load — same code path as switching to the object, so every
@@ -104,6 +120,7 @@ export function useObjectLoad<TObj extends { id: string; title: string | null; s
     setSaveStatus('idle')
     lastSavedRef.current = ''
     setObject(null)
+    setPathInfo({ path: null, template: null })
     setTitle('')
     setSlug('')
     setFieldValues({})
@@ -133,7 +150,12 @@ export function useObjectLoad<TObj extends { id: string; title: string | null; s
       extensionData?: Record<string, Record<string, unknown>>
       publishedExtensionData?: Record<string, Record<string, unknown> | null>
     }>(
-      `/objects/${typeName}/${id}?locale=all`,
+      // &includePath=true asks for the address too. Unconditional: the editor
+      // cannot know whether a type declares a `path` (the pattern is read
+      // from the loaded schema, not the types API), and a type that declares
+      // none costs no query and answers null - which is the signal the
+      // preview needs anyway.
+      `/objects/${typeName}/${id}?locale=all&includePath=true`,
     )
       .then((r) => {
         // The version this editor is about to edit (Phase 6B, Unit 6): the
@@ -142,6 +164,7 @@ export function useObjectLoad<TObj extends { id: string; title: string | null; s
         etagRef.current = etagOf(r)
         const obj = normalizeObjectData(r.data as unknown as Record<string, unknown>) as unknown as TObj
         setObject(obj)
+        setPathInfo(readPathInfo(r.data as unknown as Record<string, unknown>))
         setAudit(r.audit ?? null)
         setTitle(obj.title ?? '')
         setSlug(obj.slug ?? '')
@@ -176,6 +199,7 @@ export function useObjectLoad<TObj extends { id: string; title: string | null; s
 
   return {
     object, setObject, audit, setAudit, loading, refresh, etagRef,
+    pathInfo, setPathInfo,
     i18nMap, setI18nMap, i18nLoaded,
     panelDataMap, setPanelDataMap, publishedPanelDataMap, setPublishedPanelDataMap,
     extractedForObjectId, createdHandoffRef,

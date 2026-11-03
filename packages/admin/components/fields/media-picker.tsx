@@ -9,8 +9,9 @@ import {
   IconGlobe, IconCloud, IconFolder,
 } from '@tangen/icons'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogClose,
 } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/lib/auth'
 import { useCan } from '@/lib/use-can'
 import { uploadWithProgress } from '@/lib/upload'
@@ -342,7 +343,7 @@ export function MediaPicker({ open, onOpenChange, onSelect, mimeTypes, accept, c
     <>
     <Dialog open={open} onOpenChange={onOpenChange} modal={!genOpen}>
       <DialogContent
-        className="max-w-3xl h-[80vh] flex flex-col p-0"
+        className="max-w-3xl h-[80vh] flex flex-col"
         // The header renders its own close button — suppress DialogContent's default X
         // (otherwise two X icons overlap in the corner).
         showClose={false}
@@ -352,7 +353,7 @@ export function MediaPicker({ open, onOpenChange, onSelect, mimeTypes, accept, c
         onInteractOutside={(e) => { if (genOpen) e.preventDefault() }}
         onEscapeKeyDown={(e) => { if (genOpen) e.preventDefault() }}
       >
-        <DialogHeader className="px-5 py-4 border-b border-border shrink-0">
+        <DialogHeader className="pr-3">
           <div className="flex items-center justify-between">
             <DialogTitle>Choose media</DialogTitle>
             <DialogClose className="rounded-md p-1 text-fg-subtle hover:bg-surface-hover hover:text-fg-muted transition-colors">
@@ -361,134 +362,129 @@ export function MediaPicker({ open, onOpenChange, onSelect, mimeTypes, accept, c
           </div>
         </DialogHeader>
 
-        {/* Toolbar */}
-        <div className="px-5 py-3 border-b border-border flex items-center gap-3 shrink-0">
-          <div className="relative flex-1">
-            <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-fg-subtle pointer-events-none" />
-            <input
-              value={search}
-              onChange={(e) => handleSearchChange((e.target as HTMLInputElement).value)}
-              placeholder="Search…"
-              className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-border bg-surface outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border"
-            />
-          </div>
-
-          {folderTree && flattenFolders(folderTree).length > 0 && (
-            <div className="relative shrink-0">
-              <IconFolder className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-fg-subtle pointer-events-none" />
-              <select
-                value={folderId}
-                onChange={(e) => setFolderId((e.target as HTMLSelectElement).value)}
-                className="pl-8 pr-7 py-1.5 text-xs rounded-md border border-border bg-surface text-fg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border appearance-none cursor-pointer max-w-[180px]"
-                title="Filter by folder - uploads land in the selected folder"
-              >
-                <option value="">All files</option>
-                {flattenFolders(folderTree).map((f) => (
-                  <option key={f.id} value={f.id}>{f.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {visibleFilters.length > 1 && (
-            <div className="flex gap-1">
-              {visibleFilters.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setCategoryFilter(f.value)}
-                  className={clsx(
-                    'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                    categoryFilter === f.value
-                      ? 'bg-accent-muted text-accent-fg border border-accent/30'
-                      : 'text-fg-muted hover:bg-surface-hover border border-transparent',
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {showGenerate && (
-            <GenAIButton onClick={openGenerate} title="Generate an image with Gen AI">
-              Generate with Gen AI
-            </GenAIButton>
-          )}
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-fg-muted border border-border hover:bg-surface-sunken transition-colors disabled:opacity-50"
-          >
-            <IconUpload className="size-3.5" />
-            {uploading ? (uploadPercent != null && uploadPercent >= 0 ? `${uploadPercent}%` : 'Uploading…') : 'Upload'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            multiple
-            accept={buildUploadAccept(accept, mimeTypes)}
-            onChange={(e) => handleUpload((e.target as HTMLInputElement).files)}
-          />
-        </div>
-        {uploading && (
-          <div className="px-5 pb-2">
-            <div className="h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden">
-              <div
-                className="h-full bg-accent-strong transition-[width] duration-150"
-                style={{ width: uploadPercent != null && uploadPercent >= 0 ? `${uploadPercent}%` : '100%' }}
+        <DialogBody className="flex flex-col p-0">
+          {/* Toolbar */}
+          <div className="px-5 py-3 border-b border-border-subtle flex items-center gap-3 shrink-0">
+            <div className="relative flex-1">
+              <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-fg-subtle pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => handleSearchChange((e.target as HTMLInputElement).value)}
+                placeholder="Search…"
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-border bg-surface outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border"
               />
             </div>
-          </div>
-        )}
 
-        {/* Grid */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {loading ? (
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-lg bg-surface-hover animate-pulse" />
-              ))}
-            </div>
-          ) : assets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 gap-2">
-              <IconImage className="size-8 text-fg-faint" />
-              <p className="text-sm text-fg-subtle">No assets found</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
-              {assets.map((asset) => (
-                <AssetCell
-                  key={asset.id}
-                  asset={asset}
-                  selected={selectedId === asset.id}
-                  onSelect={() => setSelectedId(asset.id)}
+            {folderTree && flattenFolders(folderTree).length > 0 && (
+              <div className="relative shrink-0">
+                <IconFolder className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-fg-subtle pointer-events-none" />
+                <select
+                  value={folderId}
+                  onChange={(e) => setFolderId((e.target as HTMLSelectElement).value)}
+                  className="pl-8 pr-7 py-1.5 text-xs rounded-md border border-border bg-surface text-fg-muted outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border appearance-none cursor-pointer max-w-[180px]"
+                  title="Filter by folder - uploads land in the selected folder"
+                >
+                  <option value="">All files</option>
+                  {flattenFolders(folderTree).map((f) => (
+                    <option key={f.id} value={f.id}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {visibleFilters.length > 1 && (
+              <div className="flex gap-1">
+                {visibleFilters.map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => setCategoryFilter(f.value)}
+                    className={clsx(
+                      'px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                      categoryFilter === f.value
+                        ? 'bg-accent-muted text-accent-fg border border-accent/30'
+                        : 'text-fg-muted hover:bg-surface-hover border border-transparent',
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {showGenerate && (
+              <GenAIButton onClick={openGenerate} title="Generate an image with Gen AI">
+                Generate with Gen AI
+              </GenAIButton>
+            )}
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-fg-muted border border-border hover:bg-surface-sunken transition-colors disabled:opacity-50"
+            >
+              <IconUpload className="size-3.5" />
+              {uploading ? (uploadPercent != null && uploadPercent >= 0 ? `${uploadPercent}%` : 'Uploading…') : 'Upload'}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              accept={buildUploadAccept(accept, mimeTypes)}
+              onChange={(e) => handleUpload((e.target as HTMLInputElement).files)}
+            />
+          </div>
+          {uploading && (
+            <div className="px-5 pb-2">
+              <div className="h-1.5 w-full rounded-full bg-surface-sunken overflow-hidden">
+                <div
+                  className="h-full bg-accent-strong transition-[width] duration-150"
+                  style={{ width: uploadPercent != null && uploadPercent >= 0 ? `${uploadPercent}%` : '100%' }}
                 />
-              ))}
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-border flex items-center justify-between shrink-0">
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {loading ? (
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="aspect-square rounded-lg bg-surface-hover animate-pulse" />
+                ))}
+              </div>
+            ) : assets.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-32 gap-2">
+                <IconImage className="size-8 text-fg-faint" />
+                <p className="text-sm text-fg-subtle">No assets found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+                {assets.map((asset) => (
+                  <AssetCell
+                    key={asset.id}
+                    asset={asset}
+                    selected={selectedId === asset.id}
+                    onSelect={() => setSelectedId(asset.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+        </DialogBody>
+
+        <DialogFooter className="justify-between">
           <p className="text-xs text-fg-subtle">{assets.length} asset{assets.length !== 1 ? 's' : ''}</p>
           <div className="flex gap-2">
-            <button
-              onClick={() => onOpenChange(false)}
-              className="px-3 py-1.5 rounded-md text-sm text-fg-muted border border-border hover:bg-surface-sunken transition-colors"
-            >
+            <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
               Cancel
-            </button>
-            <button
-              onClick={handleConfirm}
-              disabled={!selectedId}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-accent-strong text-white hover:bg-accent-strong transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
+            </Button>
+            <Button size="sm" onClick={handleConfirm} disabled={!selectedId}>
               Select
-            </button>
+            </Button>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
 

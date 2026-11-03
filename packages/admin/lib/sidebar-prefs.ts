@@ -11,6 +11,46 @@
  */
 
 /** A pinned / recent nav entry — the minimum to render and de-dupe by target. */
+/**
+ * Pins and recents hold a LABEL, and for an object editor that label is the
+ * object's title (the sidebar reads document.title). Both are therefore scoped
+ * per member, the way dashboard-prefs and fold-state are: unscoped, they
+ * survived sign out and rendered for whoever signed in next, from a workspace
+ * that person may not even belong to.
+ *
+ * A memberId is minted per (workspace, email) and the workspace switcher calls
+ * setAuth with a fresh one, so scoping by member closes the cross-workspace
+ * half of that too, with no second key part.
+ */
+export const pinsKey = (memberId: string) => `tangen:sidebar-pins:${memberId}`
+export const recentsKey = (memberId: string) => `tangen:sidebar-recents:${memberId}`
+
+/**
+ * What sign out sweeps. Recents are collected automatically on every
+ * navigation, so nobody curated them and there is nothing to return to; titles
+ * should not outlive the session that collected them. Pins are deliberate and
+ * are kept, and the per-member scoping above means the next person does not
+ * read them either way.
+ */
+export const RECENTS_PREFIX = 'tangen:sidebar-recents:'
+
+/** Every member's recents, not just the current one's: a shared machine holds several. */
+export function clearRecents(storage: Storage, prefix = RECENTS_PREFIX): string[] {
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i)
+      if (k?.startsWith(prefix)) keys.push(k)
+    }
+    // Collected first, then removed: removing during the walk reindexes the
+    // store underneath it and every second key would be skipped.
+    for (const k of keys) storage.removeItem(k)
+    return keys
+  } catch {
+    return []
+  }
+}
+
 export interface NavRef {
   to: string
   label: string

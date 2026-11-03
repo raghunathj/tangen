@@ -69,13 +69,20 @@ export default defineExtensions([
 
 ### Why `page` is not in `sitemapTypes`
 
-`resolveUrl` receives `{ type, id, slug, locale }`. It does not receive the
-object's fields. Northwind's `page` type routes by an authored `path`, not by
-its slug, so this function cannot resolve one. The four slug-routed types go in
-the sitemap here, and pages are served by the site's own sitemap route.
+`resolveUrl` here routes by slug, and Northwind's `page` type routes by an
+authored address instead, so this function cannot place one. The four
+slug-routed types go in the sitemap, and pages are served by the site's own
+sitemap route.
 
-Worth knowing when you design your model: a type whose routing is derivable from
-its slug is a type SEO can resolve on its own.
+That is the workaround, not the answer. **A type that declares `path` needs
+none of this:** Tangen composes the address from the pattern and the parent
+tree, hands it to `resolveUrl` as `path`, and uses it directly when there is
+no resolver. A `page` type declaring
+`path: { pattern: '/:parent*/:slug', root: 'home' }` belongs in
+`sitemapTypes` like every other type, with nothing written for it here.
+
+Worth knowing when you design your model: declare how a type is addressed, and
+every artifact that needs a URL already has one.
 
 ## The page head
 

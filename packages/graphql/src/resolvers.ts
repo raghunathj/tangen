@@ -33,6 +33,15 @@ export interface GraphqlRequestContext {
   /** K0: publish, unpublish and preflight need objects:publish, not a write grant. */
   canPublish?: (typeName: string) => boolean
   canReadDrafts?: (typeName: string) => boolean
+  /**
+   * Custom tables and globals have their own permission families, and until
+   * 2026-10-23 these two fields had NO gate here at all while REST asserted
+   * one - so an API key with no `tables` block was refused by
+   * `GET/POST /tables/:name` and served the same rows by GraphQL. Absent means
+   * denied, which is the same default `canWrite` takes.
+   */
+  canReadTable?: (tableName: string) => boolean
+  canReadGlobals?: (name: string) => boolean
   loaders: BatchLoaders
   /** Realtime R5: present only on the WebSocket adapter; subscription fields refuse without it. */
   realtime?: RealtimeSubscriber
@@ -48,6 +57,10 @@ export function createRequestContext(input: {
   canReadDrafts?: (typeName: string) => boolean
   /** Absent ⇒ publish, unpublish and preflight denied (objects:publish). */
   canPublish?: (typeName: string) => boolean
+  /** Absent ⇒ custom-table reads denied (tables:read). */
+  canReadTable?: (tableName: string) => boolean
+  /** Absent ⇒ globals reads denied (globals:read). */
+  canReadGlobals?: (name: string) => boolean
   /** Realtime R5: the per-connection subscriber the WebSocket adapter installs; absent over POST. */
   realtime?: RealtimeSubscriber
 }): GraphqlRequestContext {
@@ -57,6 +70,8 @@ export function createRequestContext(input: {
     canWrite: input.canWrite ?? (() => false),
     canReadDrafts: input.canReadDrafts ?? (() => false),
     canPublish: input.canPublish ?? (() => false),
+    canReadTable: input.canReadTable ?? (() => false),
+    canReadGlobals: input.canReadGlobals ?? (() => false),
     loaders: createBatchLoaders(input.client, input.canRead),
     ...(input.realtime ? { realtime: input.realtime } : {}),
   }
@@ -73,6 +88,29 @@ function requireRead(ctx: GraphqlRequestContext, type: string): void {
 function requireDraftRead(ctx: GraphqlRequestContext, type: string): void {
   if (!ctx.canReadDrafts?.(type)) {
     throw new GraphQLError(`Draft access to '${type}' requires the objects:read_draft grant`, {
+      extensions: { code: 'FORBIDDEN' },
+    })
+  }
+}
+
+/**
+ * Custom tables are their own permission family (`tables:read`, optionally
+ * narrowed by `allowedTables`), and REST has always asserted it. This resolver
+ * asserted nothing, so the narrower endpoint refused what the wider one
+ * served. Found in the second audit pass, 2026-10-23.
+ */
+function requireReadTable(ctx: GraphqlRequestContext, name: string): void {
+  if (!ctx.canReadTable?.(name)) {
+    throw new GraphQLError(`You do not have permission to read table '${name}'`, {
+      extensions: { code: 'FORBIDDEN' },
+    })
+  }
+}
+
+/** The same gap, for globals: REST asserts `globals:read`, this did not. */
+function requireReadGlobals(ctx: GraphqlRequestContext, name: string): void {
+  if (!ctx.canReadGlobals?.(name)) {
+    throw new GraphQLError(`You do not have permission to read global '${name}'`, {
       extensions: { code: 'FORBIDDEN' },
     })
   }
@@ -195,6 +233,7 @@ export function createResolvers() {
 
   const table = (name: string): GraphQLFieldResolver<unknown, GraphqlRequestContext> =>
     async (_parent, args, ctx) => {
+      requireReadTable(ctx, name)
       if (!ctx.client.table) return { data: [], meta: { total: 0 } }
       let b = ctx.client.table(name).where(args.where ?? {})
       if (args.orderBy?.field) b = b.sort(args.orderBy.field, args.orderBy.direction === 'desc' ? 'desc' : 'asc')
@@ -206,6 +245,7 @@ export function createResolvers() {
 
   const global = (): GraphQLFieldResolver<unknown, GraphqlRequestContext> =>
     async (_parent, args, ctx) => {
+      requireReadGlobals(ctx, String(args.name))
       if (!ctx.client.globals) return null
       return ctx.client.globals(String(args.name)).get()
     }

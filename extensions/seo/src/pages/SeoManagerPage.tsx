@@ -120,7 +120,7 @@ function HealthCard({ report }: { report: HealthReport }) {
           </svg>
           <div className="absolute inset-0 grid place-content-center text-center">
             <span className="text-[34px] font-semibold tracking-tight text-fg tabular-nums">{report.score ?? '–'}</span>
-            <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${tone ? TONE_TEXT[tone] : 'text-fg-faint'}`}>{tone ? TONE_LABEL[tone] : 'No content'}</span>
+            <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${tone ? TONE_TEXT[tone] : 'text-fg-subtle'}`}>{tone ? TONE_LABEL[tone] : 'No content'}</span>
           </div>
         </div>
         <div className="w-full space-y-2 text-ui-xs">

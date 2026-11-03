@@ -97,6 +97,10 @@ export function tierOf(grant: string): GrantTier {
     case 'network': case 'connections': case 'delegation': case 'events': case 'hooks': return 'HIGH'
     case 'secrets': return verb === 'own' ? 'LOW' : 'HIGH'
     case 'ai': case 'capability': case 'filters': case 'flow': case 'mcp': case 'interceptors': return 'MEDIUM'
+    // LOW: a node declaration is data the platform renders. It cannot run
+    // code, and the declaration validator refuses an element that
+    // executes or loads, so the worst it buys is an unwanted element.
+    case 'richtext': return 'LOW'
     case 'db': case 'jobs': case 'admin': case 'store': case 'realtime': case 'telemetry': case 'locales': case 'mail': case 'routes': return 'LOW'
     default: return 'MEDIUM'
   }
@@ -153,6 +157,9 @@ export function explainGrant(grant: string): string {
     case 'events': return 'Emit events'
     case 'admin': return 'Adds pages, panels or widgets to the Admin'
     case 'filters': return verb === '*' ? 'Transform any filter point' : `Transform ${verb} filter points`
+    case 'richtext': return verb === 'contribute-nodes'
+      ? 'Add elements to the rich text editor'
+      : `richtext:${verb}`
     case 'flow': return 'Contribute Flow triggers and actions'
     case 'mcp': return 'Contribute MCP tools'
     case 'delegation': return 'Act as another recorded user, key or identity'

@@ -27,7 +27,7 @@ import { collapseLinksDeep } from '../../services/link-loader'
 import { assertObjectPermission } from '../../lib/permissions'
 import { assertStudioCssAllowed } from '../../lib/studio-css-gate'
 import { projectLocalization } from '../../services/i18n'
-import { fieldAccessContext, restrictedWriteFields, stripRestrictedWrites, canWriteLocale, assertGrantedWrite } from '../../lib/field-access'
+import { canWriteLocale, enforceFieldWrites } from '../../lib/field-access'
 import { createRevision } from '../../lib/revisions'
 import { nextFreeSlug, isSlugUniqueViolation, SLUG_MAX_ATTEMPTS } from '../../lib/slugs'
 import { coerceNumericFields } from '../../services/local-client'
@@ -140,7 +140,7 @@ export const makeCreateHandler = (projects: any[]) => async (ctx: any) => {
     // Media constraints (accept categories / mimeTypes) need the assets' MIME
     // types — async lookup, so it runs here rather than in the sync payload builder
     {
-      const typeDefForMedia = schema.types.find((t) => t.name === typeName)
+      const typeDefForMedia = schema.types.find((t: { name: string }) => t.name === typeName)
       if (typeDefForMedia) {
         const mediaErrors = await validateMediaConstraints(db, typeDefForMedia.fields, prefilterFieldValues)
         if (Object.keys(mediaErrors).length > 0) {
@@ -153,7 +153,7 @@ export const makeCreateHandler = (projects: any[]) => async (ctx: any) => {
     // Creating directly as published must clear the same bar as the publish
     // route — otherwise a required field could be skipped via create-as-published.
     if (status === 'published') {
-      const typeDefForPublish = schema.types.find((t) => t.name === typeName)
+      const typeDefForPublish = schema.types.find((t: { name: string }) => t.name === typeName)
       const err = publishValidationError(typeDefForPublish, { title, ...prefilterFieldValues })
       if (err) throw new RequestError('VALIDATION_ERROR', err, 422)
     }
@@ -171,19 +171,15 @@ export const makeCreateHandler = (projects: any[]) => async (ctx: any) => {
     }
 
 
-    // Field-level access: strip fields the member's role may not write
-    // (API keys and admin sessions unaffected — v1 contract)
-    const typeDefForAccess = schema.types.find((t: any) => t.name === typeName)
-    const accessCtx = fieldAccessContext(ctx)
-    // K1.3: a grant allow-list refuses a field outside it (title included) before anything is stripped.
-    assertGrantedWrite({ ...prefilterFieldValues, title }, typeDefForAccess, accessCtx)
-    const { values: rawFieldValues, stripped: strippedFields } = stripRestrictedWrites(
+    // Field-level access, through the one gate every write route uses: a grant
+    // allow-list refuses (title included), a role list strips, and the
+    // stripped names go back on the response header.
+    const { values: rawFieldValues } = enforceFieldWrites(
+      ctx,
+      schema.types.find((t: any) => t.name === typeName),
       prefilterFieldValues,
-      restrictedWriteFields(typeDefForAccess, accessCtx),
+      { assertAlso: { title } },
     )
-    if (strippedFields.length > 0) {
-      ctx.set.headers['X-Tangen-Restricted-Fields'] = strippedFields.join(',')
-    }
 
     // Field-level beforeChange hooks (behavior overlay) — run before
     // everything else so normalized values hit uniqueness checks and storage

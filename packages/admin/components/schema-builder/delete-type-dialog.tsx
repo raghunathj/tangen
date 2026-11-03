@@ -10,7 +10,7 @@
  */
 import { useState } from 'react'
 import { Badge, Button, Callout, Input } from '@/kit'
-import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from '@/kit'
+import { Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription } from '@/kit'
 
 export function DeleteTypeDialog({ type, busy, onCancel, onConfirm, cascade = [] }: {
   type: { name: string; label: string } | null
@@ -34,7 +34,7 @@ export function DeleteTypeDialog({ type, busy, onCancel, onConfirm, cascade = []
             The push will refuse while other types still have relation fields targeting it.
           </DialogDescription>
         </DialogHeader>
-        <div className="px-6 py-4">
+        <DialogBody>
           {cascade.length > 0 && (
             <Callout variant="warning" className="mb-3">
               <p className="font-medium mb-1.5">Also detaches {cascade.length === 1 ? 'this relation field' : `${cascade.length} relation fields`} pointing here (column + stored values drop):</p>
@@ -47,7 +47,7 @@ export function DeleteTypeDialog({ type, busy, onCancel, onConfirm, cascade = []
             Type <span className="font-mono font-medium">{type.name}</span> to confirm
             <Input autoFocus value={input} className="mt-1.5 font-mono" onChange={(e) => setInput(e.currentTarget.value)} />
           </div>
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="ghost" onClick={close}>Cancel</Button>
           <Button variant="destructive" disabled={input !== type.name || busy} isLoading={busy} loadingText="Deleting…" onClick={() => { setInput(''); onConfirm() }}>Delete permanently</Button>

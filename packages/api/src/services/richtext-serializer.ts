@@ -1,124 +1,176 @@
 /**
  * File Name: richtext-serializer.ts
- * Purpose: Converts TipTap JSON document nodes to HTML or plain text and applies
- *          per-field serialization hints to rows returned by the content API.
+ * Purpose: Renders a richtext document to HTML or plain text, and applies the
+ *          per-field `serialize` hints a content read asked for.
  *
  * Author: Raghunath J
  * License: MIT
  *
- * Dependencies/Notes: Relies on the SerializeHint type from @tangen/types; no
- *                     external runtime dependencies.
+ * Dependencies/Notes: Slice 2 of tasks/plan-editor.md. The element each node
+ *          becomes is read from CONTENT_DOC_VOCABULARY rather than decided by
+ *          a switch statement here, so a node ADDED to the vocabulary renders
+ *          with no edit to this file - which is what lets slice 5 render a
+ *          node an extension merely DECLARED, without executing anything the
+ *          extension wrote.
+ *
+ *          Two defects are closed here, and both exist because the validator
+ *          cannot help with a document that was stored before it did:
+ *          an `href` is scheme-checked (`javascript:` used to survive into
+ *          emitted HTML), and a heading level is clamped to 1-6 (`<h9>` used
+ *          to be emitted for whatever a document happened to carry).
  */
-import type { SerializeHint } from '@tangen/types'
+import {
+  CONTENT_DOC_VOCABULARY, safeDocHref, contentDocText, URL_BEARING_HTML_ATTRS,
+  type SerializeHint, type ContentDocVocabulary, type ContentDocNodeSpec,
+} from '@tangen/types'
 
-interface TipTapMark {
+interface DocMark {
   type: string
   attrs?: Record<string, unknown>
 }
 
-interface TipTapNode {
+interface DocNode {
   type: string
   text?: string
   attrs?: Record<string, unknown>
-  marks?: TipTapMark[]
-  content?: TipTapNode[]
+  marks?: DocMark[]
+  content?: DocNode[]
 }
 
+/** `'` too: an attribute may be single-quoted by a consumer re-parsing this. */
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
-function applyMarks(text: string, marks: TipTapMark[]): string {
-  let out = text
-  for (const mark of marks) {
-    switch (mark.type) {
-      case 'bold':      out = `<strong>${out}</strong>`; break
-      case 'italic':    out = `<em>${out}</em>`; break
-      case 'underline': out = `<u>${out}</u>`; break
-      case 'strike':    out = `<s>${out}</s>`; break
-      case 'code':      out = `<code>${out}</code>`; break
-      case 'link': {
-        const href = escapeHtml(String(mark.attrs?.href ?? ''))
-        // Preserve target/rel (the editor's "open in new tab" toggle sets
-        // target=_blank rel="noopener noreferrer") so links round-trip to HTML.
-        const target = mark.attrs?.target ? ` target="${escapeHtml(String(mark.attrs.target))}"` : ''
-        const rel = mark.attrs?.rel ? ` rel="${escapeHtml(String(mark.attrs.rel))}"` : ''
-        out = `<a href="${href}"${target}${rel}>${out}</a>`
-        break
-      }
+/** The attributes a spec says reach the element, escaped, in declaration order. */
+function htmlAttrs(
+  attrs: Record<string, unknown> | undefined,
+  map: Record<string, string> | undefined,
+): string {
+  if (!map || !attrs) return ''
+  let out = ''
+  for (const [key, name] of Object.entries(map)) {
+    const value = attrs[key]
+    if (value === null || value === undefined || value === '') continue
+    // Every URL-bearing attribute has its scheme checked HERE, not at the one
+    // call site that remembered to. The link mark did; the image node's `src`
+    // did not, and slice 5 of tasks/plan-editor.md lets an extension declare a
+    // node with its own `htmlAttrs` - so "the link mark checks its href" was
+    // about to stop being a sufficient answer (security audit S7). An
+    // attribute that does not survive the check is DROPPED: the element keeps
+    // its text and loses the navigation.
+    if (URL_BEARING_HTML_ATTRS.has(name)) {
+      const safe = safeDocHref(value)
+      if (!safe) continue
+      out += ` ${name}="${escapeHtml(safe)}"`
+      continue
     }
+    out += ` ${name}="${escapeHtml(String(value))}"`
   }
   return out
 }
 
-function renderChildren(node: TipTapNode): string {
-  return (node.content ?? []).map(renderNode).join('')
-}
-
-function renderNode(node: TipTapNode): string {
-  switch (node.type) {
-    case 'doc':           return renderChildren(node)
-    case 'paragraph':     return `<p>${renderChildren(node)}</p>`
-    case 'heading': {
-      const lvl = Number(node.attrs?.level ?? 1)
-      return `<h${lvl}>${renderChildren(node)}</h${lvl}>`
-    }
-    case 'text': {
-      const escaped = escapeHtml(node.text ?? '')
-      return node.marks?.length ? applyMarks(escaped, node.marks) : escaped
-    }
-    case 'hardBreak':     return '<br>'
-    case 'horizontalRule':return '<hr>'
-    case 'blockquote':    return `<blockquote>${renderChildren(node)}</blockquote>`
-    case 'bulletList':    return `<ul>${renderChildren(node)}</ul>`
-    case 'orderedList':   return `<ol>${renderChildren(node)}</ol>`
-    case 'listItem':      return `<li>${renderChildren(node)}</li>`
-    case 'codeBlock':     return `<pre><code>${escapeHtml(collectText(node))}</code></pre>`
-    case 'image': {
-      const src = escapeHtml(String(node.attrs?.src ?? ''))
-      const alt = escapeHtml(String(node.attrs?.alt ?? ''))
-      return `<img src="${src}" alt="${alt}">`
-    }
-    default:              return renderChildren(node)
+/**
+ * The element for a node, resolving the one substitution the spec allows:
+ * `h{level}` reads `attrs.level`. Clamped by the attr's own declared bounds,
+ * so the vocabulary is what decides the range rather than this function.
+ */
+function tagFor(spec: ContentDocNodeSpec, node: DocNode): string | null {
+  if (!spec.tag) return null
+  const hole = /\{([a-zA-Z0-9_]+)\}/.exec(spec.tag)
+  if (!hole) return spec.tag
+  const attrName = hole[1]!
+  const declared = spec.attrs?.[attrName]
+  const raw = Number(node.attrs?.[attrName])
+  let value = Number.isFinite(raw) ? Math.trunc(raw) : NaN
+  if (declared?.kind === 'int') {
+    const min = declared.min ?? 1
+    const max = declared.max ?? 6
+    value = Number.isNaN(value) ? min : Math.min(max, Math.max(min, value))
+  } else if (Number.isNaN(value)) {
+    return null
   }
+  return spec.tag.replace(hole[0], String(value))
 }
 
-function collectText(node: TipTapNode): string {
-  if (node.type === 'text') return node.text ?? ''
-  if (node.type === 'hardBreak') return '\n'
-  const childText = (node.content ?? []).map(collectText).join('')
-  if (['paragraph', 'heading', 'blockquote'].includes(node.type)) return childText + '\n'
-  if (node.type === 'listItem') return childText
-  return childText
+function applyMarks(text: string, marks: DocMark[], v: ContentDocVocabulary): string {
+  let out = text
+  for (const mark of marks) {
+    const spec = v.marks[mark.type]
+    if (!spec) continue
+    // A link whose href is not safe to emit loses the MARK, not the text.
+    if (spec.htmlAttrs?.href) {
+      const href = safeDocHref(mark.attrs?.href)
+      if (!href) continue
+      out = `<${spec.tag}${htmlAttrs({ ...mark.attrs, href }, spec.htmlAttrs)}>${out}</${spec.tag}>`
+      continue
+    }
+    out = `<${spec.tag}${htmlAttrs(mark.attrs, spec.htmlAttrs)}>${out}</${spec.tag}>`
+  }
+  return out
+}
+
+function renderChildren(node: DocNode, v: ContentDocVocabulary): string {
+  return (node.content ?? []).map((child) => renderNode(child, v)).join('')
+}
+
+function renderNode(node: DocNode, v: ContentDocVocabulary): string {
+  const spec = v.nodes[node.type]
+  // An unknown node degrades to its children: a wrapper is lost, prose is not.
+  if (!spec) return renderChildren(node, v)
+
+  if (node.type === 'text') {
+    const escaped = escapeHtml(node.text ?? '')
+    return node.marks?.length ? applyMarks(escaped, node.marks, v) : escaped
+  }
+
+  const tag = tagFor(spec, node)
+  if (!tag) return renderChildren(node, v)
+  if (spec.void) return `<${tag}${htmlAttrs(node.attrs, spec.htmlAttrs)}>`
+  // Text-only content is never marked up - a code block is the case.
+  const inner = spec.content === 'text' ? escapeHtml(collectText(node, v)) : renderChildren(node, v)
+  // `pre` carries its own `code` element, which is HTML's shape for it.
+  if (node.type === 'codeBlock') return `<${tag}><code>${inner}</code></${tag}>`
+  return `<${tag}${htmlAttrs(node.attrs, spec.htmlAttrs)}>${inner}</${tag}>`
 }
 
 /**
- * Renders a TipTap JSON document as an HTML string.
- * @param json - The TipTap document object (unknown at call-site; validated internally).
- * @returns An HTML string, or an empty string if the input is null/invalid.
+ * Plain text is `contentDocText` now - one walker for the whole platform.
+ * It also fixes a defect this file had: list items ran together, so a bullet
+ * list of `one two three` extracted as `onetwothree`.
  */
-export function tiptapToHtml(json: unknown): string {
+const collectText = (node: DocNode, _v: ContentDocVocabulary): string => contentDocText(node)
+
+/**
+ * Renders a richtext document as an HTML string.
+ * @param json - the document (unknown at the call site; checked internally)
+ * @param vocabulary - the node and mark vocabulary; defaults to the built-in one
+ * @returns an HTML string, or '' for a null or unusable input
+ */
+export function tiptapToHtml(json: unknown, vocabulary: ContentDocVocabulary = CONTENT_DOC_VOCABULARY): string {
   if (json == null) return ''
   try {
-    return renderNode(json as TipTapNode)
+    return renderNode(json as DocNode, vocabulary)
   } catch {
     return ''
   }
 }
 
 /**
- * Extracts plain text from a TipTap JSON document, stripping all markup.
- * @param json - The TipTap document object (unknown at call-site; validated internally).
- * @returns A trimmed plain-text string, or an empty string if the input is null/invalid.
+ * Extracts plain text from a richtext document, stripping all markup.
+ * @param json - the document (unknown at the call site; checked internally)
+ * @param vocabulary - the node and mark vocabulary; defaults to the built-in one
+ * @returns a trimmed plain-text string, or '' for a null or unusable input
  */
-export function tiptapToText(json: unknown): string {
+export function tiptapToText(json: unknown, vocabulary: ContentDocVocabulary = CONTENT_DOC_VOCABULARY): string {
   if (json == null) return ''
   try {
-    return collectText(json as TipTapNode).trim()
+    return collectText(json as DocNode, vocabulary).trim()
   } catch {
     return ''
   }
@@ -132,11 +184,11 @@ function serializeValue(value: unknown, hint: SerializeHint): unknown {
 }
 
 /**
- * Applies per-field serialization hints to an array of content rows, converting
- * richtext JSON values to html or text as specified.
- * @param rows - The raw content rows from the database.
- * @param hints - A map of dot-notation field paths to their desired SerializeHint format.
- * @returns A new array of rows with richtext fields serialized according to the hints.
+ * Applies per-field serialization hints to content rows, converting richtext
+ * values to html or text as asked.
+ * @param rows - the raw content rows
+ * @param hints - dot-notation field path to the format wanted
+ * @returns a new array of rows with the named fields serialized
  */
 export function applySerialize(
   rows: Record<string, unknown>[],

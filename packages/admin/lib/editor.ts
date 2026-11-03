@@ -9,7 +9,7 @@
  * Dependencies/Notes: Depends on @tangen/types (FieldDefinition, FieldType, ComponentDef, ConditionalRule, flattenFields).
  */
 import type { FieldDefinition, FieldTypeRef, ComponentDef, ConditionalRule, ConditionalRuleGroup, ConditionalVisibility } from '@tangen/types'
-import { flattenFields, isLocalizableFieldType } from '@tangen/types'
+import { isOverlayLeafValue, flattenFields, isLocalizableFieldType, subFieldVisibility } from '@tangen/types'
 
 /**
  * Evaluates a single ConditionalRule against a field value, returning whether the condition is met.
@@ -371,9 +371,21 @@ export function validateFields(
         const componentDefs: ComponentDef[] = f.config.components ?? []
         for (let i = 0; i < blocks.length; i++) {
           const block = blocks[i]
+          // The eye hid this block, so it is stripped from published output and
+          // the editor draws none of its inputs. Same three skips as the server
+          // (field-validator.ts, the `component` case), in the same order.
+          if (block._disabled) continue
           const def = componentDefs.find(d => d.name === (block._type as string))
           if (!def) continue
+          const bcv = (def as { conditionalVisibility?: ConditionalVisibility }).conditionalVisibility
+          if (bcv && !evalVisibility(bcv, (n) => fieldValues[n])) continue
           for (const sf of def.fields) {
+            // A sub-field the block's own values hide has no input to fill, so
+            // requiring it would refuse the publish with no way to satisfy it.
+            // Read through `subFieldVisibility` because a declaration may carry
+            // the rule at either level - the block editor reads it that way too.
+            const scv = subFieldVisibility(sf)
+            if (scv && !evalVisibility(scv, (n) => block[n])) continue
             if (!sf.required) continue
             const sv = block[sf.name]
             if (sv == null || sv === '' || (Array.isArray(sv) && sv.length === 0)) {
@@ -391,6 +403,10 @@ export function validateFields(
         for (let i = 0; i < items.length; i++) {
           const item = items[i]
           for (const sf of subFields) {
+            // Row-scoped, exactly as in the component branch above and in the
+            // repeater editor that decides which inputs this row draws.
+            const scv = subFieldVisibility(sf)
+            if (scv && !evalVisibility(scv, (n) => item[n])) continue
             if (!sf.required) continue
             const sv = item[sf.name]
             if (sv == null || sv === '' || (Array.isArray(sv) && sv.length === 0)) {
@@ -494,8 +510,15 @@ export function containerIsLocalized(
 const isOverlayMap = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v)
 
-/** A richtext value is a document, not a nested overlay map. */
-const isRichDoc = (v: Record<string, unknown>): boolean => typeof v.type === 'string'
+/**
+ * A LEAF value, not a nested overlay map - so the prune walk stops here.
+ *
+ * Shared with the server's own overlay walk (`isOverlayLeafValue`), and
+ * deliberately NOT `isContentDoc`: richtext is one leaf shape, a localized
+ * `link` is another, and narrowing this to a document would walk into a link
+ * and prune it apart.
+ */
+const isRichDoc = (v: Record<string, unknown>): boolean => isOverlayLeafValue(v)
 
 const isBlankLeaf = (v: unknown): boolean =>
   v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === '')

@@ -224,10 +224,29 @@ function ConfirmDialogContent({ title, message, confirmLabel, variant, onConfirm
   onClose: () => void
 }) {
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  /**
+   * A refused action used to be INVISIBLE. There was no catch, so a rejection
+   * escaped and `onClose()` below never ran: the dialog sat open, the spinner
+   * stopped, and nothing said why. For a delete the server refuses on purpose -
+   * a page with pages inside it - that is the difference between "this is not
+   * allowed, here is what is in the way" and a button that does nothing.
+   *
+   * The dialog stays OPEN on a refusal, because the reason belongs next to the
+   * action that was refused rather than in a toast that outlives it.
+   */
   async function handleConfirm() {
     setSaving(true)
-    try { await onConfirm() } finally { setSaving(false) }
+    setError(null)
+    try {
+      await onConfirm()
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'That did not work. Please try again.')
+      return
+    } finally {
+      setSaving(false)
+    }
     onClose()
   }
 
@@ -237,6 +256,9 @@ function ConfirmDialogContent({ title, message, confirmLabel, variant, onConfirm
         <DialogTitle>{title}</DialogTitle>
         {message && <DialogDescription>{message}</DialogDescription>}
       </DialogHeader>
+      {error && (
+        <p role="alert" className="px-6 text-ui-xs text-danger-fg">{error}</p>
+      )}
       <DialogFooter>
         <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>
         <Button

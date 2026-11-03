@@ -20,6 +20,7 @@ import { roles, members } from '@tangen/db'
 import { BUILT_IN_ROLES, isBuiltInRole, permissionsForRole, compileRoleSeed } from '@tangen/types'
 import type { MemberPermissions } from '@tangen/types'
 import { RequestError } from '../../lib/errors'
+import { assertMemberPermissions } from '../../lib/api-key-permissions'
 import { requireCapability, requireAnyCapability } from '../../lib/member-access'
 import { roleCacheKey, invalidateMemberPermissions } from '../../middleware/auth'
 import { assertMemberJwt } from './manage'
@@ -50,13 +51,18 @@ export function buildRolePayload(body: unknown, opts: { requireSlug?: boolean } 
   }
   if (!name) throw new RequestError('VALIDATION_ERROR', 'name is required', 422)
 
-  const permissions = (b?.permissions ?? {}) as MemberPermissions
-  if (typeof permissions !== 'object' || Array.isArray(permissions)) {
+  const raw = b?.permissions ?? {}
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new RequestError('VALIDATION_ERROR', 'permissions must be an object', 422)
   }
-  if ((permissions as { admin?: boolean }).admin) {
+  if ((raw as { admin?: boolean }).admin) {
     throw new RequestError('VALIDATION_ERROR', 'Custom roles cannot grant blanket admin - use the built-in admin role', 422)
   }
+  // Against the same catalogue a key's document meets (S5). A role and a key
+  // are read by the same guards, so a scope that cannot be stored on one must
+  // not be storable on the other: a scope nobody reads is a grant an operator
+  // believes they made.
+  const permissions = assertMemberPermissions(raw)
 
   return {
     slug,

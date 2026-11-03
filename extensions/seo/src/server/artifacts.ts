@@ -23,6 +23,7 @@ import { buildLlmsTxt, type LlmsGroup, type LlmsItem } from '../lib/llms'
 import { robotsTxtFor, serializeRobotsTxt } from '../lib/robots'
 import { buildSitemap, SITEMAP_PAGE_SIZE, type SitemapObject } from './sitemap-source'
 import { objectUrl, urlFieldValue } from '../lib/object-url'
+import { composedPath } from '../lib/composed-path'
 import { partitionEntries, sitemapIndexXml, sitemapXml } from '../lib/sitemap'
 import type { ResolvedSeo, SeoHelpers } from '../contract'
 import type { ExtensionServerCtx } from '@tangen/cms'
@@ -113,7 +114,9 @@ export async function resolvedSeoFor(ctx: ExtensionServerCtx, args: ResolveArgs)
 
   let object: Record<string, unknown>
   try {
-    const res = await client.objects(args.type as never).status('any').find(args.id)
+    // `includePath`: the canonical is the first thing a declared `path` should
+    // answer, and the read that fetches the object is the only one that runs.
+    const res = await client.objects(args.type as never).status('any').includePath().find(args.id)
     object = res.data as Record<string, unknown>
   } catch { return null }
   if (!object) return null
@@ -143,6 +146,7 @@ export async function resolvedSeoFor(ctx: ExtensionServerCtx, args: ResolveArgs)
   const resolvedPageUrl = await objectUrl({
     helpers, workspaceId: ctx.workspaceId, type: args.type, id: args.id, locale: args.locale, slug,
     fieldValue: urlFieldValue(helpers, args.type, object),
+    pathValue: composedPath(object),
   })
   const pageUrl = resolvedPageUrl ?? undefined
   const typeSchema = typeConfig
@@ -196,7 +200,7 @@ export async function* publishedObjects(ctx: ExtensionServerCtx, types: string[]
       let rows: Record<string, unknown>[] = []
       try {
         const res = await client.objects(type as never).status('published')
-          .sort('id', 'asc').limit(SITEMAP_PAGE_SIZE).offset(offset).get()
+          .sort('id', 'asc').limit(SITEMAP_PAGE_SIZE).offset(offset).includePath().get()
         rows = (res.data ?? []) as Record<string, unknown>[]
       } catch { break }
       if (rows.length === 0) break
@@ -206,6 +210,7 @@ export async function* publishedObjects(ctx: ExtensionServerCtx, types: string[]
         slug: (r.slug as string | null) ?? null,
         title: (r.title as string | null) ?? null,
         urlFieldValue: urlFieldValue(helpersOf(ctx), type, r),
+        path: composedPath(r),
         updatedAt: (r.updated_at ?? r.updatedAt) as string | null,
         publishedAt: (r.published_at ?? r.publishedAt) as string | null,
       }))
@@ -231,14 +236,14 @@ export async function buildLlmsManifest(ctx: ExtensionServerCtx, opts: { full?: 
   try { for (const t of ctx.types?.() ?? []) typeLabels.set(t.name, (t as { label?: string }).label ?? t.name) } catch { /* names only */ }
 
   const groups: LlmsGroup[] = []
-  if (client && helpers.resolveUrl) {
+  if (client) {
     for (const type of sitemapTypes(ctx)) {
       const items: LlmsItem[] = []
       let offset = 0
       for (;;) {
         let rows: Record<string, unknown>[] = []
         try {
-          const res = await client.objects(type as never).status('published').sort('id', 'asc').limit(SITEMAP_PAGE_SIZE).offset(offset).get()
+          const res = await client.objects(type as never).status('published').sort('id', 'asc').limit(SITEMAP_PAGE_SIZE).offset(offset).includePath().get()
           rows = (res.data ?? []) as Record<string, unknown>[]
         } catch { break }
         if (rows.length === 0) break
@@ -249,6 +254,7 @@ export async function buildLlmsManifest(ctx: ExtensionServerCtx, opts: { full?: 
             url = await objectUrl({
               helpers, workspaceId: ctx.workspaceId, type, id, locale: null,
               slug: (row.slug as string | null) ?? null, fieldValue: urlFieldValue(helpers, type, row),
+              pathValue: composedPath(row),
             })
           } catch { /* app owns urls */ }
           if (!url) continue

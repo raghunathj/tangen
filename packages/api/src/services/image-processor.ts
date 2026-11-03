@@ -14,6 +14,8 @@
  *   rather than a module-resolution stack.
  */
 import type { ImageVariant } from '@tangen/types'
+import { isSafeVariantName } from '../lib/media-key'
+import { RequestError } from '../lib/errors'
 
 /** The one sentence a caller sees when image processing is asked for without sharp. */
 export const SHARP_MISSING =
@@ -94,15 +96,28 @@ export function resolveVariants(
 
   if (!skipPresets && workspacePresets) {
     for (const [, variant] of Object.entries(workspacePresets)) {
-      map.set(variant.name, variant)
+      map.set(assertVariantName(variant?.name), variant)
     }
   }
 
   for (const variant of fieldVariants ?? []) {
-    map.set(variant.name, variant) // field variants override same-named presets
+    // The upload route passes these through from a JSON request field, so this
+    // is where an uploader-chosen name is first seen (security finding 20).
+    // A name becomes a filename under the asset's prefix, a key in the
+    // asset's variants map and a public URL segment, so it is a plain token
+    // or it is refused by name.
+    map.set(assertVariantName(variant?.name), variant)
   }
 
   return [...map.values()]
+}
+
+/** The variant name, or a 422 naming the value. */
+function assertVariantName(name: unknown): string {
+  if (!isSafeVariantName(name)) {
+    throw new RequestError('VALIDATION_ERROR', `Invalid image variant name ${JSON.stringify(name)} - use letters, digits, underscores and hyphens`, 422)
+  }
+  return name
 }
 
 // ─── applyImageOverrides ─────────────────────────────────────────────────────

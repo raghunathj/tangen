@@ -252,7 +252,10 @@ if (Bun.main === import.meta.path) {
     const outIdx = args.indexOf('--out')
     const outPath = outIdx !== -1 ? args[outIdx + 1] : undefined
     const { runTypesCommand } = await import('./commands/types')
-    await runTypesCommand(resolved.configCwd, outPath)
+    // --workspace picks which workspace's globals/roles/locales are generated.
+    // They live on the workspace config, not the root one (see
+    // resolveCodegenConfigs), so in a multi-workspace project they differ.
+    await runTypesCommand(resolved.configCwd, outPath, workspaceSlug)
   } else if (command === 'workspace' && args[1] === 'create') {
     const { promptForNewWorkspace, runWorkspaceCreateCommand } = await import('./commands/create')
     try {
@@ -790,7 +793,8 @@ Commands:
 
 Options:
   --project <name>  Workspace project to operate on (auto-detected from cwd)
-  --workspace <slug> One workspace from app/workspaces/index.ts: extension commands act on it; push registers it
+  --workspace <slug> One workspace from app/workspaces/index.ts: extension commands act on it; push registers it;
+                     types generates that workspace's globals, roles and locales
   --label <label>   Human-readable label for the new type (default: title-cased name)
 
 Features:

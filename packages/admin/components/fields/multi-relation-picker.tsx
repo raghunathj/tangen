@@ -1,21 +1,25 @@
 
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { clsx } from 'clsx'
 import {
   IconSearch, IconExternalLink, IconX, IconLoader,
   IconPlus, IconCheck, IconDragMove, IconRefresh,
 } from '@tangen/icons'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { adminFetch } from '@/lib/api'
 import { timeAgo } from '@/lib/webhook-logs'
+import { singularLabel } from '@tangen/types'
 import {
-  buildRelationQuery, statusBadge, toggleId,
+  toggleId,
   type RelationStatusFilter,
 } from '@/lib/relation-picker'
+import { usePickableObjects } from '@/lib/use-pickable-objects'
+import { pickerSortFor } from '@/lib/pickable-objects'
 import {
   DndContext,
   closestCenter,
@@ -57,15 +61,6 @@ export interface MultiRelationPickerProps {
 
 // ── Status chip ───────────────────────────────────────────────────────────────
 
-function StatusChip({ status }: { status: string }) {
-  const { label, className } = statusBadge(status)
-  return (
-    <span className={clsx('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium border', className)}>
-      {label}
-    </span>
-  )
-}
-
 // ── Selected pill ─────────────────────────────────────────────────────────────
 
 function SelectedPill({
@@ -95,7 +90,7 @@ function SelectedPill({
         <IconDragMove className="size-3.5" />
       </span>
       <span className="truncate">{obj.title ?? obj.id}</span>
-      <StatusChip status={obj.status} />
+      <StatusBadge status={obj.status} />
       {detailHref && (
         <a
           href={detailHref}
@@ -178,60 +173,58 @@ function PickerModal({
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<RelationStatusFilter>('all')
-  const [results, setResults] = useState<RelationObject[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
   // Local draft selection — confirmed only when user clicks Done
   const [draft, setDraft] = useState<string[]>(selectedIds)
   const searchRef = useRef<HTMLInputElement>(null)
-  const lastFetchRef = useRef<{ key: string; at: number }>({ key: '', at: 0 })
 
-  const fetchResults = useCallback(async (q: string, sf: RelationStatusFilter) => {
-    // The open effect and the debounced search effect both fire on open with
-    // the same args (and StrictMode double-invokes effects in dev) - identical
-    // calls within 400ms collapse to one request.
-    const key = `${q} ${sf}`
-    const now = Date.now()
-    if (lastFetchRef.current.key === key && now - lastFetchRef.current.at < 400) return
-    lastFetchRef.current = { key, at: now }
-    setLoading(true)
-    try {
-      const body = buildRelationQuery(targetType, q, sf, 0, filter)
-      const res = await adminFetch<{ data: RelationObject[]; meta: { total: number } }>(
-        `/objects/${targetType}/query`,
-        { method: 'POST', body: JSON.stringify(body) },
-      )
-      setResults(res.data ?? [])
-      setTotal(res.meta?.total ?? 0)
-    } catch {
-      setResults([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [targetType, filter])
+  const sentinelRef = useRef<HTMLDivElement>(null)
+
+  // Searching, filtering, ordering and paging are the server's, through the
+  // same engine the single-relation and object pickers use. This modal used to
+  // ask for 20 rows at offset 0 and never ask again: its own footer read
+  // "Showing 20 of 1,000 - refine search to narrow", which names the problem
+  // and leaves row 21 unreachable.
+  const { rows, loading, loadingMore, total, hasMore, loadMore, refresh, error } = usePickableObjects({
+    typeName: targetType,
+    search,
+    enabled: open,
+    status: statusFilter === 'all' ? 'any' : statusFilter,
+    sort: pickerSortFor(statusFilter),
+    filter,
+  })
 
   useEffect(() => {
     if (!open) return
     setSearch('')
     setStatusFilter('all')
     setDraft(selectedIds)
-    fetchResults('', 'all')
     setTimeout(() => searchRef.current?.focus(), 50)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Infinite scroll: the sentinel asks for the next page, and the hook ignores
+  // the ask while a read is in flight or there is nothing left.
   useEffect(() => {
-    if (!open) return
-    const t = setTimeout(() => fetchResults(search, statusFilter), 200)
-    return () => clearTimeout(t)
-  }, [search, statusFilter, open, fetchResults])
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) loadMore() },
+      { threshold: 0.1 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [loadMore])
 
   const draftCount = draft.length
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden" showClose={false}>
-        <DialogHeader className="px-4 pt-4 pb-3 border-b border-border">
+      {/* `lg` is the size this design system documents for pickers. The old
+          `max-w-lg` fought that prop and produced a 512px dialog that a title,
+          two actions, a status chip and a timestamp had to share. */}
+      <DialogContent size="lg" className="overflow-hidden" showClose={false}>
+        {/* `pr-5` reclaims the primitive's `pr-12`, which reserves room for a
+            close button this dialog does not render. */}
+        <DialogHeader className="pr-5">
           <div className="flex items-center justify-between gap-3">
             <DialogTitle className="flex items-baseline gap-2 text-sm font-semibold text-fg">
               Select {displayLabel}
@@ -242,7 +235,7 @@ function PickerModal({
             <div className="flex items-center gap-3 shrink-0">
               <button
                 type="button"
-                onClick={() => fetchResults(search, statusFilter)}
+                onClick={refresh}
                 title="Reload - pick up items you just created in the other tab"
                 className="flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-fg transition-colors"
               >
@@ -254,142 +247,166 @@ function PickerModal({
                   href={`/${workspaceId}/objects/${targetType}/new`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title={`Create a new ${displayLabel} in a new tab, then Reload here`}
+                  title={`Create a new ${singularLabel(displayLabel)} in a new tab, then Reload here`}
                   className="flex items-center gap-1 text-xs font-medium text-accent-fg hover:text-accent-fg transition-colors"
                 >
                   <IconPlus className="size-3.5" />
-                  New {displayLabel}
+                  New {singularLabel(displayLabel)}
                 </a>
               )}
             </div>
           </div>
         </DialogHeader>
 
-        {/* Search + filter */}
-        <div className="px-4 pt-3 pb-2 space-y-2.5 border-b border-border">
-          <div className="relative">
-            <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-fg-subtle pointer-events-none" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
-              placeholder={`Search ${displayLabel}…`}
-              className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-surface outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border transition"
-            />
-          </div>
-          <div className="flex gap-1">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => setStatusFilter(f.value)}
-                className={clsx(
-                  'px-2.5 py-1 rounded-md text-xs font-medium transition-colors border',
-                  statusFilter === f.value
-                    ? 'bg-accent-strong text-white border-accent'
-                    : 'bg-surface text-fg-muted border-border hover:border-border-strong hover:bg-surface-sunken',
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Results */}
-        <div className="overflow-y-auto max-h-64">
-          {loading ? (
-            <div className="flex items-center justify-center py-8 text-fg-subtle">
-              <IconLoader className="size-5 animate-spin mr-2" />
-              <span className="text-sm">Loading…</span>
+      <DialogBody className="flex flex-col p-0">
+          {/* Search + filter */}
+          <div className="shrink-0 space-y-2.5 border-b border-border-subtle px-5 py-3">
+            <div className="relative">
+              <IconSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-fg-subtle pointer-events-none" />
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
+                placeholder={`Search ${displayLabel}…`}
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-surface outline-none focus-visible:ring-[3px] focus-visible:ring-focus/25 focus-visible:border-focus-border transition"
+              />
             </div>
-          ) : results.length === 0 ? (
-            <p className="text-sm text-fg-subtle text-center py-8">No results found</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {results.map((obj) => {
-                const isChecked = draft.includes(obj.id)
-                const updatedAt = obj.updated_at ?? obj.updatedAt
-                const detailHref = workspaceId
-                  ? `/${workspaceId}/objects/${targetType}/${obj.id}`
-                  : null
-
-                return (
-                  <li key={obj.id}>
-                    <button
-                      type="button"
-                      onClick={() => setDraft((prev) => toggleId(prev, obj.id))}
-                      className={clsx(
-                        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                        isChecked ? 'bg-accent-muted' : 'hover:bg-surface-sunken',
-                      )}
-                    >
-                      {/* Checkbox */}
-                      <span className={clsx(
-                        'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-                        isChecked
-                          ? 'bg-accent-strong border-accent'
-                          : 'border-border-strong bg-surface',
-                      )}>
-                        {isChecked && <IconCheck className="size-3 text-white" />}
-                      </span>
-
-                      <div className="flex-1 min-w-0">
-                        <p className={clsx(
-                          'text-sm truncate',
-                          isChecked ? 'font-medium text-accent-fg' : 'text-fg',
-                        )}>
-                          {obj.title ?? <span className="italic text-fg-subtle">{obj.id}</span>}
-                        </p>
-                        {updatedAt && (
-                          <p className="text-[11px] text-fg-subtle mt-0.5">
-                            Updated {timeAgo(updatedAt)}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusChip status={obj.status} />
-                        {detailHref && (
-                          <a
-                            href={detailHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Open in new tab"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-1 rounded text-fg-faint hover:text-fg-muted hover:bg-surface-hover transition-colors"
-                          >
-                            <IconExternalLink className="size-3.5" />
-                          </a>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-surface-sunken">
-          <span className="text-xs text-fg-subtle">
-            {total > results.length
-              ? `Showing ${results.length} of ${total} - refine search to narrow`
-              : total > 0
-                ? `${total} result${total !== 1 ? 's' : ''}`
-                : ''}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={() => { onConfirm(draft); onOpenChange(false) }}>
-              Done{draftCount > 0 ? ` (${draftCount})` : ''}
-            </Button>
+            <div className="flex gap-1">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setStatusFilter(f.value)}
+                  className={clsx(
+                    'rounded-control px-2.5 py-1 text-xs font-medium transition-colors motion-fast',
+                    statusFilter === f.value
+                      ? 'bg-accent-strong text-accent-contrast'
+                      : 'text-fg-muted hover:bg-surface-hover hover:text-fg',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Results. A fixed minimum so switching filter does not resize the
+              dialog under the pointer, which it did on every empty result. */}
+          <div className="min-h-56 max-h-72 overflow-y-auto">
+            {loading ? (
+              <div className="flex min-h-56 items-center justify-center gap-2 text-fg-subtle">
+                <IconLoader className="size-4 animate-spin" />
+                <span className="text-ui-sm">Loading…</span>
+              </div>
+            ) : error ? (
+              <div className="flex min-h-56 items-center justify-center px-5 text-center">
+                <p className="text-ui-sm text-danger-fg">{error}</p>
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="flex min-h-56 flex-col items-center justify-center gap-1 px-5 text-center">
+                <p className="text-ui-sm text-fg-muted">No {displayLabel.toLowerCase()} found</p>
+                <p className="text-xs text-fg-subtle">
+                  {search ? 'Try a different search.' : 'Create one with New above, then Reload.'}
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {rows.map((obj) => {
+                  const isChecked = draft.includes(obj.id)
+                  // A row carries whatever the read returned, so the two
+                  // spellings of the timestamp are both read and narrowed here.
+                  const updatedAt = (obj.updated_at ?? obj.updatedAt) as string | undefined
+                  const rowStatus = typeof obj.status === 'string' ? obj.status : 'unknown'
+                  const detailHref = workspaceId
+                    ? `/${workspaceId}/objects/${targetType}/${obj.id}`
+                    : null
+
+                  return (
+                    <li key={obj.id}>
+                      <button
+                        type="button"
+                        onClick={() => setDraft((prev) => toggleId(prev, obj.id))}
+                        className={clsx(
+                          'w-full flex items-center gap-3 px-5 py-2.5 text-left transition-colors motion-fast',
+                          isChecked ? 'bg-accent-muted' : 'hover:bg-surface-sunken',
+                        )}
+                      >
+                        {/* Checkbox */}
+                        <span className={clsx(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+                          isChecked
+                            ? 'bg-accent-strong border-accent'
+                            : 'border-border-strong bg-surface',
+                        )}>
+                          {isChecked && <IconCheck className="size-3 text-accent-contrast" />}
+                        </span>
+
+                        <div className="flex-1 min-w-0">
+                          <p className={clsx(
+                            'text-sm truncate',
+                            isChecked ? 'font-medium text-accent-fg' : 'text-fg',
+                          )}>
+                            {obj.title ?? <span className="italic text-fg-subtle">{obj.id}</span>}
+                          </p>
+                          {updatedAt && (
+                            <p className="text-[11px] text-fg-subtle mt-0.5">
+                              Updated {timeAgo(updatedAt)}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <StatusBadge status={rowStatus} />
+                          {detailHref && (
+                            <a
+                              href={detailHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Open in new tab"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 rounded text-fg-faint hover:text-fg-muted hover:bg-surface-hover transition-colors"
+                            >
+                              <IconExternalLink className="size-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {/* Scroll sentinel: reaching the end of the list asks for the next
+                page, so the whole set is reachable by scrolling. */}
+            <div ref={sentinelRef} className="flex justify-center py-3">
+              {loadingMore && (
+                <div className="flex items-center gap-2 text-fg-subtle">
+                  <IconLoader className="size-4 animate-spin" />
+                  <span className="text-xs">Loading…</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+      </DialogBody>
+
+      <DialogFooter className="justify-between">
+        <span className="text-xs text-fg-subtle">
+          {rows.length > 0 && total != null
+            ? `Showing ${rows.length} of ${total}${hasMore ? '. Scroll for more.' : '.'}`
+            : ''}
+        </span>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => { onConfirm(draft); onOpenChange(false) }}>
+            Done{draftCount > 0 ? ` (${draftCount})` : ''}
+          </Button>
         </div>
+      </DialogFooter>
       </DialogContent>
     </Dialog>
   )

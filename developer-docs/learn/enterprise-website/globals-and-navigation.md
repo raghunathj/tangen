@@ -4,9 +4,9 @@ description: Four Globals for site-wide content, including a menu an editor owns
 audience: site-developer
 type: guide
 status: stable
-lastVerified: 2026-09-02
+lastVerified: 2026-10-13
 verification: executable
-verifiedBy: stage-g6/ch4
+verifiedBy: stage-g6/ch4, globals-no-push 2026-10-13
 ---
 
 # 4. Add Globals and navigation
@@ -84,9 +84,12 @@ export default defineWorkspace({
 })
 ```
 
-```bash
-bun x tangen push
-```
+Then restart the API, and the Globals section appears.
+
+**No push, no migration.** `tangen push` never reads globals: the definitions
+are code, loaded with the project config, and the `globals` table stores only
+the authored data keyed by name. If you are running `tangen dev` the restart is
+automatic.
 
 ## A menu item is a link, not a string
 
@@ -96,8 +99,10 @@ the menu pointing at a 404. Chapter 8 resolves them.
 
 ## Expected result
 
-Push applies cleanly, and the admin sidebar gains a **Globals** section with
-your four entries, each editable as a single record.
+The admin sidebar gains a **Globals** section with your four entries, each
+editable as a single record. The menu repeater spans the full width of the
+editor sheet, and `href` opens the link editor's destination chooser rather
+than a text box.
 
 ## Verification
 
@@ -106,9 +111,16 @@ your four entries, each editable as a single record.
 
 ## Common mistake
 
-**Forgetting to wire `globals` into the workspace config.** The file compiles,
-push succeeds, and nothing appears in the admin. There is no error, because
-from the platform's side you simply declared no Globals.
+**Forgetting to wire `globals` into the workspace config.** The file compiles
+and nothing appears in the admin. There is no error, because from the platform's
+side you simply declared no Globals.
+
+**Reaching for `push` when a global does not show up.** Push has nothing to do
+with globals. Restart the API instead.
+
+**Trusting `tangen check` on this file.** It type-checks `app/content-objects`
+and `app/generated` only, so a globals file that does not compile passes both
+`check` and `push`. `tangen dev` type-checks it.
 
 ## Relevant canonical docs
 

@@ -17,7 +17,7 @@
  *          list - not the names. Authorization to CALL the key routes is
  *          checked before this runs and independently of it.
  */
-import { API_KEY_SCOPE_ACTIONS, API_KEY_SEARCH_AUDIENCES, type ApiKeyPermissions } from '@tangen/types'
+import { API_KEY_SCOPE_ACTIONS, API_KEY_SEARCH_AUDIENCES, ALL_CAPABILITIES, type ApiKeyPermissions, type MemberPermissions } from '@tangen/types'
 import { RequestError } from './errors'
 
 const SCOPES = Object.keys(API_KEY_SCOPE_ACTIONS) as Array<keyof typeof API_KEY_SCOPE_ACTIONS>
@@ -139,4 +139,57 @@ export function sanitizeApiKeyPermissions(stored: unknown): ApiKeyPermissions {
   if (!isRecord(stored)) return {}
   const { admin: _admin, ...rest } = stored as Record<string, unknown>
   return rest as ApiKeyPermissions
+}
+
+/** A capability id: a core one, or an extension's namespaced `scope:name`. */
+const CAPABILITY_ID = /^[a-z][a-z0-9_-]*:[a-z][a-z0-9_-]*$/
+
+/**
+ * A custom ROLE's permission document, validated against the same catalogue a
+ * key's is.
+ *
+ * S5 of the security audit: an unknown scope could not be stored on a key and
+ * could be stored on a role, which is the same document read by the same
+ * guards. A scope nobody reads is a grant an operator believes they made.
+ *
+ * A role document is an API-key document plus three member-only keys, so the
+ * shared scopes go through the one validator and only those three are handled
+ * here. `capabilities` accepts an extension-declared id by SHAPE, because the
+ * catalogue of those rides installed manifests and a role may name a
+ * capability of an extension that is not installed yet.
+ */
+export function validateMemberPermissions(input: unknown): PermissionValidation {
+  if (input === undefined || input === null) return { ok: true, fieldErrors: {} }
+  if (!isRecord(input)) return { ok: false, fieldErrors: { permissions: 'must be an object' } }
+
+  const { capabilities, extensions, ...shared } = input as Record<string, unknown>
+  const base = validateApiKeyPermissions(shared)
+  const errors = { ...base.fieldErrors }
+
+  if (capabilities !== undefined) {
+    if (!Array.isArray(capabilities)) errors['permissions.capabilities'] = 'must be a list of capability ids'
+    else for (const c of capabilities) {
+      if (typeof c !== 'string' || (!(ALL_CAPABILITIES as readonly string[]).includes(c) && !CAPABILITY_ID.test(c))) {
+        errors['permissions.capabilities'] = `unknown capability ${JSON.stringify(c)}`
+        break
+      }
+    }
+  }
+
+  // On a MEMBER bundle `extensions` is the page allow-list, not the key
+  // model's per-extension grants, so it is validated here and excluded above.
+  if (extensions !== undefined && extensions !== 'all') {
+    if (!Array.isArray(extensions) || extensions.some((e) => typeof e !== 'string' || e === '')) {
+      errors['permissions.extensions'] = "must be 'all' or a list of extension ids"
+    }
+  }
+
+  return { ok: Object.keys(errors).length === 0, fieldErrors: errors }
+}
+
+/** The validated role document, or a 422 with every field named. */
+export function assertMemberPermissions(input: unknown): MemberPermissions {
+  const v = validateMemberPermissions(input)
+  if (!v.ok) throw new RequestError('VALIDATION_ERROR', 'permissions are invalid', 422, v.fieldErrors)
+  return (input ?? {}) as MemberPermissions
 }

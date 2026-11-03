@@ -89,7 +89,13 @@ export function membersPorterProvider(): PorterProvider {
     async importRows(db, workspaceId, rows) {
       const out: PorterProviderResult = { created: 0, updated: 0, refused: [], warnings: [] }
       for (const row of rows) {
-        const email = String((row as PortableMember).email ?? '').trim().toLowerCase()
+        // One conversion, through `unknown`, which is what TypeScript asks for
+        // and what the data honestly is: a row out of a bundle, shaped by
+        // whoever wrote the file. Everything below validates it - the email
+        // must be present, `carriesSecret` refuses credentials - so the type
+        // is a reading convenience, not a claim about the input.
+        const member = row as unknown as PortableMember
+        const email = String(member.email ?? '').trim().toLowerCase()
         if (!email) { out.refused!.push({ key: '(no email)', reason: 'a member row without an email cannot be matched' }); continue }
         // Defence in depth: the exporter never writes one, so a bundle that has
         // one was edited, and importing it would install a credential.
@@ -97,11 +103,11 @@ export function membersPorterProvider(): PorterProvider {
 
         const values = {
           email,
-          name: (row as PortableMember).name ?? null,
-          role: String((row as PortableMember).role ?? 'editor'),
-          status: String((row as PortableMember).status ?? 'active'),
-          designation: (row as PortableMember).designation ?? null,
-          avatar: (row as PortableMember).avatar ?? null,
+          name: member.name ?? null,
+          role: String(member.role ?? 'editor'),
+          status: String(member.status ?? 'active'),
+          designation: member.designation ?? null,
+          avatar: member.avatar ?? null,
         }
         const [existing] = await db.select({ id: members.id }).from(members)
           .where(and(eq(members.workspaceId, workspaceId), eq(members.email, email))).limit(1)

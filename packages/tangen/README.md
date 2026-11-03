@@ -22,17 +22,19 @@ Postgres; there is no file-backed mode.
 ```sh
 createdb my_blog
 
-bunx @tangen/cli create my-blog \
+npx -p @tangen/cms tangen create my-blog \
   --name "My Blog" \
   --db "postgres://localhost:5432/my_blog"
-
-cd my-blog
-bun install
-bun run tangen bootstrap
 ```
 
+That one command scaffolds the project, installs the dependencies, and creates
+the database tables. `@tangen/cms` is the only package you name: it carries the
+`tangen` command and brings the server, the admin panel and the five bundled
+extensions with it.
+
 `--db` is checked before any file is written, so a wrong connection string
-fails immediately rather than three steps later.
+fails immediately rather than three steps later. Skip it and `create` prints
+the one command to run once you have filled `DATABASE_URL` into `.env`.
 
 ## Define a content type
 

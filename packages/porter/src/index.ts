@@ -12,3 +12,4 @@ export {
   type BundleManifest, type BundleWriter, type BundleReader, type BundleSectionWriter,
 } from './bundle'
 export { bundleKeys, tarGzBundle, untarGz, importBundleFromTarGz, type TarEntry } from './tar'
+export { isSafeBundleFilename, isSafeBundleId, assertSafeMediaRef } from './safe-key'

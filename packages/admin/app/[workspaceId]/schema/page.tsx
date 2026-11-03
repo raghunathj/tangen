@@ -1,7 +1,7 @@
 
 
 import { apiUrl } from '@/lib/api-origin'
-import { Badge, Button, Callout, Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription, EmptyState, FilterBar, Input, Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, Skeleton, type FieldFilter, type FilterableField } from '@/kit'
+import { Badge, Button, Callout, Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter, DialogTitle, DialogDescription, EmptyState, FilterBar, Input, Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator, Skeleton, type FieldFilter, type FilterableField } from '@/kit'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { clsx } from 'clsx'
@@ -470,13 +470,13 @@ export default function SchemaViewerPage() {
               Fix these so “{healthModal?.name}” builds and serves correctly.
             </DialogDescription>
           </DialogHeader>
-          <div className="px-6 py-4 space-y-2 max-h-[50vh] overflow-y-auto">
+          <DialogBody>
             {(healthModal ? issuesFor(healthModal.name) : []).map((iss, i) => (
               <Callout key={i} variant="warning">
                 <span className="min-w-0 break-words">{iss}</span>
               </Callout>
             ))}
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button size="sm" onClick={() => setHealthModal(null)}>Close</Button>
           </DialogFooter>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  Dialog, DialogContent, DialogHeader, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogBody, DialogFooter,
   DialogTitle, DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -46,7 +46,7 @@ export function SaveViewDialog({ open, onClose, onSave }: SaveViewDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 py-4 space-y-4">
+        <DialogBody className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-fg mb-1">
               View name <span className="text-danger-fg">*</span>
@@ -86,7 +86,7 @@ export function SaveViewDialog({ open, onClose, onSave }: SaveViewDialogProps) {
           </div>
 
           {error && <p className="text-xs text-danger-fg">{error}</p>}
-        </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button variant="secondary" size="sm" onClick={onClose}>Cancel</Button>

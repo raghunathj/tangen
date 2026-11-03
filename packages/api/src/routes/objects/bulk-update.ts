@@ -22,7 +22,7 @@ import { RequestError } from '../../lib/errors'
 import { internalErrorResponse, requestIdFor, type ErrorDetailMode } from '../../lib/internal-error'
 import { resolveActorId, hookActor } from '../../lib/actor'
 import { assertObjectPermission } from '../../lib/permissions'
-import { canWriteLocale } from '../../lib/field-access'
+import { canWriteLocale, enforceFieldWrites } from '../../lib/field-access'
 import { projectLocalization } from '../../services/i18n'
 import { createExtensionDataStore, runBeforeChange, runAfterChange, syncPublishedExtensionData } from '../../hooks/runner'
 import { createGlobalsStore } from '../../services/globals-store'
@@ -238,16 +238,35 @@ export function bulkItemError(err: unknown, mode?: ErrorDetailMode): { message: 
   return { message: internal.error.message, code: internal.error.code, errorId: id }
 }
 
-export const bulkUpdateObjectsRoute = (projects: any[]) => (app: Elysia) =>
-  app.post('/api/v1/objects/bulk-update', async (ctx: any) => {
+/**
+ * The handler, separate from its mounting so a test can drive it with a real
+ * database and a real member role. The field ACL is the reason that matters:
+ * asserting it on the payload builder proves nothing about what the route
+ * writes, which is how this route carried the ACL bypass of finding 21.
+ */
+export const makeBulkUpdateHandler = (projects: any[]) => async (ctx: any) => {
     if (ctx.query?.locale || (ctx.body as any)?.locale) {
       throw new RequestError('VALIDATION_ERROR', 'Bulk update works on the default locale only', 422)
     }
     const { body, db, redis, eventBus, schema, workspaceId, apiKeyId, memberId, permissions } = ctx
 
-    const { typeName, typeId, ids, fields } = buildBulkUpdatePayload(body, schema)
+    const { typeName, typeId, ids, fields: requestedFields } = buildBulkUpdatePayload(body, schema)
 
     assertObjectPermission(permissions, 'write', typeName)
+    // Field-level access, the same gate create and update run: a grant
+    // allow-list refuses, a role list strips. Without it a bulk update wrote
+    // every field the member's role was denied, on every object named, in one
+    // request - and it needs no capability beyond writing the type at all
+    // (finding 21). `status` is a system column, not a field, so it is never
+    // in the restricted set; the permission check for it is above.
+    const { values: fields } = enforceFieldWrites(
+      ctx,
+      schema.types.find((t: any) => t.name === typeName),
+      requestedFields,
+    )
+    if (Object.keys(fields).length === 0) {
+      throw new RequestError('FORBIDDEN', 'Your role may not write any of the fields in this request', 403)
+    }
     // A bulk status flip to published is a publish (C1) - gate it up front so
     // a write-only role cannot mass-publish.
     if ((fields as Record<string, unknown>).status === 'published') {
@@ -422,4 +441,7 @@ export const bulkUpdateObjectsRoute = (projects: any[]) => (app: Elysia) =>
 
     clearTypeQueryCache(redis, workspaceId, typeName).catch(() => {})
     return { updated, failed, errors }
-  })
+}
+
+export const bulkUpdateObjectsRoute = (projects: any[]) => (app: Elysia) =>
+  app.post('/api/v1/objects/bulk-update', makeBulkUpdateHandler(projects))

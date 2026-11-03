@@ -31,6 +31,12 @@ export const objectTypes = pgTable('object_types', {
    *  does. A row with a value here is never dropped by a push: an extension
    *  that stops declaring it leaves an orphan the tooling reports instead. */
   providedBy: text('provided_by'),
+  /** The type's declared ADDRESS, as the push stores it: `{ pattern, root? }`,
+   *  `{ field }`, or `{ fn: true }` when the declaration is a code-side
+   *  function that no serialisation could carry. NULL = this type has no
+   *  address. Read by the Admin, which has no other way to see it: the API's
+   *  request schema is rebuilt from this table. */
+  path: jsonb('path'),
   previousNames: text('previous_names').array().notNull().default(sql`'{}'`),
   adminConfig: jsonb('admin_config').notNull().default(sql`'{}'`),
   schemaVersion: integer('schema_version').notNull().default(1),

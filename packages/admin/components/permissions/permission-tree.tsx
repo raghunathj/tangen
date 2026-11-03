@@ -130,7 +130,7 @@ function SubGroup({ node, granted, locked, onToggle, readOnly, markGrants }: {
     <div className="mt-1">
       <div className="flex items-center gap-2.5 border-t border-dashed border-border px-2 pb-1.5 pt-2.5">
         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-fg-subtle"><DynamicIcon name="IconFolder" className="size-3.5" /></span>
-        <span className="flex-1 text-ui-sm font-semibold text-fg">{node.label}<span className="ml-2 font-mono text-ui-2xs uppercase tracking-wide text-fg-faint">resource</span></span>
+        <span className="flex-1 text-ui-sm font-semibold text-fg">{node.label}<span className="ml-2 font-mono text-ui-2xs uppercase tracking-wide text-fg-subtle">resource</span></span>
         <span className="shrink-0 font-mono text-ui-xs tabular-nums text-fg-subtle">{on}/{leaves.length}</span>
         <TriCheckbox node={node} granted={granted} locked={locked} onToggle={onToggle} readOnly={readOnly} label={node.label} />
       </div>
@@ -154,7 +154,7 @@ function Leaf({ leaf, granted, locked, onToggle, readOnly, markGrants, indent }:
         <DynamicIcon name={ACTION_ICON[leaf.action] ?? 'IconCheckbox'} className="size-3.5" />
       </span>
       <span className="min-w-0 flex-1 text-sm text-fg">{leaf.label}
-        {leaf.slug && <span className="ml-2 font-mono text-ui-2xs text-fg-faint">{leaf.slug}</span>}
+        {leaf.slug && <span className="ml-2 font-mono text-ui-2xs text-fg-subtle">{leaf.slug}</span>}
         {leaf.sensitive && <span className="ml-2 rounded px-1 py-0.5 text-ui-2xs font-semibold uppercase text-warning-fg">sensitive</span>}
       </span>
       {isLocked

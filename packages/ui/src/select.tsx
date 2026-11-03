@@ -58,7 +58,12 @@ const Select = ({
       aria-describedby={ariaDescribedby}
       className={cx(selectTriggerStyles({ hasError }), className)}
     >
-      <span className="flex-1 truncate text-left data-[placeholder]:text-fg-subtle">
+      {/* `data-placeholder` lands on the TRIGGER, not here, so the muted colour
+          is scoped to its `group/trigger` - the chevron below already does
+          this for `data-disabled`. Unscoped, the variant waited on an
+          attribute this span never receives and a placeholder rendered at full
+          `text-fg`, reading as a value the user had chosen. */}
+      <span className="flex-1 truncate text-left group-data-[placeholder]/trigger:text-fg-subtle">
         <SelectPrimitive.Value placeholder={placeholder ?? '- Select -'} />
       </span>
       {onClear && props.value !== undefined && props.value !== '' && !props.disabled && (

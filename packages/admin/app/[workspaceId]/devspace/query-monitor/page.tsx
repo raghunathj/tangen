@@ -611,7 +611,7 @@ function LastClosesTable({ closes }: { closes: GatewaySnapshot['realtime']['last
       <h4 className="text-xs font-semibold text-fg mb-1">Realtime last closes</h4>
       <p className="text-[11px] text-fg-subtle mb-1">Newest first. Codes 4000 and up are the server ending a connection; the reason is what the closing side said, clipped.</p>
       <div className="rounded-lg border border-border bg-surface overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="min-w-full text-xs">
           <thead className="bg-surface-sunken text-fg-muted">
             <tr>
               <th className="px-3 py-1.5 text-left font-medium">when</th>

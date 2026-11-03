@@ -18,6 +18,7 @@ import { RequestError } from '../../lib/errors'
 import { getSchema } from '../../services/schema-cache'
 import { expandMediaDeep } from '../../services/media-loader'
 import { resolveLinksDeep } from '../../services/link-loader'
+import { pathDepsOf } from '../../services/path-resolver'
 import { fetchI18nRows, localizeRow } from '../../services/i18n'
 import { previewTokenKey, type PreviewTokenMinter } from './token'
 import { restrictedReadFields } from '../../lib/field-access'
@@ -177,7 +178,7 @@ export const previewObjectRoute = (app: Elysia) =>
     result = await expandMediaDeep(result, typeDef, mediaRegistry, db, workspaceId, locale ?? undefined)
     // The canvas previews DRAFTS, so links resolve editorially: an unpublished
     // target is exactly what the author is here to see.
-    result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { locale })
+    result = await resolveLinksDeep(result, typeDef, mediaRegistry, db, workspaceId, { locale, pathDeps: pathDepsOf(ctx) })
 
     const out = { ...result[0], type: typeName } as Record<string, unknown>
     for (const field of masked) delete out[field]

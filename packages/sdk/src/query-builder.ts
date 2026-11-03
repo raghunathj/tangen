@@ -48,6 +48,10 @@ interface QueryState {
   status?: 'published' | 'draft' | 'archived' | 'any'
   /** false skips the exact total; meta.total is null and meta.hasMore is exact. */
   total?: boolean
+  /** true attaches each row's composed address as `_path`. */
+  includePath?: boolean
+  /** true attaches the chain each row sits under as `_ancestors`, root first. */
+  includeAncestors?: boolean
 }
 
 /**
@@ -162,6 +166,43 @@ export class ObjectQueryBuilder<T = Record<string, unknown>> {
   }
 
   /**
+   * Attach each row's address as `_path`, composed from the type's declared
+   * `path` - `/blog/design/my-post` for a post under a category, `/about/team`
+   * for a page under a parent. Opt in: it costs one batched query per type,
+   * whatever the page size, and is absent from the response without it.
+   * `_path` is `null` for a type that declares no path.
+   *
+   * It carries the locale prefix, so it is a complete address for the locale
+   * the read asked for and never needs one prepended.
+   * @param include - false to leave it off again.
+   * @returns A new ObjectQueryBuilder that asks for the address.
+   */
+  includePath(include = true): ObjectQueryBuilder<T> {
+    return new ObjectQueryBuilder<T>(this.http, this.typeName, { ...this.state, includePath: include })
+  }
+
+  /**
+   * Attach `_ancestors` to every row: the chain this row sits under, ROOT
+   * FIRST, as `{ id, title }`.
+   *
+   * Opt in for the same reason as `includePath`, and the same price: one extra
+   * query for the whole read, whatever the page size and whatever the depth.
+   * It answers only for a type whose parent relation Tangen provides
+   * (`admin.taxonomy.hierarchical`); any other type has no `_ancestors` key at
+   * all, which is not the same as `[]` - that is a row with nothing above it.
+   *
+   * Ask for it wherever rows are paged, filtered or sorted and their nesting
+   * is shown. The alternative, building the tree from the rows in hand, needs
+   * every row at once: a parent on another page reads as no parent, so its
+   * children render at the top level.
+   * @param include - false to leave it off again.
+   * @returns A new ObjectQueryBuilder that asks for the chain.
+   */
+  includeAncestors(include = true): ObjectQueryBuilder<T> {
+    return new ObjectQueryBuilder<T>(this.http, this.typeName, { ...this.state, includeAncestors: include })
+  }
+
+  /**
    * Serve localized fields in this locale (translations fall back to the
    * default locale per field). Requires the workspace localization module.
    * @param code - A locale code from the workspace config, e.g. 'ta'.
@@ -206,6 +247,7 @@ export class ObjectQueryBuilder<T = Record<string, unknown>> {
     if (this.state.serialize !== undefined) params.set('serialize', JSON.stringify(this.state.serialize))
     if (this.state.locale !== undefined) params.set('locale', this.state.locale)
     if (this.state.status !== undefined) params.set('status', this.state.status)
+    if (this.state.includePath) params.set('includePath', 'true')
     const qs = params.size > 0 ? `?${params}` : ''
     return this.http.get(`/objects/${this.typeSegment()}/${encodeURIComponent(id)}${qs}`, opts)
   }
@@ -221,6 +263,7 @@ export class ObjectQueryBuilder<T = Record<string, unknown>> {
     if (this.state.serialize !== undefined) params.set('serialize', JSON.stringify(this.state.serialize))
     if (this.state.locale !== undefined) params.set('locale', this.state.locale)
     if (this.state.status !== undefined) params.set('status', this.state.status)
+    if (this.state.includePath) params.set('includePath', 'true')
     const qs = params.size > 0 ? `?${params}` : ''
     return this.http.get(`/objects/${this.typeSegment()}/by-slug/${encodeURIComponent(slug)}${qs}`, opts)
   }

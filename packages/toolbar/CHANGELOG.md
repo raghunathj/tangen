@@ -1,5 +1,28 @@
 # @tangen/toolbar
 
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+  - @tangen/sdk@0.4.0
+
+## 0.1.13
+
+### Patch Changes
+
+- Updated dependencies [d54f1ba]
+- Updated dependencies [120fff5]
+  - @tangen/sdk@0.3.0
+
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [a33a309]
+  - @tangen/sdk@0.2.0
+
 ## 0.1.11
 
 ### Patch Changes

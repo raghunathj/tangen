@@ -8,6 +8,8 @@
  * Dependencies/Notes: Depends on @tangen/types for ObjectTypeDefinition, FieldDefinition, FieldInput, and AdminConfig. Group sub-fields are flattened here so the CLI migration diff sees them as real columns.
  */
 import type { ObjectTypeDefinition, FieldDefinition, FieldInput, StrictFieldInput, ValidateFields, AdminConfig } from '@tangen/types'
+import { validatePathPattern } from './path-pattern'
+import { pathPatternOf } from '@tangen/types'
 
 const NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 
@@ -202,11 +204,26 @@ export function defineObjectType<
       name: 'parent',
       label: 'Parent',
       fieldType: 'relation',
-      config: { targetType: def.name, many: false },
+      // `restrict` rather than the 'setNull' default, because a tree is not a
+      // loose reference. With setNull, deleting About CLEARED Company's parent
+      // and Company became a root - and since an address is composed and never
+      // stored, /about/company silently became /company, taking every address
+      // beneath it, with nothing to redirect. "3 pages are inside this one" is
+      // a better answer than re-addressing a subtree nobody asked to move.
+      //
+      // A project that wants the old behaviour declares `parent` itself: this
+      // block only fires when the type did not.
+      config: { targetType: def.name, many: false, onDelete: 'restrict' },
       previousName: [],
       required: false,
     } as FieldDefinition)
   }
+
+  // AFTER the flatten, and after `parent` and `position` were auto-provided:
+  // a hierarchical type never declares `parent` by hand, so validating any
+  // earlier would refuse every page pattern that walks it.
+  const declaredPath = pathPatternOf(def.path)
+  if (declaredPath) validatePathPattern(def.name, declaredPath, flattened)
 
   return {
     ...def,

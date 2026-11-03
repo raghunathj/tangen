@@ -27,11 +27,11 @@ reason); run the command with the right `.env`.
 
 | command | does |
 |---|---|
-| `tangen create` | scaffold a new project. `--name`, `--with-demo`, `--with-hooks`, `--website`, `--ai` / `--no-ai`, `--skip-db-check` |
+| `tangen create` | scaffold a new project, install its dependencies and create its database tables. `[<folder>]` (`.` scaffolds into the current directory), `--name <workspace>`, `--db <postgres-url>`, `--ai` / `--no-ai`. `--name` and `--db` skip every prompt, which is the form for CI |
 | `tangen dev` | run the API and the Admin together. Honours `PORT` and `ADMIN_PORT` |
 | `tangen start` | run the API for production |
 | `tangen build` | build the static Admin a deployment serves. `--out <dir>`, default `dist/admin`. One artifact for every host - the Admin resolves its API at runtime |
-| `tangen bootstrap` | prepare a workspace from configuration |
+| `tangen bootstrap` | create the system tables and the workspace row. `create` already does this when the `--db` you gave it worked, so you run this yourself in two cases: you skipped that prompt, or you are on staging or production, where `tangen dev` never runs. Idempotent. `--name`, `--ai` / `--no-ai`, `--with-demo` |
 
 ## Schema
 

@@ -211,9 +211,19 @@ export function ensureContainerRowKeys(
     if (!Array.isArray(blocks)) return blocks
     return blocks.map((block) => {
       const b = block as Record<string, unknown>
-      const def = defs.find((d) => d.name === ((b?._type ?? b?.type) as string))
-      if (!def) return block
-      let next = b
+      // A block's own key first, and regardless of whether its definition
+      // resolves. `reconcileComponentWrite` carries a block's historical
+      // values across a write by looking it up by `_key`, and a per-locale
+      // overlay is an object keyed by `_key` - so a block without one cannot
+      // be translated and loses its history on the next write. The editor
+      // always mints one; a write through the API did not, and only the rows
+      // INSIDE a block were being keyed here.
+      const keyed = b && typeof b === 'object' && !Array.isArray(b) && typeof b._key !== 'string'
+        ? { ...b, _key: newKey() }
+        : b
+      const def = defs.find((d) => d.name === ((keyed?._type ?? keyed?.type) as string))
+      if (!def) return keyed
+      let next = keyed
       for (const sf of def.fields ?? []) {
         const cfg = (sf.config ?? {}) as { fields?: unknown; components?: unknown }
         if (sf.fieldType === 'repeater' && Array.isArray(next[sf.name])) {

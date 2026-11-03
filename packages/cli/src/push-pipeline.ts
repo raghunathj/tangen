@@ -20,7 +20,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import type { SchemaDefinition, CustomTableDefinition } from '@tangen/types'
 import { generateContentTablesCode, generateCustomTablesCode } from './codegen'
-import { generateContentTypesCode, type GlobalForCodegen, type TableForCodegen } from './commands/types'
+import { generateContentTypesCode, type GlobalForCodegen, type TableForCodegen, type ComponentForCodegen } from './commands/types'
 
 /** Everything a push writes to disk, generated up front. */
 export interface PushArtifacts {
@@ -39,6 +39,12 @@ export interface TypesDeclarationInput {
   locales?: string[]
   roles?: string[]
   extensions?: string[]
+  /** Component definitions. Without them every `component` field types as
+   *  `unknown`, because the pushed schema's `config.components` holds plain
+   *  NAMES - the shapes live in local code. `tangen types` has always passed
+   *  these; push did not, so the file push wrote disagreed with the file
+   *  `tangen types` wrote for the same schema. */
+  components?: ComponentForCodegen[]
 }
 
 export interface PushPipelineDeps {
@@ -88,7 +94,7 @@ export function generatePushArtifacts(
     contentTables: generateContentTablesCode(artifactSchema, registry, where),
     ...(customTables !== undefined ? { customTables: generateCustomTablesCode(customTables) } : {}),
     ...(types
-      ? { typesDeclaration: generateContentTypesCode(types.schema, types.globals ?? [], types.tables ?? [], types.locales ?? [], types.roles ?? [], types.extensions ?? []) }
+      ? { typesDeclaration: generateContentTypesCode(types.schema, types.globals ?? [], types.tables ?? [], types.locales ?? [], types.roles ?? [], types.extensions ?? [], types.components ?? []) }
       : {}),
   }
 }

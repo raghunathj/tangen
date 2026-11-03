@@ -15,6 +15,7 @@
  */
 import { relationSubfieldsIn } from '@tangen/schema'
 import type { SchemaDefinition, ComponentDef } from '@tangen/types'
+import { storedPathOf } from '@tangen/types'
 import type { RuntimeSchema, ChangePlan, ChangeOperation } from './types'
 import { planFlags } from './plan-ops'
 import { fieldTypeToSql, classifyColumnChange, fieldIsIndexable } from './column-types'
@@ -251,6 +252,18 @@ export function diff(local: SchemaDefinition, runtime: RuntimeSchema): ChangePla
       operations.push({ op: 'UPDATE_TYPE_PLURAL', typeId: runtimeType.id, typeName: runtimeType.name, plural: localType.plural ?? null })
     }
 
+    // The ADDRESS, compared in the one shape the column stores. Reading the
+    // raw declarations would push on every run, because `'/blog/:slug'` in
+    // code and `{ pattern: '/blog/:slug' }` in the database are the same
+    // thing. A code-side function arrives here already serialised to its
+    // marker - `loadLocalSchema` JSON-stringifies the project's schema - so
+    // the comparison never sees a function and never has to.
+    const localPath = storedPathOf(localType.path)
+    const runtimePath = storedPathOf(runtimeType.path)
+    if (!configEqual(localPath ?? {}, runtimePath ?? {})) {
+      operations.push({ op: 'UPDATE_TYPE_PATH', typeId: runtimeType.id, typeName: runtimeType.name, path: localPath })
+    }
+
     if (localType.label !== runtimeType.label) {
       operations.push({ op: 'UPDATE_TYPE_LABEL', typeId: runtimeType.id, typeName: runtimeType.name, label: localType.label })
     }
@@ -266,7 +279,8 @@ export function diff(local: SchemaDefinition, runtime: RuntimeSchema): ChangePla
       operations.push({ op: 'UPDATE_TYPE_ADMIN_CONFIG', typeId: runtimeType.id, typeName: runtimeType.name, admin: localType.admin })
     }
 
-    for (const localField of localType.fields) {
+    for (let localIndex = 0; localIndex < localType.fields.length; localIndex++) {
+      const localField = localType.fields[localIndex]!
       const localFieldPrevNames = localField.previousName ?? []
 
       const runtimeField = runtimeType.fields.find(
@@ -274,7 +288,7 @@ export function diff(local: SchemaDefinition, runtime: RuntimeSchema): ChangePla
       )
 
       if (!runtimeField) {
-        operations.push({ op: 'ADD_FIELD', typeId: runtimeType.id, typeName: runtimeType.name, field: localField })
+        operations.push({ op: 'ADD_FIELD', typeId: runtimeType.id, typeName: runtimeType.name, field: localField, position: localIndex })
         continue
       }
 
@@ -333,6 +347,59 @@ export function diff(local: SchemaDefinition, runtime: RuntimeSchema): ChangePla
       if (!matched) {
         operations.push({ op: 'DROP_FIELD', typeId: runtimeType.id, typeName: runtimeType.name, fieldId: runtimeField.id, name: runtimeField.name, fieldType: runtimeField.fieldType, warned: true })
       }
+    }
+
+    // ── The editor's field order is the schema file's ────────────────────────
+    //
+    // After the operations above the registry holds exactly the declared set,
+    // so the only question left is where each one sits. Three things make that
+    // wrong today and all three are repaired by one op:
+    //
+    //  1. Reordering fields in code did nothing, because nothing compared
+    //     order - `position` was read by the loader and thrown away.
+    //  2. A new field took its index in the OPS ARRAY as its position, which
+    //     is where its operation happened to land across every type in the
+    //     push. On a type that also dropped fields the result COLLIDED with
+    //     the positions already there, and the editor's tie-break is
+    //     arbitrary, so the form came out in an order nobody wrote.
+    //  3. Positions were therefore not a clean sequence, and a duplicate is
+    //     unfixable from the schema file alone.
+    //
+    // It stays quiet on a healthy type: the op fires only when something is
+    // being added, when what is already stored is not in the declared relative
+    // order, or when the stored positions are not 0..n-1 (which repairs 2 once
+    // and then never again).
+    const dropped = new Set(
+      operations
+        .filter((o): o is DropField => o.op === 'DROP_FIELD' && o.typeId === runtimeType.id)
+        .map((o) => o.name),
+    )
+    const renamedTo = new Map(
+      operations
+        .filter((o): o is Extract<ChangeOperation, { op: 'RENAME_FIELD' }> => o.op === 'RENAME_FIELD' && o.typeId === runtimeType.id)
+        .map((o) => [o.from, o.to] as const),
+    )
+    const declaredNames = localType.fields.map((f) => f.name)
+    const surviving = runtimeType.fields
+      .filter((rf) => !dropped.has(rf.name))
+      .map((rf) => renamedTo.get(rf.name) ?? rf.name)
+    const survivingSet = new Set(surviving)
+    const adding = declaredNames.some((n) => !survivingSet.has(n))
+    const sameRelativeOrder =
+      surviving.join('\u0000') === declaredNames.filter((n) => survivingSet.has(n)).join('\u0000')
+    // A DUPLICATE is the defect, not a gap. Two fields at the same position
+    // leave the editor's tie-break to decide which comes first, which is
+    // exactly how the form came out in an order nobody wrote; a gap after a
+    // drop still draws everything in the right order and costs nothing.
+    //
+    // Only judged when every row carries a number: a hand-built runtime (and
+    // every fixture that predates `position`) has none, and no number is not
+    // a duplicate.
+    const positions = runtimeType.fields.map((f) => f.position)
+    const positionsKnown = positions.every((p) => typeof p === 'number')
+    const noDuplicates = !positionsKnown || new Set(positions).size === positions.length
+    if (adding || !sameRelativeOrder || !noDuplicates) {
+      operations.push({ op: 'SET_FIELD_ORDER', typeId: runtimeType.id, typeName: runtimeType.name, names: declaredNames })
     }
   }
 

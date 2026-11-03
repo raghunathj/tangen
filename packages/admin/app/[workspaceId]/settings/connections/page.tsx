@@ -434,7 +434,7 @@ export default function ConnectionsPage() {
               <div key={group.group}>
                 <div className="flex items-baseline gap-2 bg-surface-sunken/40 px-4 py-2">
                   <h3 className="text-ui-xs font-semibold uppercase tracking-wider text-fg-subtle">{group.title}</h3>
-                  <span className="text-ui-xs text-fg-faint">{group.rows.length}</span>
+                  <span className="text-ui-xs text-fg-subtle">{group.rows.length}</span>
                   <p className="ml-auto hidden max-w-[52ch] truncate text-ui-xs text-fg-subtle sm:block" title={group.description}>{group.description}</p>
                 </div>
                 <ul className="divide-y divide-border-subtle">

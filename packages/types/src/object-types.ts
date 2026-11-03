@@ -227,6 +227,24 @@ export type SortableSystemField = (typeof SORTABLE_SYSTEM_FIELDS)[number]
 export type SystemColumnName = SortableSystemField | 'updated_at' | 'created_at' | 'published_at'
 
 /**
+ * A field a type does not DECLARE but always has, so naming it where a field
+ * name goes has to be legal.
+ *
+ * `parent` is auto-provided by `taxonomy: { hierarchical: true }` - the type
+ * never lists it, and the generic N is built from the declared fields, so a
+ * hierarchical type could not put its own parent relation anywhere:
+ * `editorView: { sidebar: ['parent'] }` was `TS2322` while the Admin rendered
+ * it perfectly well at runtime. Found by a project that wanted exactly that,
+ * and it is the same widening `defaultSort` already takes with
+ * `SortableSystemField`.
+ *
+ * Naming it on a NON-hierarchical type is harmless rather than policed: the
+ * editor resolves names against the type's real fields and drops one that
+ * does not resolve, so the cost of being wrong is a line that does nothing.
+ */
+export type AutoProvidedFieldName = 'parent'
+
+/**
  * A column entry: either a field name or a name+label override.
  * When N is the union of declared field names, only valid names are accepted.
  * System column names (title, status, timestamps) are always valid.
@@ -264,11 +282,24 @@ export interface AdminConfig<N extends string = string> {
     perPage?: number
   }
   editorView?: {
-    main?: Array<N>
-    sidebar?: Array<N>
+    main?: Array<N | AutoProvidedFieldName>
+    sidebar?: Array<N | AutoProvidedFieldName>
   }
   /** Short grayed description shown in the page header next to the type name. */
   description?: string
+  /**
+   * The type's label for UI that acts on ONE item, so a list's primary action
+   * reads "New Post" and not "New Posts".
+   *
+   * Optional: it is derived from `label` by inflection (`Posts` -> `Post`,
+   * `Blog Posts` -> `Blog Post`, `News` -> `News`). Set it when the inflection
+   * cannot be right, which in English means the irregulars: a `label` of
+   * 'People' needs `labelSingular: 'Person'`.
+   *
+   * This is presentation, which is why it sits here and not beside `plural` -
+   * that one names the GraphQL list query and is an identifier, not prose.
+   */
+  labelSingular?: string
   menu?: {
     /** Icon in the sidebar nav — an @tangen/icons name (e.g. 'IconFileText') or a custom `{ src }` image. */
     icon?: IconRef
@@ -288,7 +319,15 @@ export interface AdminConfig<N extends string = string> {
   }
   /** Marks this type as a taxonomy vocabulary with optional hierarchy and ordering support. */
   taxonomy?: {
-    /** Render tree view in the browser and a tree-select parent picker in the editor. */
+    /**
+     * Entries form a tree. Provides a self-referential `parent` relation
+     * (unless the type declares one), shows each entry's chain as a prefix in
+     * the list, and gives the editor a parent picker.
+     *
+     * The provided `parent` declares `onDelete: 'restrict'`, so deleting an
+     * entry that others sit under is refused and names them. Declare `parent`
+     * yourself to choose otherwise.
+     */
     hierarchical?: boolean
     /** Nest this type under another type's sidebar nav item instead of showing it top-level. */
     parentType?: string
@@ -840,7 +879,7 @@ export interface SubField {
   /** Rename history — the schema builder emits this so a renamed sub-field keeps
    *  its data across a push (mirrors top-level FieldDefinition.previousName). */
   previousName?: string[]
-  admin?: Pick<FieldAdminConfig, 'helpText' | 'width'>
+  admin?: Pick<FieldAdminConfig, 'helpText' | 'width' | 'conditionalVisibility'>
   /**
    * Which inspector tab this prop belongs to in visual editors (Studio).
    * Most props classify themselves - a select whose options are a design-
@@ -850,6 +889,31 @@ export interface SubField {
    */
   group?: 'content' | 'style' | 'advanced'
 
+}
+
+/**
+ * A sub-field's own visibility rule, from EITHER place a declaration may have
+ * put it.
+ *
+ * There are two, and they both had to be read. A sub-field written in the
+ * array form carries presentation at its top level - `admin: { width,
+ * helpText }` beside `config` - and that is where an author writing one puts a
+ * visibility rule too. A sub-field produced by the `field.*` builders carries
+ * it under `config.admin`, because the builders fold every platform-level key
+ * into `config`. The server read only the second and the editors read neither,
+ * so a rule written the first way was silently ignored: the field stayed
+ * required and visible, and publishing an entry that had chosen the other
+ * branch was impossible.
+ *
+ * One reader, used by the validator and by both editors, is what keeps them
+ * from disagreeing - the outer wins when both are present, matching
+ * `subFieldAdmin`'s merge for the two keys that already lived in both places.
+ */
+export function subFieldVisibility(
+  sf: { admin?: { conditionalVisibility?: ConditionalVisibility }; config?: unknown },
+): ConditionalVisibility | undefined {
+  const inner = (sf.config as { admin?: { conditionalVisibility?: ConditionalVisibility } } | undefined)?.admin
+  return sf.admin?.conditionalVisibility ?? inner?.conditionalVisibility
 }
 
 /**
@@ -980,6 +1044,16 @@ export interface ObjectTypeDefinition {
    */
   localized?: boolean
   previousName?: string[]
+  /**
+   * Where this type's content lives on the site. Absent means it has no
+   * address, which is the default and a legitimate answer: a `client` that
+   * only ever appears as a relation has no page of its own.
+   *
+   * A pattern is structure and pushes to the database, so the Admin can draw
+   * an editor's live URL; a function is behaviour and stays code-side in the
+   * behaviour overlay. See `tasks/plan-content-paths.md` for the grammar.
+   */
+  path?: import('./content-path').ContentPathConfig
   admin?: AdminConfig
   fields: FieldDefinition[]
   /**

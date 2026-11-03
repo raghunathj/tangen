@@ -79,6 +79,27 @@ export function assertTablePermission(
 }
 
 /**
+ * The boolean forms, for callers that must DECIDE rather than refuse - the
+ * GraphQL resolvers, which answer with a GraphQL error of their own.
+ *
+ * Deliberately implemented by running the assert. A second copy of the rules
+ * is how a gate and its predicate drift apart, and this pair exists precisely
+ * because GraphQL and REST had drifted: REST asserted `tables:read` and
+ * `globals:read`, and the matching GraphQL fields asserted nothing at all.
+ */
+export function canReadTable(
+  permissions: EffectivePermissions,
+  tableName: string,
+  ctx: { isMember: boolean },
+): boolean {
+  try { assertTablePermission(permissions, 'read', tableName, ctx); return true } catch { return false }
+}
+
+export function canReadGlobals(permissions: ApiKeyPermissions | { admin: true }, name?: string): boolean {
+  try { assertGlobalsPermission(permissions, 'read', name); return true } catch { return false }
+}
+
+/**
  * Media permission gate — same shape as assertObjectPermission. Admin
  * sessions bypass; otherwise permissions.media.actions must carry the action.
  */

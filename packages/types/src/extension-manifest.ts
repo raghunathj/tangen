@@ -19,6 +19,7 @@
  */
 import { validateSettingsDefinition } from './extension-settings'
 import { validateSlotContributions, ADMIN_CONTRIBUTE_GRANT } from './admin-slots'
+import { validateRichtextNodes, RICHTEXT_CONTRIBUTE_GRANT } from './richtext-nodes'
 import { grantNames } from './extension-review'
 import type { TangenExtensionManifest, ExtensionDependency } from './extension'
 import { compileGrants, isPrivilegedGrant, FACILITY_FAMILIES } from './extension-grants'
@@ -358,6 +359,16 @@ export function validateExtensionManifest(input: unknown): ManifestValidation {
     const declared = m.grants && typeof m.grants === 'object' ? grantNames(((m.grants as { required?: unknown[] }).required ?? []) as never) : null
     if (Array.isArray(m.slots) && m.slots.length > 0 && declared && !declared.includes(ADMIN_CONTRIBUTE_GRANT)) {
       err('slots', `filling an Admin slot needs the ${ADMIN_CONTRIBUTE_GRANT} grant in grants.required`)
+    }
+  }
+
+  // Richtext node declarations (tasks/plan-editor.md slice 5): data only, and
+  // the grant to add one. Same two checks as slots above, for the same reason.
+  if (m.richtextNodes !== undefined) {
+    for (const issue of validateRichtextNodes(m.richtextNodes)) err(issue.path, issue.message)
+    const declared = m.grants && typeof m.grants === 'object' ? grantNames(((m.grants as { required?: unknown[] }).required ?? []) as never) : null
+    if (Array.isArray(m.richtextNodes) && m.richtextNodes.length > 0 && declared && !declared.includes(RICHTEXT_CONTRIBUTE_GRANT)) {
+      err('richtextNodes', `adding a rich text element needs the ${RICHTEXT_CONTRIBUTE_GRANT} grant in grants.required`)
     }
   }
 

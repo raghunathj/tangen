@@ -28,7 +28,7 @@ import { acquirePushLock, PushLockBusyError, type PushLock } from './push-lock'
 import {
   validateContainerEmptiness, validateFieldConfigs, validateCrossReferences, validateColumnNamespace, findTypeNameCollisions,
 } from '@tangen/schema'
-import { loadLocalSchema, loadRuntimeSchema, loadLocalGlobals, loadLocalTables, loadLocalIds } from './schema-loader'
+import { loadLocalSchema, loadRuntimeSchema, loadLocalGlobals, loadLocalTables, loadLocalIds, loadLocalComponents, resolveCodegenConfigs, mergeCodegenTables } from './schema-loader'
 import { findPreviousNameCollisions, loadExtensionTypes, mergeDeclaredTypes, type MergedSchema } from './extension-schema'
 import { diff, identityConflicts, ambiguousFieldRenames, renameGuardCommand, dropTypeBlockers } from './diff'
 import { computeScopedTypes, filterPlanToTypes, affectedTypeNames, overlaySchema, scopedLocalSchema } from './scoped-apply'
@@ -483,11 +483,34 @@ export async function preflight(
   // ── Codegen to memory ───────────────────────────────────────────────────────
   let artifacts: PushArtifacts
   try {
-    const [globals, tables, ids] = await Promise.all([loadLocalGlobals(configPath), loadLocalTables(configPath), loadLocalIds(configPath)])
+    // Codegen must read what the RUNTIME reads, which is the same rule
+    // `tangen types` follows: globals, locales, roles, extensions and
+    // components live on the WORKSPACE config and the root config is never
+    // consulted for them (resolveCodegenConfigs mirrors the workspace
+    // loader). Reading the thin root `tangen.config.ts` here is what made
+    // push's tangen-types.d.ts disagree with the one `tangen types` wrote
+    // from the same schema - a `component` field came out `unknown`, because
+    // the pushed config holds block NAMES and the shapes live in code.
+    const { rootConfigPath, workspaceConfigPath } = await resolveCodegenConfigs(cwd)
+    const configForWorkspaceKeys = workspaceConfigPath ?? rootConfigPath
+    const [globals, ids, wsComponents, rootComponents, rootTables, wsTables] = await Promise.all([
+      loadLocalGlobals(configForWorkspaceKeys),
+      loadLocalIds(configForWorkspaceKeys),
+      loadLocalComponents(configForWorkspaceKeys),
+      workspaceConfigPath ? loadLocalComponents(rootConfigPath) : Promise.resolve([]),
+      loadLocalTables(rootConfigPath),
+      workspaceConfigPath ? loadLocalTables(workspaceConfigPath) : Promise.resolve([]),
+    ])
+    // The workspace's own definition wins a name clash, as in `tangen types`.
+    const components = [
+      ...rootComponents.filter((c) => !wsComponents.some((w) => w.name === c.name)),
+      ...wsComponents,
+    ]
+    const tables = mergeCodegenTables(rootTables, wsTables)
     // Codegen wants the definitions; ownership is a planning concern. Extension
     // tables are included, so a site developer gets types for them too.
     artifacts = generatePushArtifacts(artifactSchema, registry, gatheredCustomTables?.map((t) => t.table), {
-      schema: localSchema, globals, tables, locales: ids.locales, roles: ids.roles, extensions: ids.extensions,
+      schema: localSchema, globals, tables, locales: ids.locales, roles: ids.roles, extensions: ids.extensions, components,
     }, { workspaceId })
   } catch (e) {
     return failLocked('generate', 'Nothing applied - the generated schema could not be produced:', [e instanceof Error ? e.message : String(e)], db)

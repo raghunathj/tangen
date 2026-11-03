@@ -20,6 +20,7 @@ import { getExtensionManifest, getExtensionHooks, anyExtensionHasHooks, anyExten
 import { hooksAllowed } from '../services/extension-server'
 import { createGlobalsStore } from '../services/globals-store'
 import { signerFor } from '../lib/extension-sign'
+import { assertHierarchyOnWrite } from '../services/path-guard'
 
 // ── ExtensionDataStore factory ─────────────────────────────────────────────────
 
@@ -337,6 +338,13 @@ export async function runBeforeChange(
   projects: WorkspaceProject[],
   ctx: ContentHookCtx,
 ): Promise<Partial<Record<string, unknown>> | null> {
+  // The platform's own invariant, BEFORE any extension or site hook: a parent
+  // that would make an object its own ancestor is refused whatever a hook
+  // would otherwise have done with the write. Here rather than in the routes
+  // because this is the one funnel every write path already passes through -
+  // create, update, bulk-update, publish and every local-client write.
+  await assertHierarchyOnWrite(db, projects as never, ctx as never)
+
   const hookSets = await collectHooks(db, ctx.workspaceId, projects, ctx as unknown as Memo)
   const mutations: Record<string, unknown> = {}
 

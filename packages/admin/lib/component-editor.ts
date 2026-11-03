@@ -10,6 +10,7 @@
  */
 import type { ComponentDef } from '@tangen/types'
 import { evalVisibility } from './editor'
+import { visibleSubFields } from './field-presentation'
 
 export interface ComponentBlock {
   _type: string
@@ -169,7 +170,11 @@ const PREVIEW_MAX_VALUE_LEN = 60
  */
 export function buildBlockPreview(block: ComponentBlock, def: ComponentDef): string {
   const parts: string[] = []
-  for (const field of def.fields) {
+  // The same visibility rule the card draws by. A collapsed block otherwise
+  // summarises itself with the branch it is not using - "YouTube id: abc123"
+  // on a block whose source is now the MP4 file - and the value a preview
+  // names is one the author will look for and not find.
+  for (const field of visibleSubFields(def.fields, block)) {
     if (parts.length >= PREVIEW_MAX_FIELDS) break
     if (PREVIEW_SKIP_TYPES.has(field.fieldType)) continue
     const raw = block[field.name]

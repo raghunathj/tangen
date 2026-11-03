@@ -73,11 +73,33 @@ export default defineExtension({
       { grant: "hooks:content", reason: "Persists the scratch notes panel and the last-change widget from content hooks." },
       { grant: "flow:contribute-nodes", reason: "Offers the demo trigger and the echo action to the Flows canvas." },
       { grant: "mcp:contribute-tools", reason: "Offers the ping tool to MCP clients when the workspace enables MCP." },
+      { grant: "richtext:contribute-nodes", reason: "Adds the Callout element to the rich text editor." },
     ],
     optional: [
       { grant: "secrets:own", reason: "Reads KITCHEN_SINK_TOKEN when the deployment sets it; nothing here needs it." },
     ],
   },
+
+  // ── Rich text elements ──────────────────────────────────────────────────
+  // The reference for adding an element to the editor. It is a DECLARATION,
+  // not code: the platform validates a document against it, renders it to
+  // HTML server-side from `tag` and `htmlAttrs`, and offers it in the
+  // editor - so nothing written here ever runs inside a document, and an
+  // element that executes or loads (script, iframe, style, a handler
+  // attribute) is refused at manifest validation.
+  //
+  // The stored node type is namespaced: `kitchen-sink.callout`.
+  richtextNodes: [
+    {
+      name: "callout",
+      label: "Callout",
+      group: "block",
+      content: "blocks",
+      tag: "aside",
+      attrs: { tone: { kind: "string", oneOf: ["info", "warning"] } },
+      htmlAttrs: { tone: "data-tone" },
+    },
+  ],
 
   // ── Realtime channels (R4) ──────────────────────────────────────────────
   // Declaring a channel is what lets the server publish on it

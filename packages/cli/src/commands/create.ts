@@ -352,6 +352,29 @@ export async function findFreePort(start: number): Promise<number> {
  * The real .env — ports probed free at scaffold time and a generated
  * JWT_SECRET, so the only thing left for the user is the database URL.
  */
+/**
+ * Whether `tangen create` creates the database tables itself instead of
+ * printing `npx tangen bootstrap` as a step the reader has to run.
+ *
+ * All four conditions are load-bearing: without a validated `databaseUrl`
+ * the scaffolded .env has no DATABASE_URL to bootstrap against; a failed or
+ * skipped install means the project's own `tangen` bin is not there to run;
+ * and `binExists` is the final check that it actually landed.
+ * @param opts - the create options (`databaseUrl`, `skipInstall`)
+ * @param installFailed - whether the dependency install reported failure
+ * @param binExists - whether node_modules/.bin/tangen is present
+ * @returns true when bootstrap can be run for the reader
+ */
+export function shouldAutoBootstrap(
+  opts: { databaseUrl?: string; skipInstall?: boolean },
+  installFailed: boolean,
+  binExists: boolean,
+): boolean {
+  if (!opts.databaseUrl) return false
+  if (installFailed || opts.skipInstall) return false
+  return binExists
+}
+
 export function scaffoldEnv(opts: WorkspaceScaffoldOptions, ports: { api: number; admin: number }, jwtSecret: string): string {
   return `# ${opts.workspaceName} - local environment (never commit this file)
 
@@ -556,6 +579,41 @@ export async function runCreateCommand(
     for (const f of written) console.log(`  ${sym.tick}  ${c.dim(f)}`)
   }
 
+  // Create the database tables ourselves when we can. A DATABASE_URL that
+  // `checkPostgres` accepted means scaffoldEnv wrote a complete .env, so the
+  // database half needs no second command from the reader - which is what the
+  // prompt above has always promised ("bootstrap can run immediately").
+  //
+  // In a scaffolded project `tangen bootstrap` takes the installed-project
+  // path: it routes before the AI prompt and before runFreshen, so it never
+  // waits on stdin and never rewrites the companion files written just above.
+  // Gated on the install, because it runs the project's OWN bin. A failure is
+  // never fatal - the manual step is printed below exactly as it always was.
+  let bootstrapped = false
+  const localBin = join(projectRoot, 'node_modules', '.bin', 'tangen')
+  if (shouldAutoBootstrap(opts, installFailed, existsSync(localBin))) {
+    {
+      console.log()
+      console.log(`  ${c.dim('○')}  Creating the database tables...`)
+      // Array argv - no shell. The URL rides in the environment, never on the
+      // command line, where `ps` would show it to every user on the machine.
+      const proc = Bun.spawnSync([localBin, 'bootstrap'], {
+        cwd: projectRoot,
+        env: { ...process.env, DATABASE_URL: opts.databaseUrl },
+        stdout: 'ignore',
+        stderr: 'pipe',
+      })
+      if (proc.exitCode === 0) {
+        bootstrapped = true
+        console.log(`  ${sym.tick}  database tables + workspace row`)
+      } else {
+        console.log(`  ${sym.warn}  Could not create the tables - run ${c.cyan('npx tangen bootstrap')}`)
+        const tail = proc.stderr?.toString().trim().split('\n').slice(-3).join('\n')
+        if (tail) console.log(c.dim(tail.replace(/^/gm, '     ')))
+      }
+    }
+  }
+
   // Next steps
   console.log()
   console.log(`  ${sym.tick}  ${c.bold(`Workspace "${opts.workspaceName}" created`)}${companion ? c.dim('  · AI Companion Mode') : ''}`)
@@ -583,11 +641,13 @@ export async function runCreateCommand(
       `      ${c.cyan(`${detectPackageManager()} install`)}`,
     )
   }
-  console.log()
-  console.log(
-    `  ${c.dim(`${++step}.`)}  Create the database tables\n` +
-    `      ${c.cyan('npx tangen bootstrap development')}`,
-  )
+  if (!bootstrapped) {
+    console.log()
+    console.log(
+      `  ${c.dim(`${++step}.`)}  Create the database tables\n` +
+      `      ${c.cyan('npx tangen bootstrap')}`,
+    )
+  }
   console.log()
   console.log(
     `  ${c.dim(`${++step}.`)}  Start the API + admin\n` +

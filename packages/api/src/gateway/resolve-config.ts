@@ -254,6 +254,18 @@ export const GATEWAY_DEFAULTS: ResolvedGatewayPolicy = {
   access: {},
 }
 
+/**
+ * How a boot log describes the rate-limit default.
+ *
+ * Derived from GATEWAY_DEFAULTS rather than written out, because the two lines
+ * that said it went stale the moment the default flipped on (2026-10-13): both
+ * still read "default observe" while every workspace was in fact enforcing.
+ * That is the one thing an operator reads those lines to learn, so a wrong
+ * word there is worse than no line at all - and a second copy of a default is
+ * a second thing to remember to change.
+ */
+export const RATE_LIMIT_DEFAULT_NOTE = `default ${GATEWAY_DEFAULTS.rateLimit.enabled ? 'on' : 'observe'}`
+
 export interface GatewayScopes {
   global?: GatewayConfig
   workspace?: GatewayConfig

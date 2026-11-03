@@ -1,6 +1,6 @@
 {
   "name": "@tangen/ext-studio",
-  "version": "0.1.4",
+  "version": "0.1.7",
   "description": "Studio - the marketer's visual landing-page builder: compose block pages on a live preview with a block tree, props rail, palette, and presets.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -29,10 +29,10 @@
     "test": "bun test"
   },
   "peerDependencies": {
-    "@tangen/cms": "*",
-    "@tangen/icons": "*",
-    "@tangen/schema": "*",
-    "@tangen/types": "*",
+    "@tangen/cms": "^0.2.4",
+    "@tangen/icons": "^0.1.2",
+    "@tangen/schema": "^0.2.1",
+    "@tangen/types": "^0.5.0",
     "react": "*"
   },
   "dependencies": {

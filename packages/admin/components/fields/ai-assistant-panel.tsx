@@ -948,7 +948,7 @@ export function AIAssistantPanel({
                 <div className="px-3 py-2">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-accent">{msg.field.label}</p>
-                    {msg.at && <span className="text-[10px] text-fg-faint">{fmtAt(msg.at)}</span>}
+                    {msg.at && <span className="text-[10px] text-fg-subtle">{fmtAt(msg.at)}</span>}
                   </div>
                   {msg.panel ? (
                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -974,7 +974,7 @@ export function AIAssistantPanel({
                     <FormDefinitionPreview definition={msg.value as Record<string, unknown>} />
                   ) : msg.imgState === 'removed' ? (
                     // The asset is deleted — don't render a broken thumbnail.
-                    <div className="text-xs text-fg-faint italic py-4 text-center">Image removed</div>
+                    <div className="text-xs text-fg-subtle italic py-4 text-center">Image removed</div>
                   ) : (
                     <div className="text-sm text-fg max-h-48 overflow-y-auto">
                       <ValuePreview
@@ -987,7 +987,7 @@ export function AIAssistantPanel({
                 </div>
                 <div className="px-3 py-2 border-t border-border flex items-center justify-between">
                   {msg.usage ? (
-                    <span className="text-[10px] text-fg-faint tabular-nums">↑{fmtTokens(msg.usage.inputTokens)} ↓{fmtTokens(msg.usage.outputTokens)} tokens</span>
+                    <span className="text-[10px] text-fg-subtle tabular-nums">↑{fmtTokens(msg.usage.inputTokens)} ↓{fmtTokens(msg.usage.outputTokens)} tokens</span>
                   ) : <span />}
                   {msg.field.name === '__library' ? (() => {
                     // Library mode (gallery / media picker): the image is an UNKEPT draft.
@@ -995,7 +995,7 @@ export function AIAssistantPanel({
                     // The decision (msg.imgState) is persisted, so reopening the chat shows
                     // the outcome — not the buttons again.
                     const id = (msg.value as { id?: string })?.id ?? ''
-                    if (msg.imgState === 'removed') return <span className="text-xs text-fg-faint">Removed</span>
+                    if (msg.imgState === 'removed') return <span className="text-xs text-fg-subtle">Removed</span>
                     if (msg.imgState === 'kept') return <span className="text-xs font-medium text-success-fg">Added to media ✓</span>
                     const busy = busyImages.has(id)
                     return (
@@ -1040,7 +1040,7 @@ export function AIAssistantPanel({
                       <IconSparkles className={`w-3 h-3 ${msg.streaming ? 'animate-pulse' : ''}`} />
                       {msg.stopped ? 'Stopped' : msg.phase === 'parsing' ? 'Finalizing' : 'Drafting'}
                     </span>
-                    {msg.at && <span className="text-[10px] text-fg-faint">{fmtAt(msg.at)}</span>}
+                    {msg.at && <span className="text-[10px] text-fg-subtle">{fmtAt(msg.at)}</span>}
                   </div>
                   {msg.streaming && !draftHasContent(msg) && (
                     <div className="flex items-center gap-2 text-sm text-fg-subtle">
@@ -1107,7 +1107,7 @@ export function AIAssistantPanel({
             <div key={idx} className="rounded-xl border border-border bg-surface shadow-sm overflow-hidden">
               <div className="px-3 py-2 space-y-2 max-h-[45vh] overflow-y-auto">
                 {msg.at && (
-                  <p className="text-[10px] text-fg-faint text-right -mb-1">{fmtAt(msg.at)}</p>
+                  <p className="text-[10px] text-fg-subtle text-right -mb-1">{fmtAt(msg.at)}</p>
                 )}
                 {preview.title && (
                   <label className="flex items-start gap-2 text-sm">
@@ -1247,7 +1247,7 @@ export function AIAssistantPanel({
 
               <div className="px-3 py-2 border-t border-border flex items-center justify-between">
                 {msg.usage ? (
-                  <span className="text-[10px] text-fg-faint tabular-nums">↑{fmtTokens(msg.usage.inputTokens)} ↓{fmtTokens(msg.usage.outputTokens)} tokens</span>
+                  <span className="text-[10px] text-fg-subtle tabular-nums">↑{fmtTokens(msg.usage.inputTokens)} ↓{fmtTokens(msg.usage.outputTokens)} tokens</span>
                 ) : <span />}
                 {msg.applied ? (
                   <span className="text-xs font-medium text-success-fg">Applied ✓</span>
@@ -1354,7 +1354,7 @@ function FormDefinitionPreview({ definition }: { definition: Record<string, unkn
           {f.required && <span className="text-danger text-[11px]">required</span>}
           {f.showIf && <span className="text-warning text-[11px]">conditional</span>}
           {f.stepId && steps.length > 0 && (
-            <span className="text-fg-faint text-[11px] ml-auto">{(steps.find((s: any) => s.id === f.stepId) as any)?.title ?? f.stepId}</span>
+            <span className="text-fg-subtle text-[11px] ml-auto">{(steps.find((s: any) => s.id === f.stepId) as any)?.title ?? f.stepId}</span>
           )}
         </div>
       ))}

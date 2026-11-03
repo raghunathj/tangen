@@ -20,6 +20,7 @@ import { assertGlobalsPermission } from '../../lib/permissions'
 import { canWriteLocale } from '../../lib/field-access'
 import { resolveLocaleParam, projectLocalization, localizeGlobalData, mergeGlobalLocaleData } from '../../services/i18n'
 import { expandGlobalMedia, collapseGlobalMedia, globalDefinitionsOf, componentRegistryOf } from '../../services/globals-media'
+import { preserveTranslations } from '../../services/globals-store'
 
 /**
  * Registers GET /api/v1/globals, GET /api/v1/globals/:name,
@@ -91,12 +92,17 @@ export const globalsRoutes = (app: Elysia) =>
       }
 
       // An echoed expanded read folds back to ids: the blob stores asset ids, never a snapshot.
-      const data = collapseGlobalMedia(body as Record<string, unknown>, def, componentRegistryOf(project))
+      const collapsed = collapseGlobalMedia(body as Record<string, unknown>, def, componentRegistryOf(project))
       const existing = await db
-        .select({ id: globals.id })
+        .select({ id: globals.id, data: globals.data })
         .from(globals)
         .where(and(eq(globals.workspaceId, workspaceId), eq(globals.name, name)))
         .limit(1)
+
+      // A GET strips `__i18n`, so without this a read-change-write round trip
+      // deleted every translation. A replace addresses the base values; the
+      // refusal above already names PATCH as the way to write a locale.
+      const data = preserveTranslations(existing[0]?.data as Record<string, unknown> | undefined, collapsed)
 
       if (existing[0]) {
         await db

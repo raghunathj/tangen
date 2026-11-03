@@ -12,7 +12,7 @@
  * Dependencies/Notes: pure — no React, no I/O — so the canvas logic is testable
  *   in isolation.
  */
-import { RESERVED_FIELD_NAMES, groupMemberNames } from '@tangen/types'
+import { RESERVED_FIELD_NAMES, groupMemberNames, storedPathOf, type StoredContentPath } from '@tangen/types'
 
 export type Stage = 'main' | 'sidebar'
 export type Width = 'full' | 'half' | 'third'
@@ -41,6 +41,20 @@ export interface BuilderField {
   width: Width
 }
 
+/**
+ * A declaration in the shape the registry stores, or null.
+ *
+ * `storedPathOf` unwraps the pattern sugar and maps a function to its marker;
+ * this adds the one rule the SHEET needs on top: a pattern of nothing but
+ * whitespace is a box the developer has not filled in yet, not a declaration
+ * to save.
+ */
+function addressOf(config: unknown): StoredContentPath | null {
+  const stored = storedPathOf(config)
+  if (stored && 'pattern' in stored && stored.pattern.trim() === '') return null
+  return stored
+}
+
 export interface BuilderModel {
   id: string
   name: string
@@ -63,6 +77,11 @@ export interface BuilderModel {
    *  drag-reorder (orderable). `parent` (hierarchical) + `position` (orderable) are
    *  auto-provided by defineObjectType, so the builder only stores the flags. */
   taxonomy?: { hierarchical?: boolean; parentType?: string; orderable?: boolean }
+  /** The type's declared ADDRESS, in the shape the registry stores: a pattern
+   *  (editable here), `{ field }` (an authored column), or `{ fn: true }` when
+   *  the declaration is a code-side function the sheet must not offer to
+   *  replace. null/absent = this type has no address. */
+  path?: StoredContentPath | null
   main: BuilderField[]
   sidebar: BuilderField[]
 }
@@ -74,7 +93,7 @@ export type BuilderAction =
   | { type: 'REMOVE_FIELD'; key: string }
   | { type: 'DUPLICATE_FIELD'; key: string }
   | { type: 'UPDATE_FIELD'; key: string; patch: Partial<Omit<BuilderField, 'key'>> }
-  | { type: 'SET_META'; patch: Partial<Pick<BuilderModel, 'name' | 'label' | 'plural' | 'description' | 'icon' | 'disabled' | 'singleton' | 'localized' | 'taxonomy'>> }
+  | { type: 'SET_META'; patch: Partial<Pick<BuilderModel, 'name' | 'label' | 'plural' | 'description' | 'icon' | 'disabled' | 'singleton' | 'localized' | 'taxonomy' | 'path'>> }
   | { type: 'SET_MODEL'; model: BuilderModel }
 
 let _seq = 0
@@ -220,6 +239,10 @@ export function toObjectType(m: BuilderModel) {
     ...(m.disabled ? { disabled: true } : {}),
     ...(m.singleton ? { singleton: true } : {}),
     ...(m.localized ? { localized: true } : {}),
+    // The address in the one shape the registry stores, so the builder writes
+    // what the push would have stored and the next diff is empty. An empty
+    // pattern is no declaration: the sheet's box starts empty on every type.
+    ...(addressOf(m.path) ? { path: addressOf(m.path) } : {}),
     fields: [...m.main, ...m.sidebar].map(toField),
     admin: {
       ...(m.description ? { description: m.description } : {}),
@@ -454,6 +477,7 @@ export function fromObjectType(def: any): BuilderModel {
     disabled: def?.disabled === true,
     singleton: def?.singleton === true,
     localized: (def as { localized?: boolean } | undefined)?.localized === true,
+    path: addressOf((def as { path?: unknown } | undefined)?.path),
     taxonomy: def?.admin?.taxonomy,
     description: def?.admin?.description ?? '',
     icon: (typeof def?.admin?.menu?.icon === 'string' ? def.admin.menu.icon : '') ?? '',

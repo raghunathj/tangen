@@ -19,6 +19,7 @@ import {
   Input, Label, Menu, MenuTrigger, MenuContent, MenuItem, Select, SelectItem, Sheet, SheetContent, SheetHeader, SheetBody, SheetTitle, SheetDescription, Toggle,
 } from '@/kit'
 import { builderReducer, toObjectType, validateBuilderModel, referringRelationFields, type BuilderModel } from '@/lib/schema-builder-model'
+import { describePathSetting, pathFieldCandidates, pathKindOf } from '@/lib/path-settings'
 import { useContentTypes, type ContentTypeItem } from '@/lib/use-content-types'
 import { useReusableComponents } from '@/lib/use-reusable-components'
 import { useLocaleStore } from '@/lib/locale'
@@ -28,14 +29,139 @@ import { NamedIcon, IconPicker } from './icon-picker'
 import { PushOverlay } from './push-overlay'
 import { DeleteTypeDialog } from './delete-type-dialog'
 
-/** Type settings in a side Sheet: icon, label, name (locked when existing), description, singleton, taxonomy. */
-function TypeSettingsSheet({ open, onClose, model, existing, allTypes, dispatch }: {
+/**
+ * The ADDRESS row of the type settings sheet - slice 8 of
+ * tasks/plan-content-paths.md.
+ *
+ * The pattern is STRUCTURE rather than only a function for exactly this: a
+ * function cannot be edited in a sheet. So a pattern gets a box that validates
+ * as it is typed and shows one example address, `{ field }` gets a select over
+ * the type's own authorable fields, and a code-side declaration is read-only
+ * and says where to go instead.
+ */
+function AddressSection({ model, dispatch }: {
+  model: BuilderModel
+  dispatch: (a: { type: 'SET_META'; patch: Partial<BuilderModel> }) => void
+}) {
+  const kind = pathKindOf(model.path)
+  const fields = [...model.main, ...model.sidebar].map((f) => ({ name: f.name, fieldType: f.fieldType, config: f.config }))
+  const setting = describePathSetting(model.path, model.name || 'type', fields)
+  const setPath = (path: BuilderModel['path']) => dispatch({ type: 'SET_META', patch: { path } })
+  const declared = (model.path ?? {}) as { pattern?: string; root?: string; field?: string }
+  const candidates = pathFieldCandidates(fields)
+
+  return (
+    <div className="space-y-3 rounded-control border border-border px-3 py-3">
+      <span className="block text-ui-xs font-medium text-fg">Address</span>
+
+      {kind === 'code' ? (
+        <p className="text-ui-xs text-fg-subtle">{setting.note}</p>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <Label htmlFor="ts-path-kind">How this type gets its URL</Label>
+            <Select id="ts-path-kind" value={kind} onValueChange={(v: string) => {
+              if (v === 'none') setPath(null)
+              else if (v === 'pattern') setPath({ pattern: declared.pattern ?? '' })
+              else setPath({ field: declared.field ?? candidates[0]?.name ?? '' })
+            }}>
+              <SelectItem value="none">No address (not a page)</SelectItem>
+              <SelectItem value="pattern">A pattern</SelectItem>
+              <SelectItem value="field">A field holds it</SelectItem>
+            </Select>
+          </div>
+
+          {kind === 'pattern' && (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="ts-path">Pattern</Label>
+                <Input id="ts-path" className="font-mono" value={declared.pattern ?? ''}
+                  placeholder="/blog/:slug"
+                  aria-invalid={setting.error ? true : undefined}
+                  aria-describedby="ts-path-note"
+                  onChange={(e) => setPath({ ...declared, pattern: e.currentTarget.value } as BuilderModel['path'])} />
+                <p id="ts-path-note" className={`text-ui-xs ${setting.error ? 'text-danger-fg' : 'text-fg-subtle'}`}>
+                  {setting.error
+                    ? setting.error
+                    : setting.example
+                      ? `Example: ${setting.example}`
+                      : ':slug is this object\'s own slug. :field is a relation, :field* walks its parents.'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="ts-path-root">Home page slug</Label>
+                <Input id="ts-path-root" className="font-mono" value={declared.root ?? ''}
+                  placeholder="none"
+                  onChange={(e) => {
+                    const root = e.currentTarget.value.trim()
+                    setPath({ pattern: declared.pattern ?? '', ...(root ? { root } : {}) } as BuilderModel['path'])
+                  }} />
+                <p className="text-ui-xs text-fg-subtle">
+                  {setting.rootExample
+                    ? `The object with this slug lives at ${setting.rootExample}.`
+                    : 'The one object that lives at the site root. Leave empty if there is none.'}
+                </p>
+              </div>
+            </>
+          )}
+
+          {kind === 'field' && (
+            <div className="space-y-1">
+              <Label htmlFor="ts-path-field">Field</Label>
+              {candidates.length === 0 ? (
+                <p className="text-ui-xs text-fg-subtle">This type has no text field an address could be stored in.</p>
+              ) : (
+                <Select id="ts-path-field" value={declared.field ?? ''} onValueChange={(v: string) => setPath({ field: v })}>
+                  {candidates.map((f) => <SelectItem key={f.name} value={f.name}>{f.name}</SelectItem>)}
+                </Select>
+              )}
+              <p className={`text-ui-xs ${setting.error ? 'text-danger-fg' : 'text-fg-subtle'}`}>
+                {setting.error ?? setting.note ?? 'An editor types the address into this field.'}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Type settings in a side Sheet: icon, label, name (locked when existing), description, singleton, address, taxonomy. */
+type TypeSettingsDispatch = (a: { type: 'SET_META'; patch: Partial<Pick<BuilderModel, 'name' | 'label' | 'plural' | 'description' | 'icon' | 'disabled' | 'singleton' | 'localized' | 'taxonomy' | 'path'>> }) => void
+
+function TypeSettingsSheet({ open, onClose, ...body }: {
   open: boolean
   onClose: () => void
   model: BuilderModel
   existing: boolean
   allTypes: ContentTypeItem[]
-  dispatch: (a: { type: 'SET_META'; patch: Partial<Pick<BuilderModel, 'name' | 'label' | 'plural' | 'description' | 'icon' | 'disabled' | 'singleton' | 'localized' | 'taxonomy'>> }) => void
+  dispatch: TypeSettingsDispatch
+}) {
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <SheetContent className="w-96">
+        <SheetHeader>
+          <SheetTitle>Type settings</SheetTitle>
+          <SheetDescription>Label, appearance, and behavior - the name is the table identity.</SheetDescription>
+        </SheetHeader>
+        <TypeSettingsSheetBody {...body} />
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/**
+ * The sheet's controls, without the Sheet shell.
+ *
+ * Separate so a gate can render what a developer actually sees - a portal
+ * renders nothing under `renderToStaticMarkup`, which would make a test of
+ * this sheet pass on an empty string.
+ */
+export function TypeSettingsSheetBody({ model, existing, allTypes, dispatch }: {
+  model: BuilderModel
+  existing: boolean
+  allTypes: ContentTypeItem[]
+  dispatch: TypeSettingsDispatch
 }) {
   const localizationEnabled = useLocaleStore().enabled
   // Parent candidates for sidebar nesting — other, non-singleton, TOP-LEVEL types
@@ -47,13 +173,7 @@ function TypeSettingsSheet({ open, onClose, model, existing, allTypes, dispatch 
   const patchTax = (p: Partial<NonNullable<BuilderModel['taxonomy']>>) =>
     dispatch({ type: 'SET_META', patch: { taxonomy: { ...tax, ...p } } })
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent className="w-96">
-        <SheetHeader>
-          <SheetTitle>Type settings</SheetTitle>
-          <SheetDescription>Label, appearance, and behavior - the name is the table identity.</SheetDescription>
-        </SheetHeader>
-        <SheetBody className="space-y-4">
+    <SheetBody className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="ts-label">Label</Label>
             <Input id="ts-label" value={model.label} onChange={(e) => dispatch({ type: 'SET_META', patch: { label: e.currentTarget.value } })} />
@@ -91,6 +211,7 @@ function TypeSettingsSheet({ open, onClose, model, existing, allTypes, dispatch 
                 checked={model.localized === true} onCheckedChange={(v) => dispatch({ type: 'SET_META', patch: { localized: v } })} />
             </div>
           )}
+          <AddressSection model={model} dispatch={dispatch} />
           {model.singleton !== true && (
             <div className="space-y-3 rounded-control border border-border px-3 py-3">
               <span className="block text-ui-xs font-medium text-fg">Taxonomy</span>
@@ -114,9 +235,7 @@ function TypeSettingsSheet({ open, onClose, model, existing, allTypes, dispatch 
             <Label>Icon</Label>
             <IconPicker value={model.icon} onChange={(icon) => dispatch({ type: 'SET_META', patch: { icon } })} />
           </div>
-        </SheetBody>
-      </SheetContent>
-    </Sheet>
+    </SheetBody>
   )
 }
 

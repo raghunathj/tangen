@@ -186,6 +186,11 @@ export function registryFromRows(typeRows: Row[], fieldRows: Row[]): { snapshot:
               previousNames: asArray(f.previous_names),
               required: f.required === true,
               disabled: f.disabled === true,
+              // The same reading the sort above uses, carried through so the
+              // diff can see the stored order (field-order repair). Absent on
+              // a registry row that somehow has none reads as 0, which is what
+              // the sort already assumed.
+              position: Number(f.position ?? 0),
             }
           }),
       }
