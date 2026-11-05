@@ -31,17 +31,30 @@ one** - minting needs a member session.
 
 ## Configure where Preview lands
 
-```ts tangen.config.ts
-{
-  frontend: {
-    url: 'http://localhost:4321',
-    previewUrl: 'http://localhost:4321/preview?id={id}&type={type}&slug={slug}',
-    previewUrls: {
-      article: 'http://localhost:4321/blog/{slug}?preview=1&id={id}',
-    },
-  },
-},
+Two scopes, and the split is the whole setup.
+
+**Deployment** - environment variables. Their presence is what turns Preview on:
+
+```bash
+FRONTEND_URL=http://localhost:4321
+FRONTEND_PREVIEW_URL=http://localhost:4321/preview?id={id}&type={type}&slug={slug}
 ```
+
+`FRONTEND_PREVIEW_URL` is optional and defaults to
+`<FRONTEND_URL>/preview?id={id}&type={type}`.
+
+**Workspace** - set in the Admin, no environment variable. `frontend.previewUrls` gives a
+type its real address instead of one shared `/preview` route:
+
+```json
+{ "article": "http://localhost:4321/blog/{slug}?preview=1&id={id}" }
+```
+
+`frontend.livePreview` and `frontend.previewBreakpoints` sit at the same scope.
+
+> These are NOT `tangen.config.ts` keys. `TangenConfig` has no `frontend` field, so a
+> `frontend: { ... }` block there does not compile. The declarations live in
+> `packages/types/src/core-config-keys.ts`.
 
 `{id}`, `{type}` and `{slug}` are substituted. `previewUrls` overrides per type
 and falls back to `previewUrl`.

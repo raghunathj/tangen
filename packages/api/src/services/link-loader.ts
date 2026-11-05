@@ -290,7 +290,10 @@ export function collapseLinksDeep(
     // Already the stored form: return the value itself so nothing rewrites.
     if (value.type === 'internal' && value.targetRef == null) return value
     if (value.type === 'external' && typeof value.url === 'string') return value
-    if (value.type === 'path' && typeof value.path === 'string') return value
+    // A same-page link has no `path` at all, so "has a string path" stopped
+    // covering every stored path link. No `href` is the real test: that key
+    // only exists on a value a read produced.
+    if (value.type === 'path' && typeof (value as { href?: unknown }).href !== 'string') return value
     return authored
   }
   return mapFieldsOfType(values, typeDef.fields as AnyField[], 'link', [], registry ?? [], collapse, false)

@@ -1,5 +1,94 @@
 # @tangen/admin
 
+## 0.2.11
+
+### Patch Changes
+
+- Four findings fixed, and the media picker finishes what it starts.
+  
+  **Adding a block no longer jumps the page to the top.** The new block is
+  scrolled into view instead, which is the behaviour that was missing anyway.
+  
+  **A select is checked against its own options.** There was no rule at all: no
+  `case 'select'` in the validator, `multiselect` counting only how many were
+  chosen, and `options` appearing nowhere. Checked at publish only, like
+  `required`, so an option removed from a schema cannot strand existing rows.
+  `tags` is freeform and is never checked.
+  
+  **Media constraints reach every depth.** They walked a flat field list, so
+  `accept` was enforced almost nowhere a project declares it: images live
+  inside component blocks and repeater rows. A `many` field was skipped
+  entirely. Both now use the same walker the media collapse uses.
+  
+  **`tangen extension status` names a required grant the installation never
+  approved**, with the upgrade command. It reported unapproved OPTIONAL grants
+  and said nothing about required ones, which is the more serious of the two:
+  the facility behind it silently does not run.
+  
+  **A Lottie file serves as `application/json`** rather than octet-stream.
+  
+  **The media picker takes dropped files**, anywhere on it, and an upload now
+  selects what it just uploaded instead of asking for the choice twice.
+- @tangen/ui@0.2.11
+
+## 0.2.10
+
+### Patch Changes
+
+- The "Changes in draft" marker is the server's answer, not a second guess.
+  
+  Every published entry carrying a link showed "Changes in draft" permanently,
+  while the content list showed none. The stored values and the published
+  snapshot were identical, so nothing had changed and the list was right.
+  
+  The editor was not comparing those two things. It compared the object the API
+  returns against `published_values`, and a read resolves before it answers: an
+  external link's `url` becomes a derived `href`, media and relations expand
+  from ids to objects, while the snapshot holds the authored form. Per-field
+  normalization covered a top-level relation or media field, but a link had no
+  case and nothing descended into a `component` field, so any link inside a
+  block counted as an edit.
+  
+  The editor now reads `hasDraftChanges` off the object, which the server
+  computes from the raw row against the same snapshot. The update route answers
+  it too, so a save on a published entry moves the marker without a reload.
+  Unsaved edits, extension panel data and translations stay client-side,
+  because the server cannot answer those.
+- @tangen/ui@0.2.10
+
+## 0.2.9
+
+### Patch Changes
+
+- Link field: a path link may be a same-page anchor, and a field that offers link text now requires it to publish.
+  
+  `#plans` typed into the path box used to store as `/` and lose the anchor
+  entirely. A path link's `path` is now optional, so a value of
+  `{ type: 'path', anchor: 'plans' }` is a legitimate same-page link whose href
+  is `#plans` rather than `/#plans`. A path and its postfix in one value is
+  refused by name instead of silently dropped, which `UrlIssue.reason` reports
+  as the new `'postfix'` case.
+  
+  Five defects went with it: an unset path link counted as a link, so `required`
+  could not answer it; the stored-form guard in the link loader read "has a
+  string path" where it meant "has no href", so a resolved path link read back
+  as null; and the admin's path box was bound to the stored value, so the `#`
+  vanished on the first keystroke.
+- The block palette skips a component reference that resolution left as a name.
+  
+  A self-referential component keeps its own reference as the name it was
+  authored as, because expanding it has no end (see the `@tangen/schema`
+  note). A string reaching the nested-block palette drew an entry with no
+  label, so the declared type is made true rather than assumed.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/schema@0.2.2
+  - @tangen/icons@0.1.3
+  - @tangen/ui@0.2.9
+
 ## 0.2.8
 
 ### Patch Changes

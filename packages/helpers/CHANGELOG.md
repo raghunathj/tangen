@@ -1,5 +1,14 @@
 # @tangen/helpers
 
+## 0.1.25
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+
 ## 0.1.24
 
 ### Patch Changes

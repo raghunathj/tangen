@@ -1,5 +1,60 @@
 # @tangen/types
 
+## 0.6.0
+
+### Minor Changes
+
+- The delivery contract belongs to the platform, not to Studio.
+  
+  `DeliveryProvider` lived in `@tangen/studio-compiler`, which meant
+  `packages/api` imported Studio code on the one path that exists to keep
+  working when Studio is disabled. The contract now lives in `@tangen/types`,
+  imported by the platform delivery route, by the store that resolves a backend,
+  and restated by `ctx.delivery`.
+  
+  Types only, deliberately: a value exported there reaches the public surface of
+  `@tangen/cms`, and a site developer has no use for a delivery backend. Core's
+  own backends live beside their resolver in the API; `@tangen/studio-compiler`
+  keeps its key-value one, and it retires with Studio.
+- Forms refuses a content write whose `form` field points at a form that does not exist.
+  
+  A page could publish a reference to a deleted or renamed form and the only
+  sign was an empty section on the live site. The field type could not catch it:
+  `SiteFieldValidate` receives a value and nothing else, so an existence check
+  was impossible there, and `ContentHookCtx` carried no query access either.
+  
+  `ContentHookCtx.ext` is the new seam, bound per extension in the hook runner
+  the way filters and contributions are already lent their own ctx. It is a
+  getter rather than a value, because hooks run on every content write and
+  building a ctx is not free; an extension that only reads `nextData` pays
+  nothing. It is absent for site hooks and on a host that has not wired
+  extensions, which a hook reads as "cannot verify" and proceeds.
+  
+  Forms walks the type's own definition alongside the values, so a `form` field
+  is found inside a component block, a repeater row, or a block within a block,
+  and asks one question of the database only when the walk found a reference.
+  It fails open on a missing ctx, types or db: a check that refuses writes
+  because it could not run is worse than the gap it closes.
+  
+  The extension manifest moves to 0.3.0 and declares `hooks:content`. Because a
+  new REQUIRED grant is not in what an existing installation recorded, every
+  workspace with Forms installed must run `tangen extension upgrade forms` and
+  approve it; until then the check does not run.
+- Link field: a path link may be a same-page anchor, and a field that offers link text now requires it to publish.
+  
+  `#plans` typed into the path box used to store as `/` and lose the anchor
+  entirely. A path link's `path` is now optional, so a value of
+  `{ type: 'path', anchor: 'plans' }` is a legitimate same-page link whose href
+  is `#plans` rather than `/#plans`. A path and its postfix in one value is
+  refused by name instead of silently dropped, which `UrlIssue.reason` reports
+  as the new `'postfix'` case.
+  
+  Five defects went with it: an unset path link counted as a link, so `required`
+  could not answer it; the stored-form guard in the link loader read "has a
+  string path" where it meant "has no href", so a resolved path link read back
+  as null; and the admin's path box was bound to the stored value, so the `#`
+  vanished on the first keystroke.
+
 ## 0.5.0
 
 ### Minor Changes

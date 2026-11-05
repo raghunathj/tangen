@@ -2507,10 +2507,13 @@ FRONTEND_URL=https://example.com
 ADMIN_URL=https://admin.example.com
 ```
 
-```ts app/tangen.config.ts  (values every deployment shares)
-server: { cors: { origins: ['https://example.com'] } },
-frontend: { previewUrl: 'https://example.com/preview?id={id}' },
-```
+`FRONTEND_PREVIEW_URL` is the preview route, and it defaults to
+`<FRONTEND_URL>/preview?id={id}&type={type}` when it is not set.
+
+> The URLs above are deployment variables, not `tangen.config.ts` keys.
+> `TangenConfig` accepts `project`, `name`, `workspaceId`, `schema`, `realtime`,
+> `admin`, `extensions`, `apps` and `site` - a `server:` or `frontend:` block
+> there does not compile.
 
 There are exactly three roles - `development`, `staging`, `production` - and
 each is a deployment of its own. Nothing on a request or a command selects
@@ -3866,17 +3869,30 @@ one** - minting needs a member session.
 
 ## Configure where Preview lands
 
-```ts tangen.config.ts
-{
-  frontend: {
-    url: 'http://localhost:4321',
-    previewUrl: 'http://localhost:4321/preview?id={id}&type={type}&slug={slug}',
-    previewUrls: {
-      article: 'http://localhost:4321/blog/{slug}?preview=1&id={id}',
-    },
-  },
-},
+Two scopes, and the split is the whole setup.
+
+**Deployment** - environment variables. Their presence is what turns Preview on:
+
+```bash
+FRONTEND_URL=http://localhost:4321
+FRONTEND_PREVIEW_URL=http://localhost:4321/preview?id={id}&type={type}&slug={slug}
 ```
+
+`FRONTEND_PREVIEW_URL` is optional and defaults to
+`<FRONTEND_URL>/preview?id={id}&type={type}`.
+
+**Workspace** - set in the Admin, no environment variable. `frontend.previewUrls` gives a
+type its real address instead of one shared `/preview` route:
+
+```json
+{ "article": "http://localhost:4321/blog/{slug}?preview=1&id={id}" }
+```
+
+`frontend.livePreview` and `frontend.previewBreakpoints` sit at the same scope.
+
+> These are NOT `tangen.config.ts` keys. `TangenConfig` has no `frontend` field, so a
+> `frontend: { ... }` block there does not compile. The declarations live in
+> `packages/types/src/core-config-keys.ts`.
 
 `{id}`, `{type}` and `{slug}` are substituted. `previewUrls` overrides per type
 and falls back to `previewUrl`.
@@ -12010,10 +12026,19 @@ deployed process with no URL refuses to start. See
 
 ## Server and frontend
 
-```ts tangen.config.ts (the workspace)
-server: { url: 'https://cms.example.com', cors: { origins: ['https://example.com'], credentials: true } },
-frontend: { url: 'https://example.com', previewUrl: 'https://example.com/preview?id={id}' },
+The URLs are **deployment** configuration, so they are environment variables rather than
+code. A machine knows its own addresses; a repository does not.
+
+```bash
+SERVER_URL=https://cms.example.com
+FRONTEND_URL=https://example.com
+ADMIN_URL=https://admin.example.com
+FRONTEND_PREVIEW_URL=https://example.com/preview?id={id}   # optional, see Live preview
 ```
+
+> `TangenConfig` accepts `project`, `name`, `workspaceId`, `schema`, `realtime`, `admin`,
+> `extensions`, `apps` and `site`. A `server:` or `frontend:` block in `tangen.config.ts` is
+> not one of them and does not compile.
 
 | key | type | required | means |
 |---|---|---|---|
@@ -13005,6 +13030,32 @@ makes this branch more than "a string starting with a slash".
 An absolute URL in the path box answers `absolute` with the scheme, and a path
 in the URL box answers `relative`. They are each other's mirror and both mean
 "right value, wrong branch"; each message names the branch that would take it.
+
+### Somewhere on the current page
+
+**Leave `path` out and the link stays on the page it is rendered on.** A "See
+plans" button that scrolls to the plans section is a path link with an anchor
+and no path:
+
+```json
+{ "type": "path", "anchor": "plans", "label": "See plans" }
+```
+
+Its `href` is `#plans` - the fragment alone, with no leading slash. `/#plans`
+would also scroll, but it is a navigation to the site root, which reloads the
+page in a client router; `#plans` never leaves it.
+
+A path link needs a path OR somewhere on this page to go. `{ "type": "path" }`
+with neither is refused, because it is an empty value rather than a link. The
+anchor itself is the block's `anchorId`, which every section field offers.
+
+**A query or an anchor inside the path is refused** (`postfix`), with the same
+"right value, wrong branch" reasoning as the two above: `/solutions#our-work`
+holds two values in one box. Put `/solutions` in the path and `#our-work` in
+the postfix. This used to be accepted and **silently stored as `/solutions`**,
+with the fragment dropped and nothing said; a bare `#our-work` was stored as
+`/`. Links written that way before this was fixed cannot be recovered, because
+the fragment was never stored.
 
 ## The routing boundary
 

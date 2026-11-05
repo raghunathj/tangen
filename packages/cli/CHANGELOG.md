@@ -1,5 +1,57 @@
 # @tangen/cli
 
+## 0.2.7
+
+### Patch Changes
+
+- Four findings fixed, and the media picker finishes what it starts.
+  
+  **Adding a block no longer jumps the page to the top.** The new block is
+  scrolled into view instead, which is the behaviour that was missing anyway.
+  
+  **A select is checked against its own options.** There was no rule at all: no
+  `case 'select'` in the validator, `multiselect` counting only how many were
+  chosen, and `options` appearing nowhere. Checked at publish only, like
+  `required`, so an option removed from a schema cannot strand existing rows.
+  `tags` is freeform and is never checked.
+  
+  **Media constraints reach every depth.** They walked a flat field list, so
+  `accept` was enforced almost nowhere a project declares it: images live
+  inside component blocks and repeater rows. A `many` field was skipped
+  entirely. Both now use the same walker the media collapse uses.
+  
+  **`tangen extension status` names a required grant the installation never
+  approved**, with the upgrade command. It reported unapproved OPTIONAL grants
+  and said nothing about required ones, which is the more serious of the two:
+  the facility behind it silently does not run.
+  
+  **A Lottie file serves as `application/json`** rather than octet-stream.
+  
+  **The media picker takes dropped files**, anywhere on it, and an upload now
+  selects what it just uploaded instead of asking for the choice twice.
+
+## 0.2.6
+
+### Patch Changes
+
+- An unrecognised `tangen` flag refuses before the command runs.
+  
+  `tangen push --help` used to APPLY A SCHEMA PUSH: `--help` was not a
+  recognised flag, so it fell through to the command. Flags are now declared per
+  command, `--help` prints usage for any command, and anything unrecognised
+  exits non-zero having run nothing and named the flag.
+  
+  A new flag must be added to `COMMAND_FLAGS` in `known-flags.ts` or the guard
+  refuses it.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/schema@0.2.2
+  - @tangen/db@0.1.58
+  - @tangen/knowledge@0.1.28
+
 ## 0.2.5
 
 ### Patch Changes

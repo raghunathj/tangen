@@ -1,5 +1,15 @@
 # @tangen/ext-flows
 
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/cms@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes

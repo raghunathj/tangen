@@ -24,7 +24,7 @@
  *          with a cache lifetime a CDN can honour. Route pointers change on
  *          every publish and must be revalidated.
  */
-import type { DeliveryProvider } from '@tangen/studio-compiler'
+import type { DeliveryProvider } from '@tangen/types'
 
 /** Where delivery is mounted. */
 const MOUNT = '/api/v1/delivery/'

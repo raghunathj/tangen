@@ -1,5 +1,15 @@
 # @tangen/extension-testkit
 
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/api@0.2.5
+
 ## 0.2.3
 
 ### Patch Changes

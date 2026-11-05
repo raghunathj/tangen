@@ -1,6 +1,6 @@
 {
   "name": "@tangen/studio-compiler",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Turns a Tangen Studio page schema into published artifacts - stylesheets today, runtime manifests next. Framework-free: compilation happens on a server, never in the visitor's browser.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },
@@ -18,7 +18,8 @@
     "README.md"
   ],
   "dependencies": {
-    "@tangen/studio-schema": "workspace:^"
+    "@tangen/studio-schema": "workspace:^",
+    "@tangen/types": "workspace:^"
   },
   "publishConfig": {
     "access": "public",

@@ -1,5 +1,14 @@
 # @tangen/logging
 
+## 0.0.28
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+
 ## 0.0.27
 
 ### Patch Changes

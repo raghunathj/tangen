@@ -26,7 +26,13 @@ export type AnyField = { name: string; fieldType?: string; config?: unknown }
 export type TypeLike = { fields: AnyField[] }
 
 /** What the walker does at one position. `nested` is false only for a type's own column. */
-export type FieldVisitor = (value: unknown, at: { nested: boolean }) => unknown
+/**
+ * `field` is the DEFINITION the value was found on, which a visitor needs
+ * whenever the rule it applies lives in the field's own config - media
+ * constraints read `accept` and `mimeTypes` from it. Added to the `at` object
+ * rather than as a parameter so every existing visitor is untouched.
+ */
+export type FieldVisitor = (value: unknown, at: { nested: boolean; field: AnyField }) => unknown
 
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v)
@@ -76,7 +82,7 @@ export function mapFieldsOfType(
     if (!(field.name in out)) continue
     const value = out[field.name]
     if (field.fieldType === fieldType) {
-      const next = visit(value, { nested })
+      const next = visit(value, { nested, field })
       if (next !== value) set(field.name, next)
     } else if (field.fieldType === 'component' && Array.isArray(value)) {
       const defs = [...resolveBlockDefs(cfg.components, registry), ...inherited]

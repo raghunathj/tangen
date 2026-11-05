@@ -90,20 +90,56 @@ export function blockPresentationFields(): SubField[] {
 }
 
 type AnyField = { fieldType?: string; config?: Record<string, unknown>; [k: string]: unknown }
-/** Recursively resolve component refs on component fields, descending containers. */
-function resolveFields(fields: AnyField[], registry: ComponentDef[]): AnyField[] {
+
+/**
+ * Recursively resolve component refs on component fields, descending
+ * containers, and STOP at a reference cycle.
+ *
+ * A component that may contain itself is a legitimate layout - a section of
+ * sections, a column of columns - and it is a cycle in the SCHEMA while
+ * staying a finite tree in the DATA. Expanding it by name has no natural end,
+ * so this used to recurse until the stack went: a self-referential component,
+ * or two that name each other, threw `RangeError: Maximum call stack size
+ * exceeded` while the workspace config was loading, which took the whole
+ * workspace down rather than one type.
+ *
+ * `path` is the component names currently being expanded, so the guard is per
+ * PATH and not global: two sibling branches may both expand the same
+ * component, because that is reuse rather than recursion. A name already on
+ * the path is left as the NAME it was authored as, which is the shape an
+ * unresolved ref already has everywhere downstream - codegen accepts both
+ * spellings (`allowedBlockNames`), the API's own resolver looks it up
+ * (`resolveComponentFieldRefs`), and the emptiness and localization checks
+ * skip a string ref deliberately. `localizedContainerFields` in
+ * component-relations.ts carries the same `seen` guard for the same reason.
+ *
+ * The consequence, stated: blocks nested BELOW the cut carry a name the
+ * resolved schema no longer has a definition for, so the field validator
+ * skips them the way it skips any unknown block type. That is the depth the
+ * Admin's own `MAX_COMPONENT_DEPTH` already stops at, and it is strictly more
+ * than the nothing a crashed config load offered.
+ */
+function resolveFields(fields: AnyField[], registry: ComponentDef[], path: ReadonlySet<string>): AnyField[] {
   return fields.map((f) => {
     const cfg = (f.config ?? {}) as Record<string, any>
     if (f.fieldType === 'component' && Array.isArray(cfg.components)) {
-      const resolved = resolveComponentRefs(cfg.components as ComponentRef[], registry)
-        .map((c) => ({ ...c, fields: resolveFields((c.fields ?? []) as unknown as AnyField[], registry) as any }))
+      const resolved = (cfg.components as ComponentRef[]).map((ref) => {
+        if (typeof ref === 'string' && path.has(ref)) return ref
+        // One ref at a time, so an unknown name still throws by name.
+        const [def] = resolveComponentRefs([ref], registry)
+        const next = new Set(path)
+        if (def.name) next.add(def.name)
+        return { ...def, fields: resolveFields((def.fields ?? []) as unknown as AnyField[], registry, next) as any }
+      })
       return { ...f, config: { ...cfg, components: resolved } }
     }
+    // A repeater or a group introduces no component name, so the path is
+    // passed through: a cycle reached through one is still a cycle.
     if (f.fieldType === 'repeater' && Array.isArray(cfg.fields)) {
-      return { ...f, config: { ...cfg, fields: resolveFields(cfg.fields as AnyField[], registry) } }
+      return { ...f, config: { ...cfg, fields: resolveFields(cfg.fields as AnyField[], registry, path) } }
     }
     if (f.fieldType === 'group' && Array.isArray(cfg.groupFields)) {
-      return { ...f, config: { ...cfg, groupFields: resolveFields(cfg.groupFields as AnyField[], registry) } }
+      return { ...f, config: { ...cfg, groupFields: resolveFields(cfg.groupFields as AnyField[], registry, path) } }
     }
     return f
   })
@@ -114,5 +150,5 @@ export function resolveSchemaComponentRefs<T extends { fields: any[] }>(schema: 
   if (!registry.length && !schema.some((t) => t.fields?.some((f: AnyField) => f.fieldType === 'component'))) {
     return schema
   }
-  return schema.map((type) => ({ ...type, fields: resolveFields(type.fields as AnyField[], registry) }))
+  return schema.map((type) => ({ ...type, fields: resolveFields(type.fields as AnyField[], registry, new Set()) }))
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo, Suspense } from 'rea
 import { DatePicker } from '@/components/ui/date-picker'
 import { createPortal } from 'react-dom'
 import { useCan } from '@/lib/use-can'
-import { fieldValueChanged, i18nDiverges } from '@/lib/draft-changes'
+import { i18nDiverges } from '@/lib/draft-changes'
 import { NoPermission } from '@/components/require-permission'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import {
@@ -1282,7 +1282,7 @@ export default function ObjectEditorPage() {
   // True when a published item has unsaved edits OR saved edits not yet reflected in publishedValues.
   // Identity-cached: typing only flips it via hasChanges; the expensive panel
   // and per-field comparisons rerun only when their inputs actually change.
-  const draftKey = [status, viewingLive, isNew, hasChanges, panelDataMap, publishedPanelDataMap, object, typeDef, i18nMap]
+  const draftKey = [status, viewingLive, isNew, hasChanges, panelDataMap, publishedPanelDataMap, object, i18nMap]
   if (draftCalcRef.current.key.length !== draftKey.length || draftCalcRef.current.key.some((v, i) => v !== draftKey[i])) {
     draftCalcRef.current = {
       key: draftKey,
@@ -1291,23 +1291,38 @@ export default function ObjectEditorPage() {
         // Any panel whose draft differs from its published snapshot. The two
         // maps arrive in different shapes (stored {draft,published} vs a panel's
         // bare draft emit), so the compare normalizes both - see save-request.
+        // The server knows nothing about extension panel data, so this stays here.
         if (panelDataHasDraftChanges(panelDataMap, publishedPanelDataMap)) return true
-        if (!object?.published_values) return true // no snapshot - assume draft diverged
-        let pv = object.published_values as Record<string, unknown>
-        if (typeof pv === 'string') { try { pv = JSON.parse(pv) } catch { return false } }
-        if ((object.title ?? '') !== ((pv.title as string) ?? '')) return true
-        // Compare like-for-like: the API coerces NUMERIC fields (price/rating) to
-        // numbers while the published snapshot holds strings; relation/media fields
-        // may arrive expanded (objects) while the snapshot holds ids. Normalize both
-        // sides per field type, then compare canonically (key order agnostic) so an
-        // unedited published entry never falsely reads as "draft changes".
-        for (const f of typeDef.fields) {
-          if (fieldValueChanged(f.fieldType, object[f.name], pv[f.name])) return true
-        }
+        // The SAVED state is the server's answer, never recomputed here.
+        //
+        // This used to compare the object the API returned against
+        // `published_values` field by field, which compares two different
+        // things: a read RESOLVES before it answers - a link's `url` becomes a
+        // derived `href`, media and relations expand from ids to objects -
+        // while the snapshot holds the authored form. `normFieldValue`
+        // normalized that for a top-level relation or media field, but a link
+        // had no case at all, and nothing descended into a `component` field,
+        // so any link or expanded id INSIDE a block read as an edit. Every
+        // page carrying one showed "Changes in draft" permanently, while the
+        // content list - which asks the server - correctly showed none.
+        //
+        // `computeHasDraftChanges` answers from the RAW row against the same
+        // snapshot, so the two sides are the same shape by construction. The
+        // list has always used it; now the editor does too, which is what
+        // draft-changes.ts claimed in its header and was not.
+        //
+        // Absent means no divergence: publish, unpublish, schedule and archive
+        // all either clear it or move the status out of `published`, where
+        // this whole branch does not run.
+        if (object?.hasDraftChanges === true) return true
         // Saved translations count too: published sites serve the publish-
         // time snapshot (publishedValues.i18n), so edited translations are
-        // draft until the next Publish.
-        if (i18nDiverges(i18nMap, (pv as { i18n?: Record<string, Record<string, unknown>> }).i18n)) return true
+        // draft until the next Publish. Kept client-side because the update
+        // route does not load the live i18n map to answer it, and because
+        // both sides of THIS compare are already the same shape.
+        let pv = object?.published_values as Record<string, unknown> | undefined
+        if (typeof pv === 'string') { try { pv = JSON.parse(pv) } catch { pv = undefined } }
+        if (pv && i18nDiverges(i18nMap, (pv as { i18n?: Record<string, Record<string, unknown>> }).i18n)) return true
         return false
       })(),
     }

@@ -21,9 +21,9 @@
  *          other backend, for a site that wants a CDN in front; it reuses
  *          the media S3 factory, so one config shape buys both.
  *
- *          Both sit behind the compiler's three-method Delivery Provider
- *          contract, and the rest of the platform never learns which one it
- *          got. `resolveDeliveryProvider` mirrors `resolveStorage`: config
+ *          Both sit behind the platform's three-method Delivery Provider
+ *          contract (`DeliveryProvider` in @tangen/types), and the rest of
+ *          the platform never learns which one it got. `resolveDeliveryProvider` mirrors `resolveStorage`: config
  *          decides, the table is the default, and the result for a bucket
  *          is memoized because the client holds connection state.
  *
@@ -34,7 +34,7 @@
  */
 import type { WorkspaceProject, StorageConfig } from '@tangen/types'
 import { getLogger } from '@tangen/logging'
-import { kvDelivery, type DeliveryProvider, type KeyValueStore } from '@tangen/studio-compiler'
+import type { DeliveryProvider, KeyValueStore } from '@tangen/types'
 import { createExtensionStore } from './extension-server'
 import { createS3Client, type S3ClientLike } from './storage/s3'
 import { contentTypeFor } from '../routes/delivery/serve'
@@ -48,6 +48,52 @@ export type SqlExec = (text: string, params?: unknown[]) => Promise<Array<Record
 
 /** Studio owns the legacy rows, but only as their author. */
 const LEGACY_OWNER_EXTENSION = 'studio'
+
+/** Keeps the legacy artifact rows away from every other kind of row. */
+const LEGACY_NAMESPACE = 'delivery:'
+
+/**
+ * The legacy READER: a Delivery Provider over the extension store the old
+ * Studio wrote artifacts into.
+ *
+ * It lives here rather than being imported because it is the only thing on
+ * this path that is about Studio at all, and this file is where its one use
+ * sits. The contract it satisfies is the platform's (`DeliveryProvider` in
+ * @tangen/types); importing the ADAPTER from @tangen/studio-compiler made the
+ * delivery route depend at runtime on a package being retired, on the one
+ * path that exists to serve a published page when Studio is disabled.
+ *
+ * It retires with the fallback below, and the fallback retires once no
+ * workspace has rows left in the old store.
+ *
+ * Traversal is refused rather than normalised: a path climbing out of the
+ * namespace could reach a `class:` or `preset:` row, and quietly rewriting it
+ * into something valid would hide that intent instead of reporting it.
+ */
+function legacyStoreDelivery(store: KeyValueStore): DeliveryProvider {
+  const keyFor = (path: string): string => {
+    if (path.includes('..') || path.startsWith('/')) {
+      throw new Error(`Delivery path "${path}" would reach outside the delivery namespace`)
+    }
+    return `${LEGACY_NAMESPACE}${path}`
+  }
+  return {
+    async read(path) {
+      const row = await store.get(keyFor(path))
+      const body = (row as { body?: unknown } | undefined)?.body
+      // Missing reads as null so an unpublished route is a 404, not a 500.
+      return typeof body === 'string' ? body : null
+    },
+    async write(path, body) {
+      // Wrapped in an object because the store holds JSON rows, not strings.
+      await store.put(keyFor(path), { body })
+    },
+    async list(prefix) {
+      const rows = await store.list(keyFor(prefix))
+      return rows.map((r) => r.key.slice(LEGACY_NAMESPACE.length))
+    },
+  }
+}
 
 /** Where a bucket keeps artifacts unless the config says otherwise. */
 const DEFAULT_KEY_PREFIX = 'delivery/'
@@ -286,7 +332,7 @@ export function resolveDeliveryProvider(args: ResolveDeliveryArgs): DeliveryProv
     primary = tableDelivery(exec, workspaceId)
   }
 
-  const legacy = kvDelivery(
+  const legacy = legacyStoreDelivery(
     createExtensionStore(exec, LEGACY_OWNER_EXTENSION, workspaceId) as unknown as KeyValueStore,
   )
   return withLegacyFallback(primary, legacy, (path) => {

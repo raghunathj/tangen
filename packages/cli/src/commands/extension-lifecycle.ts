@@ -255,6 +255,18 @@ export interface StatusLine {
   optionsProblems: string[]
   /** E.15: settings disabled because the grant they require was not approved for this installation. */
   settingsUnavailable: Array<{ key: string; grant: string }>
+  /**
+   * REQUIRED grants the manifest declares that this installation never
+   * recorded, so the facilities behind them do not run here.
+   *
+   * `effectiveGrants` is recorded INTERSECT declared, so a grant added to a
+   * manifest after an install is declared and not held - and nothing said so.
+   * Measured 2026-11-05: a workspace showed `forms 0.2.0 active` while the
+   * content hook gating on `hooks:content` could never fire, beside an SEO
+   * row that correctly named its unapproved OPTIONAL grant. The optional case
+   * was reported and the required one, which is the more serious, was not.
+   */
+  requiredGrantsUnapproved: string[]
 }
 
 /** The status of every configured or installed extension in this workspace. */
@@ -264,6 +276,19 @@ function effectiveGrantsOf(m: { grants?: { required?: unknown[]; optional?: unkn
   if (!Array.isArray(recorded)) return required
   const declared = new Set([...required, ...grantNames((m.grants?.optional ?? []) as never)])
   return recorded.filter((g) => declared.has(g))
+}
+
+/**
+ * Required grants declared but never recorded for this installation.
+ *
+ * A null record means the install predates grant recording, and
+ * `effectiveGrants` then answers the manifest's full required list - nothing
+ * is withheld, so there is nothing to report.
+ */
+export function unapprovedRequiredGrants(m: { grants?: { required?: unknown[] } }, recorded: readonly string[] | null): string[] {
+  if (!Array.isArray(recorded)) return []
+  const held = new Set(recorded)
+  return grantNames((m.grants?.required ?? []) as never).filter((g) => !held.has(g))
 }
 
 export async function extensionStatus(deps: LifecycleCliDeps): Promise<StatusLine[]> {
@@ -289,6 +314,7 @@ export async function extensionStatus(deps: LifecycleCliDeps): Promise<StatusLin
       requiresCapabilities: m?.requires?.capabilities ?? [],
       optionsProblems: m && row?.state === 'installed' ? validateExtensionOptions(m, row.options).errors.map((e) => `${e.path}: ${e.message}`) : [],
       settingsUnavailable: m && row?.state === 'installed' ? unavailableSettings(m.settings, effectiveGrantsOf(m, recordedAll[id] ?? null)) : [],
+      requiredGrantsUnapproved: m && row?.state === 'installed' ? unapprovedRequiredGrants(m, recordedAll[id] ?? null) : [],
     })
   }
   return out
@@ -307,6 +333,9 @@ export async function runExtensionStatusCommand(deps: LifecycleCliDeps, opts: { 
     if (l.pendingMigrations > 0) log(`  ${''.padEnd(18)} ${''.padEnd(34)} ${l.pendingMigrations} migration${l.pendingMigrations === 1 ? '' : 's'} pending - tangen extension upgrade ${l.id}`)
     if (l.requiresCapabilities.length > 0) log(`  ${''.padEnd(18)} ${''.padEnd(34)} requires ${l.requiresCapabilities.join(', ')} (checked at runtime)`)
     for (const p of l.optionsProblems) log(`  ${''.padEnd(18)} ${''.padEnd(34)} options: ${p}`)
+    if (l.requiredGrantsUnapproved.length > 0) {
+      log(`  ${''.padEnd(18)} ${''.padEnd(34)} ${l.requiredGrantsUnapproved.join(', ')} declared but NOT approved here, so ${l.requiredGrantsUnapproved.length === 1 ? 'it does' : 'they do'} not run - tangen extension upgrade ${l.id}`)
+    }
     for (const u of l.settingsUnavailable) log(`  ${''.padEnd(18)} ${''.padEnd(34)} setting ${u.key} needs ${u.grant} (optional grant not approved) - tangen extension upgrade ${l.id} --approve-optional ${u.grant}`)
   }
 }

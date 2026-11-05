@@ -1,5 +1,14 @@
 # @tangen/db
 
+## 0.1.58
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+
 ## 0.1.57
 
 ### Patch Changes

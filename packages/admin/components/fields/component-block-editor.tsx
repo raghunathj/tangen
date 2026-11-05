@@ -1,6 +1,6 @@
 
 
-import { useState, useRef, useMemo, lazy, Suspense } from 'react'
+import { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react'
 import { isLocalizableFieldType } from '@tangen/types'
 import { clsx } from 'clsx'
 import { nestedLocaleCtx, type BlockLocaleCtx } from '@/lib/editor'
@@ -146,7 +146,14 @@ function SubFieldControl({
       return <NestedRelationControl field={field} value={value} onChange={onChange} />
 
     case 'component': {
-      const nestedComponents: ComponentDef[] = field.config?.components ?? []
+      // Objects only. A `component` field's refs are names in the pushed
+      // schema and definitions once resolved, and a name that resolution could
+      // not expand stays a name - a self-referential component's own
+      // self-reference is one (schema/components.ts `resolveFields`). A string
+      // here would draw a palette entry with no label, so the declared type is
+      // made true rather than assumed.
+      const nestedComponents: ComponentDef[] = ((field.config?.components ?? []) as unknown[])
+        .filter((c): c is ComponentDef => !!c && typeof c === 'object')
       if (isAtMaxDepth(depth)) {
         return (
           <p className="text-xs text-fg-subtle italic px-2 py-1.5 rounded bg-surface-sunken border border-border">
@@ -648,7 +655,7 @@ function SortableBlockCard(props: Omit<BlockCardProps, 'isDragging' | 'dragHandl
   }
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} data-block-key={block._key}>
       <BlockCard
         {...props}
         isDragging={isDragging}
@@ -721,7 +728,47 @@ export function ComponentBlockEditor({ components, value, onChange, getEntryValu
     }
   }
 
-  function handleAdd(def: ComponentDef) { onChange(addBlock(blocks, def)) }
+  // The key of the block the last Add created, cleared once it is on screen.
+  const pendingScrollKey = useRef<string | null>(null)
+
+  function handleAdd(def: ComponentDef) {
+    const next = addBlock(blocks, def)
+    pendingScrollKey.current = next[next.length - 1]?._key ?? null
+    onChange(next)
+  }
+
+  /**
+   * Bring a newly added block into view.
+   *
+   * Without this the page jumped to the top on every Add: the palette is a
+   * modal dialog whose trigger sits BELOW the list, and selecting a block
+   * appends it and closes the dialog in one commit, so the dialog restores
+   * focus to a trigger that moved while the scroll lock was being released.
+   *
+   * Scrolling to the new block is the fix AND the behaviour that was missing
+   * anyway - a block you just added should be the thing you are looking at,
+   * which is true whatever the scroll would otherwise have done.
+   *
+   * `block: 'center'` rather than 'nearest' because the new block is at the
+   * END of the list, under the Add button: 'nearest' leaves it hard against
+   * the bottom edge with its fields out of sight.
+   */
+  useEffect(() => {
+    const key = pendingScrollKey.current
+    if (!key) return
+    pendingScrollKey.current = null
+    // One frame, so the row exists and the dialog has finished unmounting -
+    // scrolling while the overlay is still up is undone when it releases.
+    const id = requestAnimationFrame(() => {
+      // `_key` is `Math.random().toString(36)` - alphanumeric, so it needs no
+      // escaping, and `CSS` in this file is dnd-kit's transform helper rather
+      // than the browser global anyway.
+      document
+        .querySelector(`[data-block-key="${key}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [blocks])
   function handleRemove(index: number) { onChange(removeBlock(blocks, index)) }
   function handleMoveUp(index: number) { onChange(moveBlockUp(blocks, index)) }
   function handleMoveDown(index: number) { onChange(moveBlockDown(blocks, index)) }

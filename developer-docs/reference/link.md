@@ -181,6 +181,32 @@ An absolute URL in the path box answers `absolute` with the scheme, and a path
 in the URL box answers `relative`. They are each other's mirror and both mean
 "right value, wrong branch"; each message names the branch that would take it.
 
+### Somewhere on the current page
+
+**Leave `path` out and the link stays on the page it is rendered on.** A "See
+plans" button that scrolls to the plans section is a path link with an anchor
+and no path:
+
+```json
+{ "type": "path", "anchor": "plans", "label": "See plans" }
+```
+
+Its `href` is `#plans` - the fragment alone, with no leading slash. `/#plans`
+would also scroll, but it is a navigation to the site root, which reloads the
+page in a client router; `#plans` never leaves it.
+
+A path link needs a path OR somewhere on this page to go. `{ "type": "path" }`
+with neither is refused, because it is an empty value rather than a link. The
+anchor itself is the block's `anchorId`, which every section field offers.
+
+**A query or an anchor inside the path is refused** (`postfix`), with the same
+"right value, wrong branch" reasoning as the two above: `/solutions#our-work`
+holds two values in one box. Put `/solutions` in the path and `#our-work` in
+the postfix. This used to be accepted and **silently stored as `/solutions`**,
+with the fragment dropped and nothing said; a bare `#our-work` was stored as
+`/`. Links written that way before this was fixed cannot be recovered, because
+the fragment was never stored.
+
 ## The routing boundary
 
 **Tangen owns the destination. A declared `path` is what makes it a URL.**

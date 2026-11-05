@@ -1,35 +1,26 @@
 /**
  * File Name: delivery-kv.ts
- * Purpose: A Delivery Provider over any key-value store.
+ * Purpose: A Delivery Provider over any key-value store, for Studio's own
+ *          extension store.
  *
  * Author: Raghunath J
  * License: MIT
  *
- * Dependencies/Notes: Lives here rather than in the Studio extension because
- *          TWO sides need it and neither may depend on the other: the
- *          extension writes artifacts when a designer publishes, and the
- *          PLATFORM delivery route reads them when a visitor arrives. If this
- *          lived in the extension, the platform route would import extension
- *          code - and a published page would stop working the moment Studio
- *          was disabled, which is the exact guarantee the route exists to
- *          keep.
- *
- *          The store is typed structurally, so it binds to the extension
- *          store without this package depending on @tangen/types.
+ * Dependencies/Notes: The CONTRACT moved to @tangen/types, because it is the
+ *          platform's: the delivery route reads artifacts through it and has
+ *          to keep doing so when this package is gone. This adapter stays
+ *          here, because its one remaining consumer is the Studio extension
+ *          and it retires with Studio. Core no longer imports it; the legacy
+ *          reader that used to is now local to the API's delivery store.
  *
  *          Keys are namespaced because the same table holds `class:`,
  *          `preset:` and `tag:` rows. A published artifact must never be able
  *          to overwrite a class, and delivery must never become a reader for
  *          all of them.
  */
-import type { DeliveryProvider } from './delivery'
+import type { DeliveryProvider, KeyValueStore } from '@tangen/types'
 
-/** The minimum a store must do. Matches ExtensionStore structurally. */
-export interface KeyValueStore {
-  get(key: string): Promise<Record<string, unknown> | undefined>
-  put(key: string, data: Record<string, unknown>): Promise<void>
-  list(prefix?: string): Promise<Array<{ key: string; data: Record<string, unknown> }>>
-}
+export type { KeyValueStore }
 
 /** Keeps artifacts away from every other kind of row. */
 export const DELIVERY_NAMESPACE = 'delivery:'

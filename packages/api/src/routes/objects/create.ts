@@ -142,7 +142,13 @@ export const makeCreateHandler = (projects: any[]) => async (ctx: any) => {
     {
       const typeDefForMedia = schema.types.find((t: { name: string }) => t.name === typeName)
       if (typeDefForMedia) {
-        const mediaErrors = await validateMediaConstraints(db, typeDefForMedia.fields, prefilterFieldValues)
+        // The registry, so the check descends into blocks - which is where
+        // almost every constrained media field actually lives. Resolved here
+        // rather than reusing `componentRegistry` below, because that is
+        // declared after this guard and this guard runs before any write.
+        const registryForMedia = ((ctx.workspaceProjects as any[] | undefined)
+          ?.find((p: any) => p.workspaceId === workspaceId)?.components ?? []) as never
+        const mediaErrors = await validateMediaConstraints(db, typeDefForMedia.fields, prefilterFieldValues, registryForMedia)
         if (Object.keys(mediaErrors).length > 0) {
           const first = Object.values(mediaErrors)[0]
           throw new RequestError('VALIDATION_ERROR', first, 422, mediaErrors)

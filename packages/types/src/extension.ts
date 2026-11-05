@@ -828,9 +828,9 @@ export interface ExtensionServerCtx {
   ) => void
   /**
    * The platform's delivery store for this workspace and environment - the
-   * three-method contract published Studio artifacts go through (see
-   * `DeliveryProvider` in @tangen/studio-compiler, typed structurally here
-   * so this package stays free of it). The platform resolves the backend
+   * three-method contract published artifacts go through (`DeliveryProvider`
+   * in ./delivery, restated structurally here so a ctx reads as one shape).
+   * The platform resolves the backend
    * from `studio.delivery`; the extension only writes. Absent on a runtime
    * that predates the store, where the extension falls back to its own KV
    * store - which the platform delivery route still reads.

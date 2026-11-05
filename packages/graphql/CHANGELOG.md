@@ -1,5 +1,14 @@
 # @tangen/graphql
 
+## 0.1.29
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+
 ## 0.1.28
 
 ### Patch Changes

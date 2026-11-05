@@ -126,6 +126,28 @@ function msg(custom: string | undefined, generated: string): string {
  * @param mode - Validation strictness — 'draft' (lenient) or 'publish' (strict).
  * @returns An error message string, or null when the value is valid.
  */
+/**
+ * The values a select or multiselect offers, or null when it declares none.
+ *
+ * Null is "no list to check against" and is NOT an error: a select built by
+ * an extension's custom field type, or one whose options are filled at
+ * runtime, legitimately has none here, and refusing those would make this
+ * rule a breaking change rather than a check.
+ */
+function optionValues(field: FieldDefinition): Set<string> | null {
+  const raw = (field.config as { options?: unknown }).options
+  if (!Array.isArray(raw) || raw.length === 0) return null
+  const out = new Set<string>()
+  for (const o of raw) {
+    if (typeof o === 'string') { out.add(o); continue }
+    if (o && typeof o === 'object') {
+      const v = (o as { value?: unknown }).value
+      if (typeof v === 'string' || typeof v === 'number') out.add(String(v))
+    }
+  }
+  return out.size > 0 ? out : null
+}
+
 export function validateFieldValue(
   field: FieldDefinition,
   value: unknown,
@@ -258,11 +280,40 @@ export function validateFieldValue(
         return msg(m.pattern, `${label} does not accept ${v.type} links`)
       }
       if (v.newTab != null && typeof v.newTab !== 'boolean') return msg(m.pattern, `${label}: newTab must be true or false`)
+      // A half-written path link - `{ type: 'path', path: '' }` - is NO LINK:
+      // the editor and `normalizeLinkValue` both read it as nothing. Settled
+      // here, before the rules below, because every one of them would
+      // otherwise complain about a link that does not exist yet.
+      const emptyPathLink = v.type === 'path'
+        && !(typeof v.path === 'string' && v.path.trim() !== '')
+        && !(typeof v.anchor === 'string' && v.anchor.trim().replace(/^#+/, '') !== '')
+        && !(!!v.query && typeof v.query === 'object' && Object.keys(v.query as object).length > 0)
+      if (emptyPathLink) {
+        if (field.required && mode === 'publish') return msg(m.required, `${label} is required`)
+        break
+      }
       // The link's text (a call to action) travels with the destination when the field offers it.
       if (v.label != null && v.label !== '') {
         if (typeof v.label !== 'string') return msg(m.pattern, `${label}: the link text must be a string`)
         if (cfg.withLabel !== true) return msg(m.pattern, `${label} does not accept a text (set config.withLabel to offer one)`)
         if (v.label.trim().length > LINK_LABEL_MAX) return msg(m.pattern, `${label}: the link text is longer than ${LINK_LABEL_MAX} characters`)
+      }
+      // Whitespace is not words. Tested on the TRIMMED value, because
+      // `normalizeLinkLabel` trims a label to absent before storing it, so
+      // accepting "   " here would accept something the stored value then
+      // discards - the validator and the normalizer disagreeing again.
+      const hasLinkText = typeof v.label === 'string' && v.label.trim() !== ''
+      if (!hasLinkText && cfg.withLabel === true && mode === 'publish') {
+        // A FIELD THAT OFFERS WORDS NEEDS THEM TO PUBLISH. `withLabel` is not
+        // "there is a text box"; it is "this link is rendered as its words", so
+        // a destination with none renders nothing a visitor can click. It was
+        // accepted before, and a button with an invisible label is the kind of
+        // defect that reaches production looking like a styling bug.
+        //
+        // At PUBLISH only, like `required` itself two hundred lines above: a
+        // draft is allowed to be half-written, and an author who picks the
+        // destination first should not be stopped mid-thought.
+        return msg(m.required, `${label} needs the words that are clicked`)
       }
       if (cfg.anchor === false && v.anchor != null && v.anchor !== '') {
         return msg(m.pattern, `${label} does not accept an anchor`)
@@ -296,7 +347,18 @@ export function validateFieldValue(
         // A path is the application's own routing: stored verbatim, handed back
         // untouched, nothing for Tangen to resolve. The only question is
         // whether it is a path at all.
+        //
+        // No path at all is a SAME-PAGE link (`#plans`), valid as long as it
+        // carries somewhere on this page to go. Checked before the path rules,
+        // because an absent path has none to break.
+        // An empty one never reaches here: it was answered above as no link.
+        // What is left is a link with somewhere to go, and a SAME-PAGE link
+        // (an anchor, no path) has no path rules to break.
+        if (!(typeof v.path === 'string' && v.path.trim() !== '')) break
         const issue = pathLinkIssue(v.path)
+        if (issue?.reason === 'postfix') {
+          return msg(m.pattern, `${label} holds a path and its anchor in one value; put /about in the path and #plans in the box after it`)
+        }
         if (issue?.reason === 'absolute') {
           return msg(m.pattern, issue.scheme
             ? `${label} is a path on this site, not a ${issue.scheme} URL; use an external link for that`
@@ -397,6 +459,25 @@ export function validateFieldValue(
       break
     }
 
+    // A select's value had NO rule of any kind until 2026-11-05: this case did
+    // not exist, `multiselect` checked only how MANY were chosen, and the word
+    // `options` appeared nowhere in this file. So `style: 'carousel'` saved and
+    // published against a field offering `list` and `panel`, and the frontend
+    // met a value no branch of it handled.
+    //
+    // PUBLISH ONLY, like `required`. An option removed from a schema leaves
+    // existing rows holding a value the list no longer has, and a draft that
+    // refused to save would strand them with no way back - the editor could
+    // not even open the record to repair it. At publish the same value is a
+    // question somebody has to answer, which is the right moment to ask.
+    case 'select': {
+      const opts = optionValues(field)
+      if (mode === 'publish' && opts && !opts.has(String(value))) {
+        return msg(m.pattern, `${label} must be one of: ${[...opts].join(', ')}`)
+      }
+      break
+    }
+
     case 'multiselect':
     case 'tags': {
       if (Array.isArray(value)) {
@@ -406,6 +487,17 @@ export function validateFieldValue(
         }
         if (vr.maxSelections != null && n > vr.maxSelections) {
           return msg(m.maxSelections, `${label} allows at most ${vr.maxSelections} selection${vr.maxSelections !== 1 ? 's' : ''}`)
+        }
+        // `tags` shares this case and is FREEFORM - it has no options and must
+        // never be checked against any. Only a multiselect declares a list.
+        if (field.fieldType === 'multiselect') {
+          const opts = optionValues(field)
+          if (mode === 'publish' && opts) {
+            const bad = value.filter((v) => !opts.has(String(v)))
+            if (bad.length > 0) {
+              return msg(m.pattern, `${label} has ${bad.length === 1 ? 'a value that is' : 'values that are'} not offered: ${bad.map(String).join(', ')}`)
+            }
+          }
         }
       }
       break

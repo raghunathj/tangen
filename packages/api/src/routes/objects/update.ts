@@ -9,7 +9,7 @@
  * Dependencies/Notes: Requires @tangen/db contentTables, field-validator, revisions lib, hook runner,
  *                     and Redis for cache invalidation. Supports ?noRevision=1 for auto-save mode.
  */
-import { coerceNumericFields } from '../../services/local-client'
+import { coerceNumericFields, computeHasDraftChanges } from '../../services/local-client'
 import { randomUUID } from 'node:crypto'
 import { buildPublishedValues } from '../../services/publish-snapshot'
 import { eq, and, sql } from 'drizzle-orm'
@@ -391,7 +391,9 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
         for (const f of changedCustomFields) partial[f.name] = updates[f.name]
         const fieldErrors = validateFieldValues(changedCustomFields, partial, 'draft', customFieldTypeResolverFor(workspaceId))
         // Media constraints (accept categories / mimeTypes) need the assets' MIME types
-        Object.assign(fieldErrors, await validateMediaConstraints(db, changedCustomFields, partial))
+        // With the registry, so a media field inside a block or a repeater row
+        // is checked too - the flat walk this used to do covered almost none.
+        Object.assign(fieldErrors, await validateMediaConstraints(db, changedCustomFields, partial, componentRegistryForWrite))
         if (Object.keys(fieldErrors).length > 0) {
           const first = Object.values(fieldErrors)[0]
           throw new RequestError('VALIDATION_ERROR', first, 422, fieldErrors)
@@ -714,7 +716,36 @@ export const makeUpdateHandler = (projects: any[]) => async (ctx: any) => {
     const pathFacts = wantPath
       ? (await pathFactsFor([rows[0] as Record<string, unknown>], typeName, pathDepsOf(ctx), { template: !!memberId }))[0]
       : null
-    return { data: { ...responseRow, type: typeName, ...(pathFacts ?? {}) }, ...(Object.keys(warnings).length ? { warnings } : {}) }
+    // The "ahead of published?" marker, from the RAW returned row - the same
+    // rule and the same input `get` uses (K3). A write has to answer it too:
+    // the editor reads this response straight into the object it renders, so
+    // without it a save on a published entry left the marker showing whatever
+    // the last GET said, which was "no changes" right up until a reload.
+    //
+    // Computed WITHOUT the live i18n map, which this route does not load. A
+    // translation edited since publish is therefore not counted here; the
+    // editor compares the translations it already holds for that.
+    //
+    // THE ROW HAS TWO SHAPES HERE, which is the trap this walked into once
+    // already. The branch above picks between drizzle's `.update().returning()`
+    // - camelCase keys - and a raw `UPDATE ... RETURNING *`, which hands back
+    // the COLUMN names, so `published_values`, `updated_at`, `published_at`.
+    // The raw branch is not the rare one: every ordinary content field goes
+    // through `customSetClauses`, so any save that touches a field takes it.
+    //
+    // `computeHasDraftChanges` reads the camelCase spellings, found neither,
+    // fell through to its legacy no-snapshot branch, found no timestamps
+    // there either and answered `false` - so the editor's marker went out
+    // after every autosave and the page looked published when it was not.
+    // Field columns need no mapping: a field's column is its name verbatim.
+    const raw = rows[0] as Record<string, unknown>
+    const hasDraftChanges = computeHasDraftChanges({
+      ...raw,
+      publishedValues: raw.publishedValues ?? raw.published_values,
+      updatedAt: raw.updatedAt ?? raw.updated_at,
+      publishedAt: raw.publishedAt ?? raw.published_at,
+    }, typeDef2 as never)
+    return { data: { ...responseRow, type: typeName, ...(pathFacts ?? {}), hasDraftChanges }, ...(Object.keys(warnings).length ? { warnings } : {}) }
 }
 
 

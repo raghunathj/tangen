@@ -24,6 +24,12 @@ const EXT_MIME: Record<string, string> = {
   '.gif': 'image/gif',
   '.avif': 'image/avif',
   '.svg': 'image/svg+xml',
+  // A Lottie animation is a .json file, so it uploaded and stored correctly
+  // and then served as application/octet-stream, which no player accepts.
+  // Safe to serve: `nosniff` goes on every response here, and JSON is not in
+  // NAVIGABLE_MIME because a browser renders it as text rather than as a
+  // document that can execute.
+  '.json': 'application/json',
   '.bmp': 'image/bmp',
   '.tiff': 'image/tiff',
   '.mp4': 'video/mp4',

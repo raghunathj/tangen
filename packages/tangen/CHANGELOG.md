@@ -1,5 +1,21 @@
 # @tangen/cms
 
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/cli@0.2.6
+  - @tangen/types@0.6.0
+  - @tangen/ext-forms@0.2.6
+  - @tangen/schema@0.2.2
+  - @tangen/ext-flows@0.2.6
+  - @tangen/helpers@0.1.25
+
 ## 0.2.5
 
 ### Patch Changes

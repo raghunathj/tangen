@@ -1,5 +1,41 @@
 # @tangen/ext-forms
 
+## 0.2.6
+
+### Patch Changes
+
+- Forms refuses a content write whose `form` field points at a form that does not exist.
+  
+  A page could publish a reference to a deleted or renamed form and the only
+  sign was an empty section on the live site. The field type could not catch it:
+  `SiteFieldValidate` receives a value and nothing else, so an existence check
+  was impossible there, and `ContentHookCtx` carried no query access either.
+  
+  `ContentHookCtx.ext` is the new seam, bound per extension in the hook runner
+  the way filters and contributions are already lent their own ctx. It is a
+  getter rather than a value, because hooks run on every content write and
+  building a ctx is not free; an extension that only reads `nextData` pays
+  nothing. It is absent for site hooks and on a host that has not wired
+  extensions, which a hook reads as "cannot verify" and proceeds.
+  
+  Forms walks the type's own definition alongside the values, so a `form` field
+  is found inside a component block, a repeater row, or a block within a block,
+  and asks one question of the database only when the walk found a reference.
+  It fails open on a missing ctx, types or db: a check that refuses writes
+  because it could not run is worse than the gap it closes.
+  
+  The extension manifest moves to 0.3.0 and declares `hooks:content`. Because a
+  new REQUIRED grant is not in what an existing installation recorded, every
+  workspace with Forms installed must run `tangen extension upgrade forms` and
+  approve it; until then the check does not run.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/icons@0.1.3
+  - @tangen/cms@0.2.6
+  - @tangen/ui@0.2.9
+
 ## 0.2.5
 
 ### Patch Changes

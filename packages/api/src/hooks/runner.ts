@@ -17,7 +17,7 @@ import { queueKnowledgeSyncOnChange, queueKnowledgeSyncOnDelete } from '../servi
 import { extensionData, workspaceInstalledApps } from '@tangen/db'
 import type { ContentHooks, ContentHookCtx, ContentDeleteCtx, WorkspaceProject, ExtensionDataStore } from '@tangen/types'
 import { getExtensionManifest, getExtensionHooks, anyExtensionHasHooks, anyExtensionHasVersionedData } from './app-hooks-registry'
-import { hooksAllowed } from '../services/extension-server'
+import { hooksAllowed, extensionWiringDeps } from '../services/extension-server'
 import { createGlobalsStore } from '../services/globals-store'
 import { signerFor } from '../lib/extension-sign'
 import { assertHierarchyOnWrite } from '../services/path-guard'
@@ -296,8 +296,15 @@ function withHookSettings(appId: string, workspaceId: string, hookSet: ContentHo
   const factory = _hookSettings && getExtensionManifest(appId)?.settings ? _hookSettings : null
   const settings = factory ? { get: () => factory(appId, workspaceId).get() } : undefined
   const sign = signerFor(appId)
+  // The extension's OWN ctx, lent the way filters and contributions are lent
+  // theirs (`ctxFor: (id) => buildCtx(id, workspaceId)`). A GETTER, not a
+  // value: hooks run on every write and building a ctx is not free, so
+  // nothing is built unless a hook asks for it. Absent when the host has not
+  // wired extensions, which a hook must read as "cannot verify".
+  const deps = extensionWiringDeps()
+  const ext = deps ? async () => deps.buildCtx(appId, workspaceId) : undefined
   const wrap = <F extends (...a: any[]) => any>(fn: F | undefined): F | undefined =>
-    fn ? ((ctx: any, ...rest: unknown[]) => fn({ ...ctx, sign, ...(settings ? { settings } : {}) }, ...rest)) as unknown as F : undefined
+    fn ? ((ctx: any, ...rest: unknown[]) => fn({ ...ctx, sign, ...(settings ? { settings } : {}), ...(ext ? { ext } : {}) }, ...rest)) as unknown as F : undefined
   return {
     ...(hookSet.beforeChange ? { beforeChange: wrap(hookSet.beforeChange) } : {}),
     ...(hookSet.afterChange ? { afterChange: wrap(hookSet.afterChange) } : {}),

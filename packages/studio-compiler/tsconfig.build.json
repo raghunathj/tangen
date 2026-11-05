@@ -5,7 +5,10 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "paths": {
+      "@tangen/types": ["../types/dist/index.d.ts"]
+    }
   },
   "include": [
     "src/**/*"

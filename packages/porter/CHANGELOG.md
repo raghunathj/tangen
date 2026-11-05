@@ -1,5 +1,14 @@
 # @tangen/porter
 
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+
 ## 0.1.6
 
 ### Patch Changes

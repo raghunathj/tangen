@@ -1,5 +1,19 @@
 # @tangen/ext-studio
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/studio-compiler@0.1.3
+  - @tangen/schema@0.2.2
+  - @tangen/icons@0.1.3
+  - @tangen/cms@0.2.6
+
 ## 0.1.7
 
 ### Patch Changes

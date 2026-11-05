@@ -101,8 +101,19 @@ export interface InternalLinkValue extends LinkExtras {
  */
 export interface PathLinkValue extends LinkExtras {
   type: 'path'
-  /** Leading slash, no origin. Query and anchor live below, not in here. */
-  path: string
+  /**
+   * Leading slash, no origin. Query and anchor live below, not in here.
+   *
+   * ABSENT MEANS THIS PAGE (2026-11-04), so `{ type: 'path', anchor: 'plans' }`
+   * is the same-page link `#plans` that a "See plans" button scrolling to a
+   * section needs. Before this it had no home: `path` was required and had to
+   * begin with `/`, so an author either typed the current page's own address -
+   * duplicating what the page tree already composes, and breaking the day the
+   * page moves - or typed `#plans` into the path box, where it was silently
+   * read as `/`. An absent path is only valid WITH an anchor or a query;
+   * nothing at all is not a link.
+   */
+  path?: string
   anchor?: string
   query?: LinkQuery
 }
@@ -232,7 +243,21 @@ export function normalizeLinkValue(value: unknown): LinkValue | null {
     return { type: 'internal', target: { type, id }, ...(label ? { label } : {}), ...(newTab ? { newTab } : {}), ...(locale ? { locale } : {}), ...(anchor ? { anchor } : {}), ...(query ? { query } : {}) }
   }
   if (value.type === 'path') {
-    const path = normalizePath((value as PathLinkValue).path)
+    const raw = (value as PathLinkValue).path
+    const given = typeof raw === 'string' ? raw.trim() : ''
+    // A same-page link has no path, only somewhere on this page to go. It is
+    // a link because the anchor (or the query) is what it carries; with
+    // neither it is an empty value, which `null` is the answer for.
+    if (given === '') {
+      if (!anchor && !query) return null
+      return { type: 'path', ...(label ? { label } : {}), ...(newTab ? { newTab } : {}), ...(anchor ? { anchor } : {}), ...(query ? { query } : {}) }
+    }
+    // A postfix in the path box is refused here as well as by the validator,
+    // so the two cannot disagree: `normalizePath` would return a DIFFERENT,
+    // valid-looking link (`/solutions` for `/solutions#our-work`), and a
+    // normalizer that quietly changes a destination is the defect itself.
+    if (pathLinkIssue(raw)?.reason === 'postfix') return null
+    const path = normalizePath(raw)
     if (path === null) return null
     return { type: 'path', path, ...(label ? { label } : {}), ...(newTab ? { newTab } : {}), ...(anchor ? { anchor } : {}), ...(query ? { query } : {}) }
   }
@@ -313,8 +338,16 @@ export interface UrlIssue {
    * `relative` and `absolute` are each other's mirror: a path in the URL box,
    * and a URL in the path box. Both mean "right value, wrong branch", and both
    * name the branch that would take it.
+   *
+   * `postfix` is the third of that family and the one that used to be silent:
+   * a query or anchor typed into the path box. `normalizePath` keeps the path
+   * alone, so `/solutions#our-work` stored as a path became `/solutions` and
+   * the fragment was gone with nothing said. It is now refused by name. The
+   * Admin never hit this - `setPath` moves a typed postfix into its own field
+   * - but REST, GraphQL, the SDK and Porter all write straight through the
+   * validator, and they did.
    */
-  reason: 'malformed' | 'relative' | 'scheme' | 'unsafe' | 'absolute'
+  reason: 'malformed' | 'relative' | 'scheme' | 'unsafe' | 'absolute' | 'postfix'
   /** The offending scheme, when there was one. Never the whole URL. */
   scheme?: string
 }
@@ -361,6 +394,9 @@ export function pathLinkIssue(path: unknown): UrlIssue | null {
   // `//evil.test/x` reads as a path and is another origin. Refusing it here is
   // the whole reason this branch cannot just be "a string starting with /".
   if (raw.startsWith('//')) return { reason: 'absolute' }
+  // A query or an anchor in the path box: the value is right, the box is
+  // wrong, and `normalizePath` would drop it. Named rather than discarded.
+  if (raw.includes('#') || raw.includes('?')) return { reason: 'postfix' }
   return normalizePath(raw) === null ? { reason: 'malformed' } : null
 }
 
@@ -370,8 +406,13 @@ export function pathLinkIssue(path: unknown): UrlIssue | null {
  * a base and would invent an origin this link deliberately does not have.
  */
 export function pathHref(value: PathLinkValue): string {
-  const path = normalizePath(value.path) ?? '/'
-  return `${path}${formatLinkPostfix({ anchor: normalizeAnchor(value.anchor), query: normalizeQuery(value.query) })}`
+  const postfix = formatLinkPostfix({ anchor: normalizeAnchor(value.anchor), query: normalizeQuery(value.query) })
+  // A same-page link is the postfix alone. `/#plans` would also scroll, but it
+  // is a navigation to the root with a fragment, which reloads the page in a
+  // client router; `#plans` never leaves it.
+  const given = typeof value.path === 'string' ? value.path.trim() : ''
+  if (given === '') return postfix
+  return `${normalizePath(value.path) ?? '/'}${postfix}`
 }
 
 /**

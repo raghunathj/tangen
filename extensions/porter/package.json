@@ -25,7 +25,7 @@
     "access": "public"
   },
   "peerDependencies": {
-    "@tangen/cms": "^0.2.5"
+    "@tangen/cms": "^0.2.6"
   },
   "devDependencies": {
     "@tangen/cms": "workspace:^",

@@ -15,7 +15,7 @@
  *          identity server-side, but the editor reads `targetRef` directly so
  *          what it shows and what it saves agree immediately.
  */
-import type { FieldDefinition, LinkKind, LinkValue, LinkQuery } from '@tangen/types'
+import type { FieldDefinition, LinkKind, LinkValue, LinkQuery, PathLinkValue } from '@tangen/types'
 import { LINK_KINDS, normalizeAnchor, normalizeQuery, normalizeLinkLabel, parseLinkPostfix, formatLinkPostfix } from '@tangen/types'
 
 export interface LinkFieldConfigView {
@@ -83,15 +83,40 @@ export function authoredLink(value: unknown): LinkValue | null {
     }
   }
   if (v.type === 'path') {
-    const path = typeof v.path === 'string' ? v.path : ''
-    if (!path.trim()) return null
+    let path = typeof v.path === 'string' ? v.path : ''
+    let anchor = typeof v.anchor === 'string' && v.anchor ? v.anchor : undefined
+    let query = v.query && typeof v.query === 'object' ? (v.query as LinkQuery) : undefined
+    // A READ returns the destination as a derived `href` and nothing else -
+    // no path, no anchor, no query - exactly as it does for an external link.
+    // The external branch above has always read `href` as a fallback; this one
+    // never did, so EVERY resolved path link read back as "no link" and the
+    // editor offered to add one, silently discarding the link on the next save.
+    // `/about` was as broken as `#plans`; a same-page link only made it
+    // visible, because an external link beside it kept working.
+    //
+    // Split the same way `link-loader.ts`'s `authoredValue` splits it, so the
+    // round trip is idempotent rather than nesting the postfix deeper.
+    if (!path.trim() && !anchor && !query && typeof v.href === 'string' && v.href !== '') {
+      const href = v.href
+      const cut = Math.min(...['?', '#'].map((c) => (href.indexOf(c) === -1 ? href.length : href.indexOf(c))))
+      path = href.slice(0, cut)
+      const post = parseLinkPostfix(href.slice(cut))
+      anchor = post.anchor
+      query = post.query
+    }
+    // A SAME-PAGE link has no path, only somewhere on this page to go, so an
+    // empty path is not an empty link when an anchor or a query is there.
+    // Without this every setter erased one: `setPostfix` and `setLabel` start
+    // by reading the value back through here, so clearing the path and typing
+    // `plans` in the postfix box produced nothing at all.
+    if (!path.trim() && !anchor && !query) return null
     return {
       type: 'path',
-      path,
+      ...(path.trim() ? { path } : {}),
       ...(typeof v.label === 'string' && v.label ? { label: v.label } : {}),
       ...(v.newTab === true ? { newTab: true } : {}),
-      ...(typeof v.anchor === 'string' && v.anchor ? { anchor: v.anchor } : {}),
-      ...(v.query && typeof v.query === 'object' ? { query: v.query as LinkQuery } : {}),
+      ...(anchor ? { anchor } : {}),
+      ...(query ? { query } : {}),
     }
   }
   return null
@@ -178,21 +203,38 @@ export function setUrl(value: unknown, url: string): LinkValue | null {
 export function setPath(value: unknown, path: string): LinkValue | null {
   const v = authoredLink(value)
   const raw = path.trim()
-  if (raw === '') return null
+  // Emptying the path leaves a SAME-PAGE link when there is still an anchor or
+  // a query; it clears the value only when there is nothing left to go to.
+  if (raw === '') {
+    if (v?.type !== 'path') return null
+    const { path: _drop, ...rest } = v as PathLinkValue
+    return rest.anchor || rest.query ? ({ ...rest, type: 'path' } as LinkValue) : null
+  }
   const cut = Math.min(...['?', '#'].map((c) => (raw.indexOf(c) === -1 ? raw.length : raw.indexOf(c))))
   const body = raw.slice(0, cut)
   const typedPostfix = raw.slice(cut)
   const carried = carriedOf(v)
-  if (!typedPostfix) return { type: 'path', path: body, ...carried }
+  // An empty body is OMITTED rather than stored as '', so this agrees with
+  // `authoredLink` and with the stored form about what a pathless link looks
+  // like. Typing `#plans` leaves the path absent, not blank.
+  const withBody = body ? { path: body } : {}
+  if (!typedPostfix) return { type: 'path', ...withBody, ...carried }
   // What was typed wins over what was there: it is the more recent intent.
   const { anchor: _a, query: _q, ...rest } = carried as { anchor?: string; query?: LinkQuery }
-  return { type: 'path', path: body, ...rest, ...parseLinkPostfix(typedPostfix) }
+  return { type: 'path', ...withBody, ...rest, ...parseLinkPostfix(typedPostfix) }
 }
 
 /** Set or clear the anchor. Stored without its `#`, so `#team` and `team` are one value. */
 export function setAnchor(value: unknown, anchor: string): LinkValue | null {
   const v = authoredLink(value)
-  if (!v) return null
+  // A path link with no path yet is not a link until it has somewhere to go,
+  // and this is the call that gives it one. `setPostfix` is what the editor
+  // uses, but this is exported beside it and must agree with it.
+  if (!v) {
+    const next = normalizeAnchor(anchor)
+    const isPathKind = !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'path'
+    return isPathKind && next ? { type: 'path', anchor: next } : null
+  }
   const next = normalizeAnchor(anchor)
   const { anchor: _drop, ...rest } = v as LinkValue & { anchor?: string }
   return (next ? { ...rest, anchor: next } : rest) as LinkValue

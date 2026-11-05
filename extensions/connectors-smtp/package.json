@@ -31,7 +31,7 @@
     "nodemailer": "^10.1.7"
   },
   "peerDependencies": {
-    "@tangen/cms": "^0.2.4"
+    "@tangen/cms": "^0.2.6"
   },
   "devDependencies": {
     "@tangen/cms": "workspace:^",

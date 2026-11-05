@@ -1,5 +1,25 @@
 # @tangen/schema
 
+## 0.2.2
+
+### Patch Changes
+
+- A component that may contain itself no longer takes down the workspace config.
+  
+  Resolving component references expanded them by name with no end, so a
+  self-referential component, or two that name each other, threw
+  `RangeError: Maximum call stack size exceeded` while the workspace config was
+  loading. That took the whole workspace down rather than one type.
+  
+  The guard is per PATH rather than global, so two sibling branches may both
+  expand the same component, because that is reuse rather than recursion. A name
+  already being expanded is left as the name it was authored as, which is the
+  shape an unresolved reference already has everywhere downstream.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+
 ## 0.2.1
 
 ### Patch Changes

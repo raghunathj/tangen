@@ -1,6 +1,6 @@
 {
   "name": "@tangen/cli",
-  "version": "0.2.5",
+  "version": "0.2.7",
   "description": "Tangen CLI \u2014 push schemas, scaffold workspaces, generate types",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": {

@@ -1,6 +1,6 @@
 {
   "name": "@tangen/graphql",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "description": "GraphQL API for Tangen CMS \u2014 a schema generated from your content model. Optional: install only when you enable GraphQL.",
   "homepage": "https://github.com/raghunathj/tangen#readme",
   "bugs": { "url": "https://github.com/raghunathj/tangen/issues" },

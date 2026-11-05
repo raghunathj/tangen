@@ -1,5 +1,148 @@
 # @tangen/api
 
+## 0.2.8
+
+### Patch Changes
+
+- Four findings fixed, and the media picker finishes what it starts.
+  
+  **Adding a block no longer jumps the page to the top.** The new block is
+  scrolled into view instead, which is the behaviour that was missing anyway.
+  
+  **A select is checked against its own options.** There was no rule at all: no
+  `case 'select'` in the validator, `multiselect` counting only how many were
+  chosen, and `options` appearing nowhere. Checked at publish only, like
+  `required`, so an option removed from a schema cannot strand existing rows.
+  `tags` is freeform and is never checked.
+  
+  **Media constraints reach every depth.** They walked a flat field list, so
+  `accept` was enforced almost nowhere a project declares it: images live
+  inside component blocks and repeater rows. A `many` field was skipped
+  entirely. Both now use the same walker the media collapse uses.
+  
+  **`tangen extension status` names a required grant the installation never
+  approved**, with the upgrade command. It reported unapproved OPTIONAL grants
+  and said nothing about required ones, which is the more serious of the two:
+  the facility behind it silently does not run.
+  
+  **A Lottie file serves as `application/json`** rather than octet-stream.
+  
+  **The media picker takes dropped files**, anywhere on it, and an upload now
+  selects what it just uploaded instead of asking for the choice twice.
+
+## 0.2.7
+
+### Patch Changes
+
+- The draft marker survives a save that touches a content field.
+  
+  The UPDATE route picks between two statements: drizzle's
+  `.update().returning()`, which hands back camelCase keys, and a raw
+  `UPDATE ... RETURNING *`, which hands back the column names. The raw branch
+  is not the rare one - every ordinary content field goes through
+  `customSetClauses` - so any save that touches a field took it.
+  
+  That row went to `computeHasDraftChanges` unmapped. It reads
+  `publishedValues`, found `published_values` instead, fell through to its
+  legacy no-snapshot branch, found no `updatedAt` there either and answered
+  `false`. The editor's "Changes in draft" marker therefore went out after
+  every autosave, so a page with unpublished edits looked published.
+  
+  The route now maps the three keys that computation reads. Field columns need
+  no mapping: a field's column is its name verbatim.
+
+## 0.2.6
+
+### Patch Changes
+
+- The "Changes in draft" marker is the server's answer, not a second guess.
+  
+  Every published entry carrying a link showed "Changes in draft" permanently,
+  while the content list showed none. The stored values and the published
+  snapshot were identical, so nothing had changed and the list was right.
+  
+  The editor was not comparing those two things. It compared the object the API
+  returns against `published_values`, and a read resolves before it answers: an
+  external link's `url` becomes a derived `href`, media and relations expand
+  from ids to objects, while the snapshot holds the authored form. Per-field
+  normalization covered a top-level relation or media field, but a link had no
+  case and nothing descended into a `component` field, so any link inside a
+  block counted as an edit.
+  
+  The editor now reads `hasDraftChanges` off the object, which the server
+  computes from the raw row against the same snapshot. The update route answers
+  it too, so a save on a published entry moves the marker without a reload.
+  Unsaved edits, extension panel data and translations stay client-side,
+  because the server cannot answer those.
+
+## 0.2.5
+
+### Patch Changes
+
+- The delivery contract belongs to the platform, not to Studio.
+  
+  `DeliveryProvider` lived in `@tangen/studio-compiler`, which meant
+  `packages/api` imported Studio code on the one path that exists to keep
+  working when Studio is disabled. The contract now lives in `@tangen/types`,
+  imported by the platform delivery route, by the store that resolves a backend,
+  and restated by `ctx.delivery`.
+  
+  Types only, deliberately: a value exported there reaches the public surface of
+  `@tangen/cms`, and a site developer has no use for a delivery backend. Core's
+  own backends live beside their resolver in the API; `@tangen/studio-compiler`
+  keeps its key-value one, and it retires with Studio.
+- Forms refuses a content write whose `form` field points at a form that does not exist.
+  
+  A page could publish a reference to a deleted or renamed form and the only
+  sign was an empty section on the live site. The field type could not catch it:
+  `SiteFieldValidate` receives a value and nothing else, so an existence check
+  was impossible there, and `ContentHookCtx` carried no query access either.
+  
+  `ContentHookCtx.ext` is the new seam, bound per extension in the hook runner
+  the way filters and contributions are already lent their own ctx. It is a
+  getter rather than a value, because hooks run on every content write and
+  building a ctx is not free; an extension that only reads `nextData` pays
+  nothing. It is absent for site hooks and on a host that has not wired
+  extensions, which a hook reads as "cannot verify" and proceeds.
+  
+  Forms walks the type's own definition alongside the values, so a `form` field
+  is found inside a component block, a repeater row, or a block within a block,
+  and asks one question of the database only when the walk found a reference.
+  It fails open on a missing ctx, types or db: a check that refuses writes
+  because it could not run is worse than the gap it closes.
+  
+  The extension manifest moves to 0.3.0 and declares `hooks:content`. Because a
+  new REQUIRED grant is not in what an existing installation recorded, every
+  workspace with Forms installed must run `tangen extension upgrade forms` and
+  approve it; until then the check does not run.
+- Link field: a path link may be a same-page anchor, and a field that offers link text now requires it to publish.
+  
+  `#plans` typed into the path box used to store as `/` and lose the anchor
+  entirely. A path link's `path` is now optional, so a value of
+  `{ type: 'path', anchor: 'plans' }` is a legitimate same-page link whose href
+  is `#plans` rather than `/#plans`. A path and its postfix in one value is
+  refused by name instead of silently dropped, which `UrlIssue.reason` reports
+  as the new `'postfix'` case.
+  
+  Five defects went with it: an unset path link counted as a link, so `required`
+  could not answer it; the stored-form guard in the link loader read "has a
+  string path" where it meant "has no href", so a resolved path link read back
+  as null; and the admin's path box was bound to the stored value, so the `#`
+  vanished on the first keystroke.
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+- Updated dependencies
+  - @tangen/types@0.6.0
+  - @tangen/studio-compiler@0.1.3
+  - @tangen/schema@0.2.2
+  - @tangen/db@0.1.58
+  - @tangen/graphql@0.1.29
+  - @tangen/knowledge@0.1.28
+  - @tangen/logging@0.0.28
+  - @tangen/mcp@0.1.28
+  - @tangen/porter@0.1.7
+
 ## 0.2.4
 
 ### Patch Changes

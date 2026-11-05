@@ -1,39 +1,33 @@
 /**
  * File Name: draft-changes.ts
- * Purpose: Single source of truth for "does this published entry have unpublished
- *          draft changes?" — comparing live field values against the
- *          published_values snapshot. Both the content list and the object
- *          editor use this so the marker never disagrees between the two.
+ * Purpose: Whether SAVED TRANSLATIONS are ahead of the publish-time snapshot.
+ *          Nothing else: the question "does this published entry have
+ *          unpublished draft changes?" is the SERVER's, answered by
+ *          `computeHasDraftChanges`, and both the content list and the object
+ *          editor read that one answer.
  *
  * Author: Raghunath J
  * License: MIT
  *
- * Dependencies/Notes: normalizes representation differences that are NOT edits —
- *          NUMERIC fields (API sends numbers, snapshot holds strings),
- *          relation/media (live may be expanded to objects, snapshot holds ids),
- *          and key order (canonical compare).
+ * Dependencies/Notes: this file used to answer the whole question client-side
+ *          by comparing the object the API returned against published_values
+ *          field by field, and it could not: a read RESOLVES before it
+ *          answers (a link's `url` becomes a derived `href`; media and
+ *          relations expand from ids to objects) while the snapshot holds the
+ *          authored form. Per-field normalization covered a top-level
+ *          relation or media field and nothing else - a link had no case, and
+ *          nothing descended into a `component` - so any link inside a block
+ *          read as an edit and every page carrying one showed "Changes in
+ *          draft" forever, while the list showed none.
+ *
+ *          The lesson is the one the header used to claim and not deliver:
+ *          ONE implementation, and it belongs where the raw row is, because
+ *          only there are both sides the same shape.
+ *
+ *          Translations stay here because both sides of that compare are
+ *          already the same shape, and because the update route does not load
+ *          the live i18n map to answer it.
  */
-
-const NUMERIC_FIELD_TYPES = new Set(['number', 'currency', 'rating'])
-
-/** Reduce a relation/media value (possibly expanded to an object) to its id. */
-function toId(v: unknown): unknown {
-  if (v && typeof v === 'object' && !Array.isArray(v)) return (v as { id?: unknown }).id ?? v
-  return v
-}
-
-/** Normalize a field value for draft-vs-published comparison per field type. */
-export function normFieldValue(fieldType: string | undefined, v: unknown): unknown {
-  if (v == null) return null
-  if (fieldType && NUMERIC_FIELD_TYPES.has(fieldType)) {
-    if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v)
-    return v
-  }
-  if (fieldType === 'relation' || fieldType === 'media') {
-    return Array.isArray(v) ? v.map(toId) : toId(v)
-  }
-  return v
-}
 
 /** Canonical JSON equality — keys sorted recursively, undefined dropped. */
 export function canonicalEqual(a: unknown, b: unknown): boolean {
@@ -50,11 +44,6 @@ export function canonicalEqual(a: unknown, b: unknown): boolean {
     return v
   }
   return JSON.stringify(norm(a)) === JSON.stringify(norm(b))
-}
-
-/** True when a field's live value differs from its snapshot value (type-aware). */
-export function fieldValueChanged(fieldType: string | undefined, live: unknown, snap: unknown): boolean {
-  return !canonicalEqual(normFieldValue(fieldType, live), normFieldValue(fieldType, snap))
 }
 
 /**

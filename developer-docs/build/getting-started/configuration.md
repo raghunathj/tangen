@@ -45,10 +45,13 @@ FRONTEND_URL=https://example.com
 ADMIN_URL=https://admin.example.com
 ```
 
-```ts app/tangen.config.ts  (values every deployment shares)
-server: { cors: { origins: ['https://example.com'] } },
-frontend: { previewUrl: 'https://example.com/preview?id={id}' },
-```
+`FRONTEND_PREVIEW_URL` is the preview route, and it defaults to
+`<FRONTEND_URL>/preview?id={id}&type={type}` when it is not set.
+
+> The URLs above are deployment variables, not `tangen.config.ts` keys.
+> `TangenConfig` accepts `project`, `name`, `workspaceId`, `schema`, `realtime`,
+> `admin`, `extensions`, `apps` and `site` - a `server:` or `frontend:` block
+> there does not compile.
 
 There are exactly three roles - `development`, `staging`, `production` - and
 each is a deployment of its own. Nothing on a request or a command selects

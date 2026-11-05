@@ -1,5 +1,19 @@
 # @tangen/ui
 
+## 0.2.11
+
+No changes in this release.
+
+## 0.2.10
+
+No changes in this release.
+
+## 0.2.9
+
+### Patch Changes
+
+- @tangen/icons@0.1.3
+
 ## 0.2.8
 
 ### Patch Changes

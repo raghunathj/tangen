@@ -33,6 +33,7 @@ import { runHookJob, runNotificationJob, deliverFormWebhook } from './deliver'
 import { queueIdFor, type FormJobData, type FormHookJobData, type FormNotificationJobData, type FormWebhookJobData } from './jobs'
 import { purgeExpiredSubmissions } from './retention'
 import { validateFormRef } from './field-type'
+import { collectFormRefs, danglingRefs, danglingMessage } from './ref-integrity'
 import { FORM_DEFINITION_JSON_SCHEMA, FORM_FIELD_TYPES, validateFormDefinition, formAvailability, entryLimitWindowStart } from './contract'
 import type { FormAppSettings, FormField, FormRecord, FormSettings } from './contract'
 
@@ -480,6 +481,48 @@ export default defineExtensionServer({
 
   fieldTypes: {
     form: { validate: (value) => validateFormRef(value) },
+  },
+
+  /**
+   * A content write may not leave a `form` field pointing at a form that is
+   * not there.
+   *
+   * WHY HERE AND NOT IN THE FIELD TYPE: `validateFormRef` is
+   * `(value) => string | null`. It has no workspace, no database and no
+   * schema, so it can only ever check that a slug LOOKS like a slug. The
+   * existence question needs all three, and a content hook lent its own
+   * extension ctx is the only place that has them.
+   *
+   * IT FAILS OPEN, DELIBERATELY. No `ctx.ext`, no `types()`, no `db`, or a
+   * type this workspace does not have: the hook returns and the write
+   * proceeds. A reference check that refuses writes because it could not run
+   * is worse than the gap it closes - it would take the whole workspace down
+   * on a wiring change. The one thing it will not do is pass a reference it
+   * DID read and found dangling.
+   *
+   * IT COSTS ONE QUERY, AND ONLY WHEN THERE IS SOMETHING TO ASK. The walk runs
+   * against values already in memory; the database is touched only if that
+   * walk found a reference, and then once for all of them.
+   */
+  contentHooks: {
+    beforeChange: async (ctx) => {
+      // The extension's own ctx, lent per extension by the hook runner. Absent
+      // in a host that has not wired extensions, which is a "cannot verify".
+      if (!ctx.ext) return
+      const own = await ctx.ext()
+      const def = own.types?.()?.find((t) => t.name === ctx.typeName)
+      if (!def?.fields) return
+      const refs = collectFormRefs(def.fields as never, ctx.nextData as Record<string, unknown>)
+      if (refs.length === 0) return
+
+      const db = own.db
+      if (!db) return
+      const slugs = [...new Set(refs.map((r) => r.slug))]
+      const rows = await (db as any).select({ slug: forms.slug }).from(forms)
+        .where(and(eq(forms.workspaceId, ctx.workspaceId), inArray(forms.slug, slugs)))
+      const bad = danglingRefs(refs, new Set((rows as Array<{ slug: string }>).map((r) => r.slug)))
+      if (bad.length > 0) throw new Error(danglingMessage(bad))
+    },
   },
 
   // The after-work of a submission, as three durable-queue tasks that run

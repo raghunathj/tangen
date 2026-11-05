@@ -302,6 +302,13 @@ export function MediaPicker({ open, onOpenChange, onSelect, mimeTypes, accept, c
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length) return
+    // What to select once the grid has refreshed. Uploading through a FIELD
+    // is a choice already made - nobody opens this picker, uploads a file and
+    // then wants a different one - so the upload selects it and the only
+    // click left is Choose. Several files select the LAST, which is the one
+    // the grid scrolls to and the one a person watching the progress bar is
+    // looking at.
+    let justUploaded: string | null = null
     setUploading(true)
     try {
       for (const file of Array.from(files)) {
@@ -314,16 +321,47 @@ export function MediaPicker({ open, onOpenChange, onSelect, mimeTypes, accept, c
         if (folderId) form.append('folderId', folderId)
         const apiHost = apiOrigin()
         const token = useAuthStore.getState().accessToken
-        await uploadWithProgress(`${apiHost}/api/v1/media/upload`, form, {
+        const res = await uploadWithProgress<{ asset?: { id?: string } }>(`${apiHost}/api/v1/media/upload`, form, {
           token,
           onProgress: (p) => setUploadPercent(p.percent),
         })
+        if (res?.asset?.id) justUploaded = res.asset.id
       }
       await fetchAssets()
+      // After the refresh, or the grid would not hold it yet - the same order
+      // `onKept` uses for an AI draft that was added to the library.
+      if (justUploaded) setSelectedId(justUploaded)
     } finally {
       setUploading(false)
       setUploadPercent(null)
     }
+  }
+
+  // Drag and drop onto the whole dialog, not a strip at the bottom: the
+  // cursor already carries the file when the picker opens, and asking someone
+  // to aim at a dropzone they have to find first is the slow version of a
+  // file input.
+  //
+  // `dragDepth` counts enter/leave rather than toggling a boolean, because
+  // dragging across a child element fires `dragleave` on the parent - a
+  // boolean flickers the highlight off every time the cursor crosses a tile.
+  const dragDepth = useRef(0)
+  const [dragging, setDragging] = useState(false)
+  function onDragEnter(e: React.DragEvent) {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return
+    dragDepth.current += 1
+    setDragging(true)
+  }
+  function onDragLeave() {
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragging(false)
+  }
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    dragDepth.current = 0
+    setDragging(false)
+    if (uploading) return
+    void handleUpload(e.dataTransfer.files)
   }
 
   function handleConfirm() {
@@ -352,7 +390,19 @@ export function MediaPicker({ open, onOpenChange, onSelect, mimeTypes, accept, c
         onPointerDownOutside={(e) => { if (genOpen) e.preventDefault() }}
         onInteractOutside={(e) => { if (genOpen) e.preventDefault() }}
         onEscapeKeyDown={(e) => { if (genOpen) e.preventDefault() }}
+        onDragEnter={onDragEnter}
+        onDragOver={(e) => { if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault() }}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
       >
+        {dragging && (
+          // `pointer-events-none` so the overlay never eats the drop itself -
+          // the handlers live on the dialog, and an overlay that captured the
+          // event would fire `dragleave` the instant it appeared.
+          <div className="absolute inset-0 z-50 pointer-events-none rounded-xl border-2 border-dashed border-accent bg-accent-muted/80 flex items-center justify-center">
+            <p className="text-sm font-medium text-accent-fg">Drop to upload</p>
+          </div>
+        )}
         <DialogHeader className="pr-3">
           <div className="flex items-center justify-between">
             <DialogTitle>Choose media</DialogTitle>

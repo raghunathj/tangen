@@ -64,6 +64,9 @@ function destinationIssue(kind: LinkKind, text: string): string | null {
     if (issue?.reason === 'absolute') {
       return issue.scheme ? 'That is a full URL. Switch to External URL.' : 'A path starts with one slash, like /about.'
     }
+    // The anchor has its own box. Said here because the path box used to take
+    // it, drop it, and report nothing - `/solutions#team` became /solutions.
+    if (issue?.reason === 'postfix') return 'Put the anchor in the Postfix box below, or leave the path empty to stay on this page.'
     if (issue) return 'Enter a path on this site, like /about.'
     return null
   }
@@ -176,13 +179,25 @@ function LinkDestinationEditor({ value, onChange, view, workspaceId }: {
   // A label typed before the destination exists waits here and lands with it.
   const [labelDraft, setLabelDraft] = useState(() => authored?.label ?? '')
   const [postfixDraft, setPostfixDraft] = useState(() => postfixOf(value))
+  // The path box needs a draft for the same reason the two above do, and it
+  // shows up the moment an ANCHOR is typed into it: `setPath` moves a `#...`
+  // out of the path and into its own field, so a box bound to the stored path
+  // loses the `#` on the first keystroke. `#plans` then became `plans`, stored
+  // as the route `/plans` - a different destination, silently. A path has no
+  // such problem, which is why this was invisible until same-page links.
+  const [pathDraft, setPathDraft] = useState(() => {
+    const a = authoredLink(value)
+    return a?.type === 'path' ? (a.path ?? '') : ''
+  })
   // Said on BLUR, not on every keystroke: typing "example.com" passes through
   // "e", "ex", "exa", each of which has no scheme and would otherwise flash
   // "that is a path on this site" into the author's face while they type.
   // Once they have been told, it updates live as they fix it.
   const [touched, setTouched] = useState(false)
   const typedUrl = authored?.type === 'external' ? authored.url : ''
-  const typedPath = authored?.type === 'path' ? authored.path : ''
+  // `?? ''` because a SAME-PAGE link has no path at all, and an undefined
+  // value turns a controlled input into an uncontrolled one.
+  const typedPath = authored?.type === 'path' ? (authored.path ?? '') : ''
   const urlIssue = touched ? destinationIssue('external', typedUrl) : null
   const pathIssue = touched ? destinationIssue('path', typedPath) : null
 
@@ -192,14 +207,23 @@ function LinkDestinationEditor({ value, onChange, view, workspaceId }: {
     <div className="space-y-4">
       {view.withLabel && (
         <div>
-          <span className="mb-1 block text-ui-xs font-medium text-fg-muted">Label</span>
+          <span className="mb-1 block text-ui-xs font-medium text-fg-muted">
+            Label
+            {/* A field that offers words needs them to publish, so the editor
+                says so here rather than at the publish gate. */}
+            <span className="ml-0.5 text-danger-fg" aria-hidden>*</span>
+          </span>
           <Input
             value={labelDraft}
             onChange={(e) => { const v = e.currentTarget.value; setLabelDraft(v); if (authored) onChange(setLabel(value, v)) }}
             placeholder="Learn more"
             maxLength={200}
-            aria-label="Link label"
+            aria-label="Link label (required)"
+            aria-required
+            aria-invalid={authored && !labelDraft.trim() ? true : undefined}
           />
+          {authored && !labelDraft.trim() &&
+            <p className="mt-1 text-ui-xs text-fg-subtle">The words that are clicked. Needed to publish.</p>}
         </div>
       )}
 
@@ -238,17 +262,33 @@ function LinkDestinationEditor({ value, onChange, view, workspaceId }: {
         <div>
           <span className="mb-1 block text-ui-xs font-medium text-fg-muted">Path</span>
           <Input
-            value={typedPath}
-            onChange={(e) => onChange(withLabel(setPath(value, e.currentTarget.value)))}
-            onBlur={() => setTouched(true)}
-            placeholder="/about"
+            value={pathDraft}
+            onChange={(e) => {
+              const v = e.currentTarget.value
+              setPathDraft(v)
+              const next = withLabel(setPath(value, v))
+              // An anchor typed here lands in the Postfix box, so that box has
+              // to be told. Without this the anchor was stored and shown
+              // nowhere, which reads as the typing having been thrown away.
+              setPostfixDraft(postfixOf(next))
+              onChange(next)
+            }}
+            onBlur={() => {
+              setTouched(true)
+              // Snap to the stored split - the path here, its postfix in the
+              // box below - so the move the author just triggered is visible
+              // rather than something they discover on reload.
+              const a = authoredLink(value)
+              setPathDraft(a?.type === 'path' ? (a.path ?? '') : '')
+            }}
+            placeholder="/about, or #section for this page"
             spellCheck={false}
             aria-label="Path"
             aria-invalid={pathIssue ? true : undefined}
           />
           {pathIssue
             ? <p className="mt-1 text-ui-xs text-danger-fg">{pathIssue}</p>
-            : <p className="mt-1 text-ui-xs text-fg-subtle">A route on this site, handed to your app as you type it. Use this for a page that is not an entry here.</p>}
+            : <p className="mt-1 text-ui-xs text-fg-subtle">A route on this site, handed to your app as you type it. Use this for a page that is not an entry here. Leave it empty and set an anchor below to scroll to a section of the current page.</p>}
         </div>
       ) : (
         <div>
@@ -277,7 +317,7 @@ function LinkDestinationEditor({ value, onChange, view, workspaceId }: {
             className="font-mono text-ui-xs"
             aria-label="Postfix"
           />
-          <p className="mt-1 text-ui-xs text-fg-subtle">Appended after the destination: query parameters, an anchor, or both. A path belongs in the URL.</p>
+          <p className="mt-1 text-ui-xs text-fg-subtle">Appended after the destination: query parameters, an anchor, or both. A path belongs in the URL. With no destination this scrolls to a section of the current page.</p>
         </div>
       )}
 

@@ -148,6 +148,29 @@ export interface ContentHookCtx<T = Record<string, unknown>> {
    * a site hook has none.
    */
   settings?: { get<T extends Record<string, unknown> = Record<string, unknown>>(): Promise<T> }
+  /**
+   * The hook's OWN extension's server ctx, lazily built - `types()`, `db`,
+   * `tangen`, `store` and the rest, under that extension's authority and this
+   * workspace.
+   *
+   * A GETTER, NOT A VALUE: content hooks run on EVERY content write and
+   * building a ctx is not free, so nothing is built unless a hook asks. An
+   * extension that only reads `nextData` pays nothing.
+   *
+   * WHY IT EXISTS: the hook ctx is SHARED across every extension's hooks, so
+   * anything extension-specific is bound per extension in the runner - the
+   * same reason `sign` and `settings` are. Without it a hook could read the
+   * values being written and nothing else: not the type's own field
+   * definitions, not its extension's tables. That made a reference-integrity
+   * check - "is the thing this field points at still there" - impossible to
+   * write anywhere, because a field type's `validate` is
+   * `(value) => string | null` with no context at all.
+   *
+   * Absent for SITE hooks (they belong to no extension) and in a host that has
+   * not wired extensions. Read absence as "cannot verify" and skip the check
+   * rather than refusing the write.
+   */
+  ext?: () => Promise<import('./extension').ExtensionServerCtx>
   /** Typed access to workspace-level globals */
   globals: GlobalsStore
 }

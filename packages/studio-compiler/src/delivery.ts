@@ -173,15 +173,13 @@ export interface PageInput {
 /**
  * Storage behind the delivery layer.
  *
- * Three methods on purpose: a filesystem directory, an S3 bucket, an R2
- * bucket and an in-memory map can all satisfy this, which is what keeps
- * self-hosting a first-class case rather than a degraded one.
+ * The contract now lives in @tangen/types, because it is the PLATFORM's: the
+ * delivery route reads artifacts through it and must keep doing so when this
+ * package is gone. Re-exported here so every existing consumer, including the
+ * Studio extension, keeps compiling against the name it already imports.
  */
-export interface DeliveryProvider {
-  read(path: string): Promise<string | null>
-  write(path: string, body: string): Promise<void>
-  list(prefix: string): Promise<string[]>
-}
+export type { DeliveryProvider } from '@tangen/types'
+import type { DeliveryProvider } from '@tangen/types'
 
 /** Authoring-only keys that must never reach a visitor. */
 // `_studio` is NOT authoring: it holds the block's classes and breakpoint

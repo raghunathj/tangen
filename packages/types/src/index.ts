@@ -81,3 +81,4 @@ export { RICHTEXT_CONTRIBUTE_GRANT, RICHTEXT_NODES_VERSION, validateRichtextNode
 export { LINK_KINDS, DEFAULT_LINK_SCHEMES, DENIED_LINK_SCHEMES, isLinkValue, isResolvedLink, normalizeAnchor, normalizeQuery, normalizeLinkValue, urlScheme, externalUrlIssue, externalHref, normalizePath, pathLinkIssue, pathHref, type LinkKind, type LinkQuery, type LinkValue, type InternalLinkValue, type ExternalLinkValue, type PathLinkValue, type ResolvedLink, type ResolvedInternalLink, type ResolvedExternalLink, type ResolvedPathLink, type UrlIssue, type LinkExtras, normalizeLinkLabel, LINK_LABEL_MAX, parseLinkPostfix, formatLinkPostfix } from './link'
 export { EXTENSION_CONFIG_KEYS, configuredExtensions, extensionConfigNotice, type ExtensionConfigKey, type ConfiguredExtensions } from './extension-config'
 export * from './kernel'
+export type { DeliveryProvider, KeyValueStore } from './delivery'

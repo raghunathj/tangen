@@ -22,7 +22,7 @@ import { settings } from "@tangen/types";
 export default defineExtension({
   id: "forms",
   name: "Forms",
-  version: "0.2.0",
+  version: "0.3.0",
   // Provenance, shown on Settings > Extensions.
   author: "Tangen",
   homepage: "https://tangen.app",
@@ -63,6 +63,7 @@ export default defineExtension({
       { grant: "events:emit", reason: "Announces form.submitted for flows and webhooks." },
       { grant: "mail:send", reason: "Sends notification mails through the workspace mailer." },
       { grant: "content:read", reason: "Fills select options from published content when a field asks for it." },
+      { grant: "hooks:content", reason: "Refuses a content write whose `form` field points at a form that does not exist, so a page cannot publish an empty form section." },
       { grant: "network:any", reason: "Delivers a form's webhook to the URL the operator typed for it, and verifies captcha tokens with the chosen provider." },
       { grant: "flow:contribute-nodes", reason: "Offers the form.submitted trigger to the Flows canvas." },
     ],

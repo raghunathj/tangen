@@ -51,10 +51,19 @@ deployed process with no URL refuses to start. See
 
 ## Server and frontend
 
-```ts tangen.config.ts (the workspace)
-server: { url: 'https://cms.example.com', cors: { origins: ['https://example.com'], credentials: true } },
-frontend: { url: 'https://example.com', previewUrl: 'https://example.com/preview?id={id}' },
+The URLs are **deployment** configuration, so they are environment variables rather than
+code. A machine knows its own addresses; a repository does not.
+
+```bash
+SERVER_URL=https://cms.example.com
+FRONTEND_URL=https://example.com
+ADMIN_URL=https://admin.example.com
+FRONTEND_PREVIEW_URL=https://example.com/preview?id={id}   # optional, see Live preview
 ```
+
+> `TangenConfig` accepts `project`, `name`, `workspaceId`, `schema`, `realtime`, `admin`,
+> `extensions`, `apps` and `site`. A `server:` or `frontend:` block in `tangen.config.ts` is
+> not one of them and does not compile.
 
 | key | type | required | means |
 |---|---|---|---|
