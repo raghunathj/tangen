@@ -39,7 +39,13 @@ export interface DomainEventInput {
 
 export type RecordedEvent = TangenEvent & { recorded: true }
 
-const LEGACY_SOURCES = new Set(['admin', 'rest', 'graphql', 'sdk'])
+/**
+ * The sources a recorded event may carry. `canvas` joined them on
+ * 2026-11-12 (decision ED). An execution source outside this set falls back
+ * to the actor's default below, which is how a new surface silently became
+ * `admin` before it was listed.
+ */
+const LEGACY_SOURCES = new Set(['admin', 'rest', 'graphql', 'sdk', 'canvas'])
 
 /** The attribution a row stores: the id when the actor has one, and always the kind. */
 export function attributionOf(writer: Writer | null | undefined): { id: string | null; kind: ActorKind } {
@@ -64,7 +70,7 @@ export function buildEvent(input: DomainEventInput, writer: Writer | null | unde
     timestamp: new Date().toISOString(),
     actorId,
     actorType: isRecordedKind(kind) ? kind : null,
-    source: source as 'admin' | 'rest' | 'graphql' | 'sdk',
+    source: source as 'admin' | 'rest' | 'graphql' | 'sdk' | 'canvas',
     ...(input.origin ? { origin: input.origin } : {}),
     version: 2,
     actor: { kind, id: actorId ?? (kind === 'system' ? (actor?.reason ?? null) : (actor?.identity.id ?? null)) },

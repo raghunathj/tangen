@@ -1,6 +1,6 @@
 
 
-import { useState, useMemo, lazy, Suspense } from 'react'
+import { useState, useMemo, useContext, createContext, lazy, Suspense } from 'react'
 import { isLocalizableFieldType } from '@tangen/types'
 import { useParams } from 'react-router-dom'
 import { ConfirmTrash } from './confirm-trash'
@@ -53,12 +53,29 @@ function buildEmptyItem(fields: SubField[]): RepeaterItem {
   return item
 }
 
-function buildPreview(item: RepeaterItem, fields: SubField[]): string {
+/**
+ * The values of the container a repeater is rendered INSIDE, so a row's
+ * visibility rule can name a field that lives on the block rather than on the
+ * row.
+ *
+ * A context rather than a prop because the path from a block to its nested
+ * repeater runs through `SubFieldControl`, which is handed a field and a
+ * value and deliberately knows nothing about the block around it. Threading
+ * the block through would have put a parameter nothing else wants into four
+ * components to reach the fifth.
+ *
+ * Unset at the top level, where a repeater's container is the entry itself:
+ * nothing provides it there, so a rule naming a type field still resolves to
+ * undefined and the field stays hidden, exactly as before.
+ */
+export const ContainerValues = createContext<Record<string, unknown> | undefined>(undefined)
+
+function buildPreview(item: RepeaterItem, fields: SubField[], parent?: Record<string, unknown>): string {
   const SKIP = new Set(['richtext', 'media', 'relation', 'component', 'repeater'])
   const parts: string[] = []
   // Hidden by its own rule means out of the preview too, or a collapsed row
   // names a value that is no longer in effect.
-  for (const f of visibleSubFields(fields, item)) {
+  for (const f of visibleSubFields(fields, item, parent)) {
     if (parts.length >= 3) break
     if (SKIP.has(f.fieldType)) continue
     const raw = item[f.name]
@@ -235,7 +252,11 @@ interface RowCardProps {
 }
 
 function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onChange, onRemove, onMoveUp, onMoveDown, localeCtx, expanded, onToggle }: RowCardProps) {
-  const preview = expanded ? '' : buildPreview(item, fields)
+  // The block this row sits in, when there is one. A rule naming a field the
+  // row does not carry reads it from here - `version` on the block deciding
+  // whether a row's picture and film are drawn at all.
+  const parentValues = useContext(ContainerValues)
+  const preview = expanded ? '' : buildPreview(item, fields, parentValues)
   // A row honours `group` the way a block card does, so one declaration reads
   // the same whichever container it sits in. A row that declares none has a
   // single group, so `activeTabs.length > 1` is false and nothing changes for
@@ -244,7 +265,7 @@ function RowCard({ item, fields, index, total, isDragging, dragHandleProps, onCh
   // Hidden by its own rule means not drawn here either, on this row's values -
   // the validator skips the same field, so drawing it would ask for a branch
   // the author did not choose and mark it required.
-  const shown = useMemo(() => visibleSubFields(fields, item), [fields, item])
+  const shown = useMemo(() => visibleSubFields(fields, item, parentValues), [fields, item, parentValues])
   const activeTabs = useMemo(() => activeSubFieldTabs(shown), [shown])
   const inGroup = (g: string) => shown.filter((f) => subFieldGroup(f) === g)
   // A required field left empty decides which tab OPENS. Unlike a block card

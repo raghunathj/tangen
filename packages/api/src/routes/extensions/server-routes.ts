@@ -21,11 +21,12 @@ import { getExtensionAdminRoutes, getExtensionManifest, extensionUiBundlePath } 
 import { serveExtensionUiBundle } from './ui-manifest'
 import { serveExtensionSettings } from './settings'
 import { routesAllowed } from '../../services/extension-server'
-import { matchAdminRoute, extensionWiringDeps, makeActAsRole, makeCanWriteLocale } from '../../services/extension-server'
+import { matchAdminRoute, extensionWiringDeps, makeActAsRole, makeCanWriteLocale, bindExtensionCtx } from '../../services/extension-server'
+import { getTrustedProxy } from '../../lib/client-ip'
+import { requestPublicOrigin } from '../../lib/public-origin'
 import { projectLocalization } from '../../services/i18n'
 import { requestIdFor } from '../../lib/internal-error'
 import { REQUEST_ID_HEADER } from '../../gateway/request-context'
-import { bindExtensionCtx } from '../../services/extension-server'
 import { evaluateAdminAccess } from '../../kernel/admin-access'
 import { actorFromContext } from '../../kernel/actor'
 
@@ -105,7 +106,15 @@ async function dispatch(ctx: any, method: 'GET' | 'POST' | 'PATCH' | 'DELETE') {
 
   // K7: the extension's ctx is bound to THIS request's execution - ctx.tangen
   // does what the member may, never more (invariant 8).
-  const handlerCtx = bindExtensionCtx(await deps.buildCtx(extensionId, workspaceId), ctx.exec ?? null)
+  // The origin the member reached us on, for an extension that must build an
+  // absolute link back (the Forms share dialog). Derived here rather than
+  // handed over as headers: a member route's Authorization header is the
+  // member's own session, which an extension may not see.
+  const handlerCtx = bindExtensionCtx(
+    await deps.buildCtx(extensionId, workspaceId),
+    ctx.exec ?? null,
+    requestPublicOrigin(ctx.request, getTrustedProxy()),
+  )
   const can = (capability: string): boolean => {
     try { requireCapability({ permissions: ctx.permissions, memberId }, capability as never); return true }
     catch { return false }

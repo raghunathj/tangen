@@ -12,10 +12,11 @@
  *   @tangen/types form-logic.
  */
 import type { FormField, FormSettings, FormStep } from './types'
+import { consentText } from './consent'
 
 export const FORM_FIELD_TYPES = [
   'text', 'textarea', 'email', 'phone', 'number', 'date',
-  'select', 'multiselect', 'radio', 'checkbox', 'file', 'hidden',
+  'select', 'multiselect', 'radio', 'checkbox', 'file', 'hidden', 'consent',
   // Presentational / layout fields (no submission value):
   'html', 'image',
   // Interaction field — the submit control:
@@ -103,7 +104,7 @@ export const FORM_DEFINITION_JSON_SCHEMA: Record<string, any> = {
           stepId: { type: 'string' },
           width: { type: 'string', enum: ['full', 'half'] },
           className: { type: 'string', description: 'Custom CSS classes on the field wrapper' },
-          content: { type: 'string', description: "Presentational HTML content (type 'html')" },
+          content: { type: 'string', description: "Type 'html': the block's content. Type 'consent': the copy beside the tickbox; links and inline formatting only" },
           imageSrc: { type: 'string', description: "Image URL (type 'image')" },
         },
         required: ['id', 'type', 'name', 'label'],
@@ -272,6 +273,12 @@ export function validateFormDefinition(def: unknown): { errors: string[] } {
     else seenNames.add(f.name)
     if (!f.label) errors.push(`${where}: label is required`)
     if (f.stepId && !stepIds.has(f.stepId)) errors.push(`${where}: unknown stepId "${f.stepId}"`)
+    // A consent field's copy IS its visible text. Without it the visitor is
+    // asked to tick an unlabelled box, so an empty one is a definition error
+    // rather than something to render as best we can.
+    if (f.type === 'consent' && (typeof f.content !== 'string' || consentText(f.content) === '')) {
+      errors.push(`${where}: a consent field needs its content - the text beside the tickbox`)
+    }
     if (f.showIf) validateShowIf(f.showIf, where)
   }
 

@@ -363,9 +363,19 @@ export function activeSubFieldTabs<T extends { group?: string }>(
 export function visibleSubFields<T extends { name: string; admin?: { conditionalVisibility?: unknown }; config?: unknown }>(
   fields: readonly T[],
   values: Record<string, unknown>,
+  /**
+   * The CONTAINER's values, read when a rule names a field the row does not
+   * have - a repeater row conditioning on its block's own select, which is
+   * the case that could not be expressed at all before.
+   *
+   * Absent from `values` is the test, not empty: a row that HAS the field
+   * keeps answering from itself, so nothing that worked before changes
+   * meaning, and a row field can still deliberately shadow one on the block.
+   */
+  parentValues?: Record<string, unknown>,
 ): T[] {
   return fields.filter((f) => {
     const cv = subFieldVisibility(f as Parameters<typeof subFieldVisibility>[0])
-    return !cv || evalVisibility(cv, (fn) => values[fn])
+    return !cv || evalVisibility(cv, (fn) => (fn in values ? values[fn] : parentValues?.[fn]))
   })
 }

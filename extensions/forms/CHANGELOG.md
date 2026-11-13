@@ -1,5 +1,75 @@
 # @tangen/ext-forms
 
+## 0.2.10
+
+### Patch Changes
+
+- c60a390: **The Share sheet says when a form is a draft.** The links it hands out
+  answer 404 for an unpublished form, and the sheet went on presenting them as
+  if they worked: an operator could copy one and mail it out. The embed payload
+  now carries `isLive`, and a draft gets the same warning an API-key-only form
+  gets, above the links rather than instead of them, since a snippet is worth
+  pasting into a page before the form goes live.
+
+## 0.2.9
+
+### Patch Changes
+
+- 09ba9e5: Two fixes to the public embed.
+  
+  **An unpublished form is no longer readable at all.** The embed page decided
+  availability from `settings.schedule` alone, so it rendered every field of a
+  form nobody had published, and ignored the entry limit too. Now a form that
+  is not live answers every public read - styled embed, unstyled embed, schema
+  route and its keyed twin - with the same 404 a slug nobody owns gets: a draft
+  is not a closed form, it is not something a visitor is entitled to know
+  exists. A published form outside its schedule or at its entry limit answers
+  one shared `availability` and returns its message with no fields, since
+  listing every question while refusing is a refusal in name only.
+  
+  **The captcha widget is drawn again for Turnstile and hCaptcha.** The runtime
+  waited for `ready(cb)` before rendering. `grecaptcha.ready` calls back;
+  `turnstile.ready` does not - it is for code running before api.js and warns
+  when called after - so the widget was never rendered, the submit asked
+  `getResponse` about a widget that did not exist, and the console read
+  "[Cloudflare Turnstile] Could not find widget" while the visitor saw an empty
+  space. The wait is now per provider and raced with a timeout, and a widget
+  that never drew is never asked about.
+
+## 0.2.8
+
+### Patch Changes
+
+- 1832574: A `consent` field: a tickbox whose wording is authored copy with links in it,
+  so a form can ask someone to agree to a privacy policy they can actually open.
+  Its copy is narrowed to links and inline formatting wherever it is rendered -
+  the embed, the builder preview and the schema route a headless site reads - and
+  a link may only address this site, a fragment, `https`, `http`, `mailto` or
+  `tel`. It is never pre-ticked, a saved draft does not restore a tick, and
+  `required` means ticked: a submission posting `false` or `"no"` is refused
+  rather than recorded as agreement.
+
+## 0.2.7
+
+### Patch Changes
+
+- 94f3d8d: Forms can hold its own settings again, and a manifest cannot make that mistake twice.
+  
+  `@tangen/ext-forms` declares four captcha settings and a sender override, and core keeps a typed settings block in the extension's OWN store. The manifest never asked for `store:own`, so the kernel's gate deleted `ctx.store`, the Form Settings page answered `undefined is not an object (evaluating 'deps.store.get')`, and a captcha could not be configured at all: nothing else reads those values.
+  
+  Three changes, smallest first. The grant is added to the Forms manifest. `validateExtensionManifest` now refuses any manifest that declares settings fields without `store:own`, naming the grant, the same shape as the existing checks for admin slots and rich text nodes. And `createExtensionSettings` refuses with `EXTENSION_SETTINGS_UNAVAILABLE`, naming the extension and the grant, instead of reading a property off nothing - for an installation made before the validator existed.
+  
+  **The captcha was only half built, and the half that shipped refused every submission.** The server verified `_captchaToken` and the schema route published the site key, but the embed runtime never loaded a provider script, never drew a widget and never sent a token - so turning a captcha on made every submission through the official embed fail with "Captcha token required". The runtime now renders reCAPTCHA v2, reCAPTCHA v3 (invisible, executed at submit), hCaptcha and Turnstile from the site key in its payload, sends the token, and resets the widget after any refusal because a token is single use. The embed page carries the public half of the setting, which it did not before.
+  
+  **Keyed submits are exempt from the captcha.** A captcha asks whether a person is present and an API key has answered something stronger, so `keyed/:id/submit` no longer requires a token - otherwise enabling a captcha broke every server-to-server integration in the workspace, which have no browser to solve one. A keyed caller that sends a token anyway still has it verified.
+  
+  `docs/forms.md` now says how a headless client does the same: the provider scripts, where the token comes from, and the single-use reset.
+  
+  The npm package takes a patch, because `@tangen/ext-forms` sits on the platform's `major.minor` line with cms, api, admin and cli and a lone minor would break it. The EXTENSION manifest version is its own number and goes 0.3.0 to 0.4.0, which is what makes `tangen extension upgrade forms` re-run the permission review - an installation made before this release holds the old grant set and needs that upgrade to pick up `store:own`.
+- Updated dependencies [94f3d8d]
+- Updated dependencies [0e97fb4]
+  - @tangen/types@0.6.1
+
 ## 0.2.6
 
 ### Patch Changes

@@ -200,7 +200,17 @@ function internalSpecifierRewrite(adminDir: string) {
         changed = true
         return `${q}/@fs${abs}${q}`
       })
-      return changed ? out : undefined
+      // `{ mappings: '' }` rather than a bare string. That is the bundler's
+      // documented way to say "this transform does not move code, so there is
+      // no sourcemap to chain". A bare string means "changed, and no map",
+      // and rolldown then warns SOURCEMAP_BROKEN once PER FILE - dozens of
+      // identical lines on every consumer build, loud enough that a build
+      // which succeeded reads as one that failed.
+      //
+      // True here: the rewrite swaps one quoted specifier for another on the
+      // same line and never adds or removes lines, so a line number in a
+      // stack trace still lands where it should.
+      return changed ? { code: out, map: { mappings: '' } } : undefined
     },
   }
 }

@@ -23,6 +23,7 @@ import { RequestError } from '../../lib/errors'
 import { validateApiKey, resolvePlaygroundKey, actorForKey, actorIdForKey, checkExtensionPermission } from '../../lib/api-key-auth'
 import { verifyPlaygroundToken } from '../../lib/playground-token'
 import { clientIp, getTrustedProxy, socketAddressOf } from '../../lib/client-ip'
+import { requestPublicOrigin } from '../../lib/public-origin'
 import { RouteError } from '@tangen/types'
 import { toRequestError } from './server-routes'
 import { getExtensionAdminRoutes, getExtensionManifest, getExtensionServer } from '../../hooks/app-hooks-registry'
@@ -163,7 +164,11 @@ async function dispatch(ctx: any, method: 'GET' | 'POST' | 'PATCH' | 'DELETE') {
 
   const project = ((ctx.workspaceProjects ?? []) as Array<{ workspaceId: string }>).find((p) => p.workspaceId === workspaceId)
   const exec = requestExecution({ request, requestId: requestIdFor(ctx), workspaceId, actor, localization: projectLocalization(project), source: match.route.auth === 'key' ? 'rest' : 'extension' })
-  const handlerCtx = bindExtensionCtx(await deps.buildCtx(extensionId, workspaceId), exec)
+  const handlerCtx = bindExtensionCtx(
+    await deps.buildCtx(extensionId, workspaceId),
+    exec,
+    requestPublicOrigin(request, getTrustedProxy()),
+  )
   const requestId = exec.id
   ctx.set.headers[REQUEST_ID_HEADER.toLowerCase()] ??= requestId
   try {

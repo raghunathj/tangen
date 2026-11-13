@@ -193,9 +193,30 @@ export function extensionWiringDeps(): ExtensionWiringDeps | null {
  * Idempotent per boot (dev reload calls resetExtensionWiring first).
  */
 /** The context bound to one execution (kernel K7): `exec` set, `tangen` a client that does what that execution's actor may. */
-export function bindExtensionCtx<C extends ExtensionServerCtx>(ctx: C, exec: ExecutionContext | null | undefined): C {
+export function bindExtensionCtx<C extends ExtensionServerCtx>(
+  ctx: C,
+  exec: ExecutionContext | null | undefined,
+  /**
+   * The origin the caller reached this deployment on, when there is a request
+   * (`requestPublicOrigin`). It is the FALLBACK for `ctx.publicUrl()`, not a
+   * replacement: `server.url` wins whenever an operator named one.
+   *
+   * Without it an extension on a member route had nothing to build an
+   * absolute link from - that route carries no `url` and no `headers`, by
+   * design, because a member route's Authorization header is the member's own
+   * session and an extension may not see it. So the origin is derived HERE,
+   * once, by code that knows the trusted-proxy policy, rather than by each
+   * extension from headers it should not be handed.
+   */
+  requestOrigin?: string | null,
+): C {
   if (!exec) return ctx
-  return { ...ctx, exec, tangen: ctx.clientFor ? ctx.clientFor(exec) : ctx.tangen }
+  const bound = { ...ctx, exec, tangen: ctx.clientFor ? ctx.clientFor(exec) : ctx.tangen }
+  if (requestOrigin) {
+    const configured = ctx.publicUrl?.()
+    bound.publicUrl = () => (configured && configured.trim() !== '' ? configured : requestOrigin)
+  }
+  return bound
 }
 
 /**

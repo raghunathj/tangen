@@ -10,7 +10,7 @@ import type { ComponentType } from 'react'
 import {
   IconText, IconAlignLeft, IconMail, IconPhone, IconHash, IconCalendar,
   IconSelect, IconListChecks, IconRadioButton, IconCheckbox, IconAttachment, IconEyeOff,
-  IconCode, IconImage, IconCheckCircle,
+  IconCode, IconImage, IconCheckCircle, IconShieldCheck,
 } from '@tangen/icons'
 import type { FormField, FormFieldType } from '../contract'
 
@@ -32,6 +32,7 @@ export const FIELD_TYPE_CONFIGS: FieldTypeConfig[] = [
   { type: 'multiselect', label: 'Multi select', icon: IconListChecks, group: 'Choice' },
   { type: 'radio', label: 'Radio group', icon: IconRadioButton, group: 'Choice' },
   { type: 'checkbox', label: 'Checkbox', icon: IconCheckbox, group: 'Choice' },
+  { type: 'consent', label: 'Consent', icon: IconShieldCheck, group: 'Choice' },
   { type: 'file', label: 'File upload', icon: IconAttachment, group: 'Advanced' },
   { type: 'hidden', label: 'Hidden', icon: IconEyeOff, group: 'Advanced' },
   { type: 'html', label: 'HTML block', icon: IconCode, group: 'Layout' },
@@ -46,6 +47,15 @@ export function fieldTypeConfig(type: FormFieldType): FieldTypeConfig | undefine
 }
 
 export const hasOptions = (type: FormFieldType) => ['select', 'multiselect', 'radio'].includes(type)
+
+/**
+ * The copy a consent field starts with. It is placeholder text an author
+ * replaces, but it is valid markup with a link in it, so the field renders as
+ * the thing it is from the moment it is added - and the definition validator,
+ * which refuses a consent field with no content, is satisfied.
+ */
+export const CONSENT_STARTER_CONTENT =
+  'I agree to the <a href="/privacy" target="_blank">privacy policy</a>'
 
 export function makeField(type: FormFieldType, existing: FormField[]): FormField {
   const config = fieldTypeConfig(type)
@@ -62,5 +72,8 @@ export function makeField(type: FormFieldType, existing: FormField[]): FormField
     required: false,
     width: 'full',
     options: hasOptions(type) ? [{ label: 'Option 1', value: 'option_1' }] : undefined,
+    // A consent box exists to be a condition of submitting, so it starts
+    // required - the one field type where that is the ordinary case.
+    ...(type === 'consent' ? { required: true, content: CONSENT_STARTER_CONTENT } : {}),
   }
 }

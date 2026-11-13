@@ -26,6 +26,7 @@ export interface DeploymentFinding {
   code:
     | ConfigFinding['code']
     | 'LOCAL_MEDIA_PRODUCTION' | 'LOCAL_MEDIA_REPLICAS' | 'LOCAL_DEFAULT_DATABASE' | 'STORAGE_ADAPTER_UNKNOWN'
+    | 'PUBLIC_URL_UNSET'
     | 'DANGLING_GRANT' | 'COARSE_CAPABILITY'
     | 'CONNECTION_UNREADABLE' | 'CONNECTIONS_KEY_DERIVED'
     | 'CONNECTION_PROVIDER_CONFLICT' | 'CONNECTION_DORMANT' | 'CONNECTION_PENDING'
@@ -57,6 +58,38 @@ export function validateProjectDeployment(input: ValidateProjectDeploymentInput)
     const adapter = r.get<string | null>('storage.adapter')
     if (typeof adapter === 'string' && adapter !== '' && !input.knownStorageAdapters.includes(adapter)) {
       push({ severity: 'error', code: 'STORAGE_ADAPTER_UNKNOWN', message: `storage.adapter names '${adapter}', which nothing here provides (known: ${input.knownStorageAdapters.join(', ')}); install and enable the extension whose storage.provider@1 contributes it, or name a core adapter`, workspace: ws, key: 'storage.adapter' })
+    }
+  }
+
+  // A public URL nobody named, outside development. The deployment serves
+  // every page correctly and hands out wrong links: `server.url` is what the
+  // share dialog, an embed script tag and a notification mail are built from,
+  // and its default is a localhost URL in development and NOTHING at all in
+  // staging or production. MEASURED on a real deployment 2026-11-13: with no
+  // SERVER_URL, the Forms share dialog published
+  // `http://localhost/api/v1/ext/forms/...` to be pasted into a website.
+  //
+  // Derived from the registry rather than from a list of keys, so a URL key
+  // added later is covered the day it is added.
+  if (r.role !== 'development') {
+    for (const spec of r.registry.specs.values()) {
+      if (spec.type !== 'url' || spec.secret) continue
+      if (!spec.scopes.includes('deployment')) continue
+      // `deploymentVariables` may be a function of the role; only a plain
+      // list names a variable an operator can be told to set.
+      const vars = spec.deploymentVariables
+      const variable = Array.isArray(vars) ? vars[0] : undefined
+      if (!variable) continue
+      const value = r.get<string | null>(spec.key)
+      if (typeof value === 'string' && value.trim() !== '') continue
+      if (value === null) continue                      // explicitly disabled is a decision
+      push({
+        severity: 'warning',
+        code: 'PUBLIC_URL_UNSET',
+        message: `${spec.key} is not set on this ${r.role} deployment: set ${variable} to the address callers actually use. Until then every absolute link built from it - share dialogs, embed snippets, notification mails - falls back to the request, and to "http://localhost" where there is no request to read.`,
+        workspace: ws,
+        key: spec.key,
+      })
     }
   }
 

@@ -35,6 +35,11 @@ export function EmbedSheet({ open, onOpenChange, formId, formName }: { open: boo
         <SheetBody>
           {!urls ? <Skeleton variant="rows" rows={4} /> : (
             <div className="space-y-4">
+              {!urls.isLive && (
+                <Callout variant="warning" title="This form is a draft">
+                  Every link below answers 404 until you publish it: a form nobody has published is not public at all, not even to someone holding the link. Copy them now if you like, they start working the moment the form goes live.
+                </Callout>
+              )}
               {urls.requireApiKey && (
                 <Callout variant="warning" title="This form requires an API key">
                   The public pages refuse it. Call the keyed endpoints below from your server with a key that grants forms: read and submit.

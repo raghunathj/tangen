@@ -74,6 +74,19 @@ function stable(v: unknown): string {
 }
 
 export function createExtensionSettings(deps: ExtensionSettingsDeps): ExtensionSettingsService {
+  // The store is where settings LIVE, and it is absent exactly when the
+  // extension did not declare `store:own` - the gate deletes it. Say that,
+  // rather than letting the first read fail with "undefined is not an object
+  // (evaluating 'deps.store.get')", which names neither the extension nor
+  // the grant. The manifest validator refuses this combination now, so this
+  // catches an installation made before it did.
+  if (!deps.store || typeof deps.store.get !== 'function') {
+    throw new RequestError(
+      'EXTENSION_SETTINGS_UNAVAILABLE',
+      `extension '${deps.extensionId}' declares settings but does not hold the 'store:own' grant, which is where core keeps them. Add it to grants.required in the extension's manifest and upgrade the installation.`,
+      500,
+    )
+  }
   const codec = compileSettings(deps.manifest.settings ?? {})
   const version = deps.manifest.settingsVersion ?? 1
   const secrets = new Set(codec.secretKeys())

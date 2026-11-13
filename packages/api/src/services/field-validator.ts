@@ -582,8 +582,20 @@ export function validateFieldValue(
               // carry it at either level (see its doc comment); reading one
               // place here and the other in the editor is what made a hidden
               // sub-field unpublishable.
+              //
+              // A rule naming a field the ROW does not have reads it from the
+              // container - `entryValues` is the enclosing block when this
+              // repeater is a block's sub-field. Without that fallback a row
+              // could only ever condition on its own siblings, so a block's
+              // layout select could not decide whether a row's picture is
+              // asked for, and the only way to express it was two repeaters
+              // holding the same rows under different names.
+              //
+              // Absent from the row is the test, not empty: a row that HAS
+              // the field still answers from itself, so no rule that worked
+              // before changes meaning.
               const scv = subFieldVisibility(sf)
-              if (scv && !evalVisibility(scv, (fn) => item[fn])) continue
+              if (scv && !evalVisibility(scv, (fn) => (fn in item ? item[fn] : entryValues?.[fn]))) continue
               const err = validateFieldValue(asFieldDef(sf), item[sf.name], mode, resolve, item, depth + 1)
               if (err) return `${label} (row ${i + 1}): ${err}`
             }

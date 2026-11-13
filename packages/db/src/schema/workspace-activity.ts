@@ -23,7 +23,7 @@ export const workspaceActivity = pgTable('workspace_activity', {
   actorId: text('actor_id'),
   actorName: text('actor_name'),             // denormalized at write time
   actorType: text('actor_type'),             // 'member' | 'api_key'
-  source: text('source').notNull().default('admin'),  // 'admin' | 'rest' | 'graphql' | 'sdk'
+  source: text('source').notNull().default('admin'),  // 'admin' | 'rest' | 'graphql' | 'sdk' | 'canvas'
   typeName: text('type_name'),               // content type slug, e.g. 'post'
   objectId: text('object_id'),
   objectTitle: text('object_title'),

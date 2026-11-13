@@ -22,7 +22,7 @@ import { settings } from "@tangen/types";
 export default defineExtension({
   id: "forms",
   name: "Forms",
-  version: "0.3.0",
+  version: "0.5.0",
   // Provenance, shown on Settings > Extensions.
   author: "Tangen",
   homepage: "https://tangen.app",
@@ -56,6 +56,11 @@ export default defineExtension({
   grants: {
     required: [
       { grant: "db:own", reason: "Owns the forms and form_submissions tables its migrations create." },
+      // The settings block above (sender and captcha) is kept in the
+      // extension's own store by core. Without this the gate deletes
+      // ctx.store, the Form Settings page answers a 500, and a captcha
+      // cannot be configured at all - there is no second path to it.
+      { grant: "store:own", reason: "Holds the sender and captcha settings an operator saves on the Form Settings page." },
       { grant: "routes:public", reason: "Serves embeds, schemas and public submits to websites." },
       { grant: "routes:key", reason: "Serves keyed schemas and submits to a workspace API key." },
       { grant: "routes:member", reason: "Serves the builder, submissions and exports to signed-in members." },

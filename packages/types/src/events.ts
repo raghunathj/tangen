@@ -22,7 +22,14 @@ export interface BaseEvent {
   timestamp: string
   actorId?: string | null
   actorType?: 'member' | 'api_key' | 'service' | 'agent' | 'extension' | null
-  source?: 'admin' | 'rest' | 'graphql' | 'sdk'
+  /**
+   * Where the mutation came in. `canvas` was added 2026-11-12 (decision ED):
+   * a content edit made through Canvas is the same author writing the same
+   * row, and the only thing that distinguishes it is the surface. Folding it
+   * into `admin` would leave the log unable to answer the one question the
+   * decision exists to answer.
+   */
+  source?: 'admin' | 'rest' | 'graphql' | 'sdk' | 'canvas'
   // ── The kernel's envelope (K5), additive: every field below is set by a
   // domain operation and absent on an event an older writer emitted. ──
   /** The envelope version; 2 once the kernel fields are present. */

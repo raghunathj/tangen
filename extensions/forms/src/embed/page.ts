@@ -25,7 +25,12 @@ select.tf-input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg 
 .tf-phone .tf-phone-cc{flex:0 0 auto;width:auto;min-width:96px;max-width:140px;padding:9px 28px 9px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;color:#111827;background:#fff;font-family:inherit;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;cursor:pointer;}
 .tf-phone .tf-input{flex:1 1 auto;}
 .tf-phone .tf-phone-cc:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15);}
-.tf-radio-label input,.tf-checkbox-label input{width:16px;height:16px;accent-color:#3b82f6;flex-shrink:0;cursor:pointer;}
+.tf-radio-label input,.tf-checkbox-label input,.tf-consent input{width:16px;height:16px;accent-color:#3b82f6;flex-shrink:0;cursor:pointer;}
+.tf-consent{display:flex;align-items:flex-start;gap:8px;font-size:14px;color:#374151;cursor:pointer;}
+.tf-consent input{margin-top:2px;}
+.tf-consent-copy{line-height:1.5;}
+.tf-consent-copy a{color:#2563eb;text-decoration:underline;}
+.tf-consent-copy a:hover{color:#1d4ed8;}
 .tf-help{font-size:12px;color:#6b7280;margin-top:4px;}
 .tf-err{font-size:12px;color:#ef4444;margin-top:4px;min-height:1em;}
 .tf-form-error{padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#b91c1c;margin-bottom:16px;}
@@ -103,9 +108,23 @@ export function renderPage(opts: {
   messages?: Record<string, string>
   /** The language the page renders in (the locale asked for, else the workspace default). */
   lang?: string
+  /** Provider and site key only - the secret verifies the token server-side. */
+  captcha?: { provider: 'recaptcha_v2' | 'recaptcha_v3' | 'hcaptcha' | 'turnstile'; siteKey: string }
+  /** Whether the form is taking entries, decided by the caller (`availabilityOf`
+   *  in server.ts), which knows publication state and the entry limit as well
+   *  as the schedule. Without it this falls back to the schedule alone, which
+   *  is what it used to answer by itself - and which let an unpublished form
+   *  render in full at its share link. */
+  availability?: { state: string; message?: string }
 }): string {
   const { formName, fields, settings, submitUrl, runtimeUrl, styled } = opts
-  const availability = formAvailability(settings.schedule)
+  const scheduled = formAvailability(settings.schedule)
+  const availability = opts.availability ?? {
+    state: scheduled,
+    message: scheduled === 'not_yet'
+      ? settings.schedule?.notYetOpenMessage ?? 'This form is not open yet'
+      : settings.schedule?.closedMessage ?? 'This form is closed',
+  }
   const payload = {
     submitUrl,
     formId: opts.formId,
@@ -125,15 +144,12 @@ export function renderPage(opts: {
       validationPlacement: settings.validationPlacement,
       wrapperClass: settings.wrapperClass,
       honeypot: settings.honeypot,
+      // The PUBLIC half of the workspace's captcha settings. Without it the
+      // runtime renders no challenge, sends no token, and every submission
+      // is refused the moment an operator turns a captcha on.
+      captcha: opts.captcha,
     },
-    ...(availability !== 'open' ? {
-      availability: {
-        state: availability,
-        message: availability === 'not_yet'
-          ? settings.schedule?.notYetOpenMessage ?? 'This form is not open yet'
-          : settings.schedule?.closedMessage ?? 'This form is closed',
-      },
-    } : {}),
+    ...(availability.state !== 'open' ? { availability } : {}),
     styled,
   }
   const customCss = styled && (settings as any).customCss ? `<style>${(settings as any).customCss}</style>` : ''

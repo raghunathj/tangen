@@ -7,14 +7,14 @@
  * Author: Raghunath J
  * License: MIT
  */
-import { useEffect, useState } from 'react'
-import { IconArrowDown, IconArrowUp, IconPlus, IconTrash , IconSearch, IconChevronDown, IconGlobe } from '@tangen/icons'
+import { useEffect, useRef, useState } from 'react'
+import { IconArrowDown, IconArrowUp, IconPlus, IconTrash , IconSearch, IconChevronDown, IconGlobe, IconLink } from '@tangen/icons'
 import {
   Badge, Button, Checkbox, ChoiceRow, Input, Label, MediaPicker, Popover, PopoverTrigger, PopoverContent, Select, SelectItem,
   Tabs, TabsContent, TabsList, TabsTrigger, Textarea, Toggle, buildThumbnailUrl, cx,
 } from '@/kit'
 import type { FormField, FormStep, PhoneFieldConfig } from '../../contract'
-import { defaultValueControlKind, isValuelessField } from '../../contract'
+import { defaultValueControlKind, isValuelessField, consentHtml } from '../../contract'
 import { PHONE_COUNTRIES, offeredCountries, phoneCountry, resolveDefaultCountry, flagOf } from '../../contract/phone'
 import { fieldTypeConfig, hasOptions } from '../field-types'
 import { ConditionEditor } from '../conditions'
@@ -87,6 +87,85 @@ function CountryPicker({ multi, value, onChange, source, placeholder, readOnly }
         </div>
       </PopoverContent>
     </Popover>
+  )
+}
+
+/**
+ * The consent field's copy: the markup an author writes, three ways of
+ * writing it without typing tags, and a preview rendered through the SAME
+ * `consentHtml` the embed uses - so what the operator approves here is
+ * literally what a visitor gets, including a link that was dropped for its
+ * scheme.
+ */
+function ConsentCopy({ value, readOnly, onChange, idFor }: {
+  value: string
+  readOnly: boolean
+  onChange: (next: string) => void
+  idFor: (k: string) => string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [url, setUrl] = useState('')
+  const [newTab, setNewTab] = useState(true)
+
+  /** Wraps the selection (or inserts a placeholder when there is none). */
+  function wrap(before: string, after: string, fallback = 'text') {
+    const ta = ref.current
+    if (!ta) return
+    const start = ta.selectionStart ?? value.length
+    const end = ta.selectionEnd ?? start
+    const inner = value.slice(start, end) || fallback
+    onChange(`${value.slice(0, start)}${before}${inner}${after}${value.slice(end)}`)
+    // The caret lands around the words, so typing replaces the placeholder.
+    const from = start + before.length
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(from, from + inner.length) })
+  }
+
+  const html = consentHtml(value)
+  // A link the author wrote that the sanitizer would not keep: said plainly
+  // here rather than discovered as a dead link on the live form.
+  const written = (value.match(/<a[\s>]/gi) ?? []).length
+  const kept = (html.match(/<a[\s>]/gi) ?? []).length
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1">
+        <Button size="xs" variant="ghost" disabled={readOnly} onClick={() => wrap('<strong>', '</strong>', 'bold text')} className="font-semibold">B</Button>
+        <Button size="xs" variant="ghost" disabled={readOnly} onClick={() => wrap('<em>', '</em>', 'italic text')} className="italic">I</Button>
+        <Popover open={linkOpen} onOpenChange={(o) => { if (!readOnly) { setLinkOpen(o); if (!o) setUrl('') } }}>
+          <PopoverTrigger asChild>
+            <Button size="xs" variant="ghost" disabled={readOnly} icon={<IconLink className="size-3.5" />}>Link</Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-72 space-y-2 p-3">
+            <Field label="Address" htmlFor={idFor('curl')} help="A page on this site (/privacy), or https://, mailto: or tel:">
+              <Input id={idFor('curl')} autoFocus value={url} placeholder="/privacy" onChange={(e) => setUrl(e.currentTarget.value)} />
+            </Field>
+            <ChoiceRow htmlFor={idFor('cnew')} label="Open in a new tab"
+              control={<Checkbox id={idFor('cnew')} checked={newTab} onCheckedChange={(v) => setNewTab(v === true)} />} />
+            <Button size="sm" className="w-full justify-center" disabled={!url.trim()}
+              onClick={() => {
+                const href = url.trim().replace(/"/g, '')
+                wrap(`<a href="${href}"${newTab ? ' target="_blank"' : ''}>`, '</a>', 'privacy policy')
+                setLinkOpen(false); setUrl('')
+              }}>Insert link</Button>
+          </PopoverContent>
+        </Popover>
+      </div>
+      <Textarea ref={ref} id={idFor('consent')} rows={4} value={value} disabled={readOnly}
+        placeholder="I agree to the privacy policy" onChange={(e) => onChange(e.currentTarget.value)} />
+      <div className="rounded-control border border-border bg-surface-sunken p-3">
+        <p className="mb-1.5 text-ui-2xs font-semibold uppercase tracking-wider text-fg-subtle">Beside the tickbox</p>
+        {html
+          ? <div className="text-ui-sm text-fg [&_a]:text-accent-fg [&_a]:underline" dangerouslySetInnerHTML={{ __html: html }} />
+          : <p className="text-ui-xs text-fg-subtle">Write the text a visitor ticks to agree to.</p>}
+      </div>
+      {written > kept && (
+        <p className="text-ui-xs text-danger">
+          {written - kept === 1 ? 'One link was dropped' : `${written - kept} links were dropped`}: an address must be a path on this site, or https, mailto or tel.
+        </p>
+      )}
+      <p className="text-ui-xs text-fg-subtle">Links, bold and italic are kept. Any other markup loses its tag and keeps its words.</p>
+    </div>
   )
 }
 
@@ -165,6 +244,11 @@ export function FieldInspector({ field, allFields, steps, readOnly, translations
                 <Textarea id={id('html')} rows={6} className="font-mono text-ui-xs" value={field.content ?? ''} disabled={readOnly} onChange={(e) => patch({ content: e.currentTarget.value })} />
               </Field>
             )}
+            {field.type === 'consent' && (
+              <Field label="Consent text" help="What the visitor agrees to. This is the text beside the tickbox; the label above names the field in submissions and messages.">
+                <ConsentCopy value={field.content ?? ''} readOnly={readOnly} onChange={(content) => patch({ content })} idFor={id} />
+              </Field>
+            )}
             {field.type === 'image' && (
               <Field label="Image" help="The label above is its alt text.">
                 <div className="flex items-center gap-2">
@@ -181,7 +265,7 @@ export function FieldInspector({ field, allFields, steps, readOnly, translations
                   onChange={(e) => patch({ name: e.currentTarget.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') })} />
               </Field>
             )}
-            {!valueless && field.type !== 'checkbox' && field.type !== 'hidden' && (
+            {!valueless && field.type !== 'checkbox' && field.type !== 'consent' && field.type !== 'hidden' && (
               <Field label="Placeholder" htmlFor={id('ph')}>
                 <Input id={id('ph')} value={field.placeholder ?? ''} disabled={readOnly} onChange={(e) => patch({ placeholder: e.currentTarget.value || undefined })} />
               </Field>
@@ -296,7 +380,7 @@ export function FieldInspector({ field, allFields, steps, readOnly, translations
           </TabsContent>
 
           <TabsContent value="validation" className="space-y-4">
-            <Toggle size="sm" label="Required" description="The form refuses a submission without it." checked={!!field.required} disabled={readOnly} onCheckedChange={(v) => patch({ required: v })} />
+            <Toggle size="sm" label="Required" description={field.type === 'consent' ? 'The form refuses a submission unless the box is ticked.' : 'The form refuses a submission without it.'} checked={!!field.required} disabled={readOnly} onCheckedChange={(v) => patch({ required: v })} />
             {field.required && <MessageRow k="required" label="Message when it is missing" />}
             {field.type === 'email' && <MessageRow k="email" label="Message when it is not an email" />}
             {field.type === 'phone' && <MessageRow k="phone" label="Message when it is not a phone number" />}
@@ -323,10 +407,16 @@ export function FieldInspector({ field, allFields, steps, readOnly, translations
                 <Field label="Max size (MB)" htmlFor={id('fs')}><Input id={id('fs')} type="number" disabled={readOnly} value={field.validation?.maxFileSize ? field.validation.maxFileSize / 1048576 : ''} onChange={(e) => patch({ validation: { ...field.validation, maxFileSize: e.currentTarget.value ? Number(e.currentTarget.value) * 1048576 : undefined } })} /></Field>
               </>
             )}
-            <Field label="Pattern" htmlFor={id('pat')} help="A regular expression the value must match.">
-              <Input id={id('pat')} className="font-mono" disabled={readOnly} value={field.validation?.pattern ?? ''} placeholder="^[A-Z]{3}$" onChange={(e) => patch({ validation: { ...field.validation, pattern: e.currentTarget.value || undefined } })} />
-            </Field>
-            {field.validation?.pattern && <MessageRow k="pattern" label="Message when it does not match" />}
+            {/* A tickbox is ticked or it is not: no pattern, length or range
+                rule reaches it, so the control that cannot act is not shown. */}
+            {field.type !== 'consent' && (
+              <>
+                <Field label="Pattern" htmlFor={id('pat')} help="A regular expression the value must match.">
+                  <Input id={id('pat')} className="font-mono" disabled={readOnly} value={field.validation?.pattern ?? ''} placeholder="^[A-Z]{3}$" onChange={(e) => patch({ validation: { ...field.validation, pattern: e.currentTarget.value || undefined } })} />
+                </Field>
+                {field.validation?.pattern && <MessageRow k="pattern" label="Message when it does not match" />}
+              </>
+            )}
             <p className="text-ui-xs text-fg-subtle">A message left empty uses the form-wide one under Settings, Texts. {'{label}'} and {'{n}'} fill in the field's label and the limit.</p>
           </TabsContent>
 
@@ -358,7 +448,7 @@ export function FieldInspector({ field, allFields, steps, readOnly, translations
                 <Field label={<>Label <span className="font-normal text-fg-subtle">· {field.label}</span></>}>
                   <Input value={tr.label ?? ''} placeholder={field.label} onChange={(e) => onTranslate(locale, ['fields', field.id, 'label'], e.currentTarget.value)} />
                 </Field>
-                {!valueless && field.type !== 'checkbox' && field.type !== 'hidden' && (
+                {!valueless && field.type !== 'checkbox' && field.type !== 'consent' && field.type !== 'hidden' && (
                   <Field label={<>Placeholder{field.placeholder && <span className="font-normal text-fg-subtle"> · {field.placeholder}</span>}</>}>
                     <Input value={tr.placeholder ?? ''} disabled={!field.placeholder} placeholder={field.placeholder || 'Set a placeholder under Settings first'} onChange={(e) => onTranslate(locale, ['fields', field.id, 'placeholder'], e.currentTarget.value)} />
                   </Field>
@@ -379,8 +469,8 @@ export function FieldInspector({ field, allFields, steps, readOnly, translations
                   </Field>
                 ))}
                 {!valueless && Object.keys(ownMessages).length === 0 && <p className="text-ui-xs text-fg-subtle">Validation messages worded under Validation appear here for translation; the form-wide ones translate under Settings, Texts.</p>}
-                {field.type === 'html' && field.content && (
-                  <Field label="HTML">
+                {(field.type === 'html' || field.type === 'consent') && field.content && (
+                  <Field label={field.type === 'consent' ? 'Consent text' : 'HTML'} help={field.type === 'consent' ? "This language's own wording. The link addresses are part of it, so a locale can point at its own policy page." : undefined}>
                     <Textarea rows={5} className="font-mono text-ui-xs" value={tr.content ?? ''} placeholder={field.content} onChange={(e) => onTranslate(locale, ['fields', field.id, 'content'], e.currentTarget.value)} />
                   </Field>
                 )}

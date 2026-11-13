@@ -1,5 +1,27 @@
 # @tangen/admin
 
+## 0.2.12
+
+### Patch Changes
+
+- A repeater row's visibility rule can name a field on its container.
+  
+  A row resolved every name against the ROW, so a rule naming a field on the
+  enclosing block was expressible, silently unsatisfiable, and left the field
+  hidden forever. A block's layout select could not decide whether its rows ask
+  for a picture, and the only way to express it was two repeaters holding the
+  same rows under different names, which made changing layout mean re-entering
+  every row.
+  
+  A name absent from the row now falls back to the container. Absence is the
+  test rather than emptiness, so a row that carries the field still answers
+  from itself and no rule that worked before changes meaning. A top-level
+  repeater, whose container is the entry, resolves exactly as it did.
+  
+  Both the validator and the editor learned it together, so the two cannot
+  disagree about which fields a row is asking for.
+- @tangen/ui@0.2.12
+
 ## 0.2.11
 
 ### Patch Changes

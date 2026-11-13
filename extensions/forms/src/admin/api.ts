@@ -38,6 +38,8 @@ export interface EmbedUrls {
   id: string
   slug: string
   requireApiKey: boolean
+  /** False while the form is a draft: every public URL below answers 404. */
+  isLive: boolean
   styled: string
   appless: string
   schema: string
@@ -97,10 +99,17 @@ export function formatValue(v: unknown, optionLabels?: Record<string, string>): 
 }
 
 /** Field name → option value → option label, so a choice reads as the person saw it, not as its stored value. */
-export function optionLabelsOf(fields: Array<{ name: string; options?: Array<{ value: string; label: string }> }> | undefined): Record<string, Record<string, string>> {
+export function optionLabelsOf(fields: Array<{ name: string; type?: string; options?: Array<{ value: string; label: string }> }> | undefined): Record<string, Record<string, string>> {
   const out: Record<string, Record<string, string>> = {}
   for (const f of fields ?? []) {
-    if (!f.name || !f.options?.length) continue
+    if (!f.name) continue
+    // A tickbox stores 'true' or nothing; "Yes" and "No" is what the operator
+    // asked, so the same option-label path answers for it.
+    if (f.type === 'consent' || f.type === 'checkbox') {
+      out[f.name] = { true: 'Yes', false: 'No', '': 'No' }
+      continue
+    }
+    if (!f.options?.length) continue
     out[f.name] = Object.fromEntries(f.options.map((o) => [o.value, o.label]))
   }
   return out

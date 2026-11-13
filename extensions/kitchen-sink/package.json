@@ -29,8 +29,8 @@
   "peerDependencies": {
     "@tangen/cms": "^0.2.6",
     "@tangen/icons": "^0.1.3",
-    "@tangen/types": "^0.6.0",
-    "@tangen/ui": "^0.2.11",
+    "@tangen/types": "^0.6.2",
+    "@tangen/ui": "^0.2.12",
     "drizzle-orm": "*",
     "react": "*",
     "react-router-dom": "*"

@@ -1,5 +1,49 @@
 # @tangen/types
 
+## 0.6.2
+
+### Patch Changes
+
+- 65e3962: A deployment that never set SERVER_URL says so, and stops publishing localhost links.
+  
+  `server.url` defaults to a localhost URL on a development deployment and to NOTHING on staging or production. A deployment behind a proxy that never set `SERVER_URL` therefore serves every page correctly and hands out wrong links: measured on a real deployment, the Forms share dialog offered `http://localhost/api/v1/ext/forms/<id>/schema` to paste into a website.
+  
+  Two changes, because the first alone leaves it silent and the second alone leaves it wrong.
+  
+  **It is now said at boot.** `validateProjectDeployment` emits `PUBLIC_URL_UNSET`, a warning naming the key and the variable to set, for every deployment-scoped URL key left unset outside development - `server.url`, `admin.url`, `frontend.url`, and any added later, because the check reads the registry rather than a list. A warning, not a refusal: the deployment still boots.
+  
+  **And the fallback now works.** `ctx.publicUrl()` falls back to the origin the caller actually reached the deployment on. It is derived once per request by `requestPublicOrigin`, which follows the same rule `clientIp` does: `X-Forwarded-Host` is read ONLY behind a declared trusted proxy, because a caller who can set that header could otherwise make the deployment publish links to a host they control. With no proxy declared it uses the `Host` header, which is protocol rather than forwarding; with nothing to go on it answers null rather than guessing localhost.
+  
+  The derivation sits in `bindExtensionCtx`, the one funnel both extension route mounts pass through, so every extension gets it without a contract change. That matters for the member mount in particular: it passes no `url` and no `headers` to a handler, deliberately, because a member route's Authorization header is the member's own session and an extension may not see it. The origin is computed by code that knows the proxy policy instead of handed over as headers.
+
+## 0.6.1
+
+### Patch Changes
+
+- 94f3d8d: Forms can hold its own settings again, and a manifest cannot make that mistake twice.
+  
+  `@tangen/ext-forms` declares four captcha settings and a sender override, and core keeps a typed settings block in the extension's OWN store. The manifest never asked for `store:own`, so the kernel's gate deleted `ctx.store`, the Form Settings page answered `undefined is not an object (evaluating 'deps.store.get')`, and a captcha could not be configured at all: nothing else reads those values.
+  
+  Three changes, smallest first. The grant is added to the Forms manifest. `validateExtensionManifest` now refuses any manifest that declares settings fields without `store:own`, naming the grant, the same shape as the existing checks for admin slots and rich text nodes. And `createExtensionSettings` refuses with `EXTENSION_SETTINGS_UNAVAILABLE`, naming the extension and the grant, instead of reading a property off nothing - for an installation made before the validator existed.
+  
+  **The captcha was only half built, and the half that shipped refused every submission.** The server verified `_captchaToken` and the schema route published the site key, but the embed runtime never loaded a provider script, never drew a widget and never sent a token - so turning a captcha on made every submission through the official embed fail with "Captcha token required". The runtime now renders reCAPTCHA v2, reCAPTCHA v3 (invisible, executed at submit), hCaptcha and Turnstile from the site key in its payload, sends the token, and resets the widget after any refusal because a token is single use. The embed page carries the public half of the setting, which it did not before.
+  
+  **Keyed submits are exempt from the captcha.** A captcha asks whether a person is present and an API key has answered something stronger, so `keyed/:id/submit` no longer requires a token - otherwise enabling a captcha broke every server-to-server integration in the workspace, which have no browser to solve one. A keyed caller that sends a token anyway still has it verified.
+  
+  `docs/forms.md` now says how a headless client does the same: the provider scripts, where the token comes from, and the single-use reset.
+  
+  The npm package takes a patch, because `@tangen/ext-forms` sits on the platform's `major.minor` line with cms, api, admin and cli and a lone minor would break it. The EXTENSION manifest version is its own number and goes 0.3.0 to 0.4.0, which is what makes `tangen extension upgrade forms` re-run the permission review - an installation made before this release holds the old grant set and needs that upgrade to pick up `store:own`.
+- 0e97fb4: Record `canvas` as an event source.
+  
+  `TangenEvent.source` gains `'canvas'`, and the kernel's recorded-source set
+  gains it alongside. The set is the gate that decides whether an execution's
+  source survives into the recorded event: a source outside it silently becomes
+  the actor's default, which is how a new surface becomes `admin` in the
+  activity log without anyone noticing.
+  
+  Additive. The column is already `text`, so there is no migration, and a
+  consumer that switches on the old four values keeps compiling.
+
 ## 0.6.0
 
 ### Minor Changes

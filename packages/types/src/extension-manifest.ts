@@ -20,6 +20,9 @@
 import { validateSettingsDefinition } from './extension-settings'
 import { validateSlotContributions, ADMIN_CONTRIBUTE_GRANT } from './admin-slots'
 import { validateRichtextNodes, RICHTEXT_CONTRIBUTE_GRANT } from './richtext-nodes'
+
+/** Typed settings are kept in the extension's OWN store, so they need it. */
+const SETTINGS_STORE_GRANT = 'store:own'
 import { grantNames } from './extension-review'
 import type { TangenExtensionManifest, ExtensionDependency } from './extension'
 import { compileGrants, isPrivilegedGrant, FACILITY_FAMILIES } from './extension-grants'
@@ -344,6 +347,20 @@ export function validateExtensionManifest(input: unknown): ManifestValidation {
   // Typed settings (Extension Kernel K7.1): the definition is data and must be well-formed before anything desugars from it.
   if (m.settings !== undefined) {
     for (const issue of validateSettingsDefinition(m.settings)) err(`settings${issue.path ? `.${issue.path}` : ''}`, issue.message)
+    // Core keeps the saved values in the extension's OWN store (under
+    // SETTINGS_STORE_KEY), so a manifest that declares settings without
+    // `store:own` installs cleanly and then fails at runtime: the gate
+    // deletes `ctx.store` and the settings route reads `.get` off nothing.
+    // The same shape as the two checks below - a contribution that needs a
+    // grant declares it - and the manifest is where that is cheap to say.
+    const declaredForSettings = m.grants && typeof m.grants === 'object'
+      ? grantNames(((m.grants as { required?: unknown[] }).required ?? []) as never)
+      : null
+    const hasSettingFields = !!m.settings && typeof m.settings === 'object'
+      && !Array.isArray(m.settings) && Object.keys(m.settings as object).length > 0
+    if (hasSettingFields && declaredForSettings && !declaredForSettings.includes(SETTINGS_STORE_GRANT)) {
+      err('settings', `typed settings are kept in the extension's own store, so they need the ${SETTINGS_STORE_GRANT} grant in grants.required`)
+    }
   }
   if (m.settingsVersion !== undefined && (!Number.isInteger(m.settingsVersion) || (m.settingsVersion as number) < 1)) err('settingsVersion', 'must be a whole number, 1 or more')
 

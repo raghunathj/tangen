@@ -42,7 +42,7 @@ import { BlockPalette } from './block-palette'
 import { useParams } from 'react-router-dom'
 import { RelationPicker } from './relation-picker'
 import { MultiRelationPicker } from './multi-relation-picker'
-import { RepeaterEditor, type RepeaterItem } from './repeater-editor'
+import { RepeaterEditor, ContainerValues, type RepeaterItem } from './repeater-editor'
 import { useContentTypes } from '@/lib/use-content-types'
 import { activeSubFieldTabs, subFieldAdmin, subFieldGroup, visibleSubFields, fieldColSpanSm, selectChoices, subFieldPlaceholder, subFieldSelectPlaceholder } from '@/lib/field-presentation'
 // The kit's Tabs, used as a CONTROL with the panel rendered below it, which is
@@ -622,9 +622,16 @@ function BlockCard({
                 Shared across every language. Change it once and it applies everywhere.
               </p>
             )}
+            {/* A repeater nested in this block reads the block's own values
+                through here, so a row's rule can name `version` and friends.
+                Provided at the block rather than passed down because the path
+                runs through SubFieldControl, which knows only a field and a
+                value by design. */}
+            <ContainerValues.Provider value={block}>
             <div className="grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-6">
               {grouped(activeKey).map((sf) => <BlockSubField key={sf.name} {...subProps(sf)} />)}
             </div>
+            </ContainerValues.Provider>
           </div>
         </>
       )}

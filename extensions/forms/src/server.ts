@@ -34,7 +34,7 @@ import { queueIdFor, type FormJobData, type FormHookJobData, type FormNotificati
 import { purgeExpiredSubmissions } from './retention'
 import { validateFormRef } from './field-type'
 import { collectFormRefs, danglingRefs, danglingMessage } from './ref-integrity'
-import { FORM_DEFINITION_JSON_SCHEMA, FORM_FIELD_TYPES, validateFormDefinition, formAvailability, entryLimitWindowStart } from './contract'
+import { FORM_DEFINITION_JSON_SCHEMA, FORM_FIELD_TYPES, validateFormDefinition, formAvailability, entryLimitWindowStart, publicConsentFields } from './contract'
 import type { FormAppSettings, FormField, FormRecord, FormSettings } from './contract'
 
 type Req = Parameters<ExtensionAdminRoute['handler']>[0]
@@ -60,15 +60,19 @@ function sinkFor(ctx: ExtensionServerCtx) {
   }
 }
 
-/** The whole submit path for a loaded form: options, localization, pipeline, after-work. */
-async function submit(ctx: ExtensionServerCtx, req: Req, formRow: FormRecord, locale: string | null) {
+/**
+ * The whole submit path for a loaded form: options, localization, pipeline,
+ * after-work. `credentialed` is the one thing the two routes disagree about -
+ * see SubmissionOptions.
+ */
+async function submit(ctx: ExtensionServerCtx, req: Req, formRow: FormRecord, locale: string | null, credentialed = false) {
   const form = localizeFormDefinition(await withResolvedOptions(ctx, formRow), locale) as FormRecord
   return processFormSubmission(
     { db: dbOf(ctx), appSettings: await loadAppSettings(ctx), hooks: hooksFor(ctx, form.slug), http: ctx.http, ...sinkFor(ctx) },
     form,
     (req.body as Record<string, unknown>) ?? {},
     { ipAddress: req.ip ?? '0.0.0.0', userAgent: req.headers?.['user-agent'] ?? null, locale },
-    { requireLive: true, messages: formMessagesForLocale(formRow, locale) },
+    { requireLive: true, messages: formMessagesForLocale(formRow, locale), credentialed },
   )
 }
 
@@ -86,26 +90,76 @@ function assertKey(req: Req, form: FormRecord, action: 'read' | 'submit'): void 
   }
 }
 
+/**
+ * Refuses an unpublished form the way a missing one is refused.
+ *
+ * The share link, the appless embed and the schema route all answer for a
+ * form a visitor was given the address of. A form nobody has published is not
+ * public, and saying "this form is not currently accepting submissions"
+ * confirms that the slug names something real, hands out the name the
+ * operator typed and invites a retry later. A draft is not a closed form; it
+ * is not a form anyone outside the workspace is entitled to know about, so it
+ * answers exactly what a typo answers.
+ *
+ * The submit route keeps its own clearer refusal (FORM_DISABLED, 403): a POST
+ * means the visitor already had the address and a form in front of them, and
+ * "not found" would be a worse answer to give a person mid-sentence than
+ * "not accepting submissions". The difference is deliberate, and the only
+ * thing it discloses is to someone who already knew the slug.
+ */
+export function assertPublished(row: FormRecord, ref: string): void {
+  if (!row.isLive) throw new RequestError('NOT_FOUND', `Form "${ref}" not found`, 404)
+}
+
+/**
+ * Whether a form is taking entries, and what to say when it is not.
+ *
+ * ONE answer for every public surface. The schema route asked this question
+ * and the embed page answered it separately from `settings.schedule` alone,
+ * so a form at its entry limit still rendered and filled at the share link.
+ *
+ * This is about a PUBLISHED form that is not taking entries just now: a
+ * schedule the operator set, with the wording they wrote, or an entry limit
+ * they capped. A form that was never published is not in this vocabulary at
+ * all - `assertPublished` refuses it as missing before anything gets here,
+ * because a draft should not be distinguishable from a form that does not
+ * exist.
+ *
+ * The schedule is read first (it carries the operator's own wording) and the
+ * entry limit last, because it costs a count.
+ */
+export async function availabilityOf(
+  ctx: ExtensionServerCtx,
+  row: FormRecord,
+  s: FormSettings & Record<string, unknown>,
+): Promise<{ state: string; message?: string }> {
+  const schedState = formAvailability(s.schedule)
+  if (schedState === 'not_yet') return { state: 'not_yet', message: s.schedule?.notYetOpenMessage ?? 'This form is not open yet' }
+  if (schedState === 'closed') return { state: 'closed', message: s.schedule?.closedMessage ?? 'This form is closed' }
+  if (s.entryLimit?.max) {
+    const windowStart = entryLimitWindowStart(s.entryLimit.period ?? 'total')
+    const conds = [eq(formSubmissions.formId, row.id), eq(formSubmissions.workspaceId, row.workspaceId)]
+    if (windowStart) conds.push(gte(formSubmissions.createdAt, windowStart))
+    const cnt = await dbOf(ctx).select({ n: count() }).from(formSubmissions).where(and(...conds))
+    if (Number(cnt[0]?.n ?? 0) >= s.entryLimit.max) {
+      return { state: 'limit_reached', message: s.entryLimit.limitMessage ?? 'This form is not accepting more entries right now' }
+    }
+  }
+  return { state: 'open' }
+}
+
 async function schemaPayload(ctx: ExtensionServerCtx, req: Req, row: FormRecord) {
-  const db = dbOf(ctx)
   const origin = originOf(ctx, req)
   const base = `${origin}/api/v1/ext/${EXT_ID}`
   const locale = localeOf(ctx, req.query?.locale)
   const resolvedSchema = localizeFormDefinition(await withResolvedOptions(ctx, row), locale)
   const s = (resolvedSchema.settings ?? {}) as FormSettings & Record<string, unknown>
   const app = await loadAppSettings(ctx) as FormAppSettings
-  let availability: { state: string; message?: string } = { state: 'open' }
-  const schedState = formAvailability(s.schedule)
-  if (schedState === 'not_yet') availability = { state: 'not_yet', message: s.schedule?.notYetOpenMessage ?? 'This form is not open yet' }
-  else if (schedState === 'closed') availability = { state: 'closed', message: s.schedule?.closedMessage ?? 'This form is closed' }
-  else if (!row.isLive) availability = { state: 'closed', message: 'This form is not currently accepting submissions' }
-  else if (s.entryLimit?.max) {
-    const windowStart = entryLimitWindowStart(s.entryLimit.period ?? 'total')
-    const conds = [eq(formSubmissions.formId, row.id), eq(formSubmissions.workspaceId, row.workspaceId)]
-    if (windowStart) conds.push(gte(formSubmissions.createdAt, windowStart))
-    const cnt = await db.select({ n: count() }).from(formSubmissions).where(and(...conds))
-    if (Number(cnt[0]?.n ?? 0) >= s.entryLimit.max) availability = { state: 'limit_reached', message: s.entryLimit.limitMessage ?? 'This form is not accepting more entries right now' }
-  }
+  const availability = await availabilityOf(ctx, row, s)
+  // A form that is not taking entries publishes no fields. Answering the
+  // state while still listing every question is a refusal in name only: the
+  // page source of an unpublished form would read as its design document.
+  const open = availability.state === 'open'
   return {
     data: {
       id: row.id,
@@ -115,8 +169,8 @@ async function schemaPayload(ctx: ExtensionServerCtx, req: Req, row: FormRecord)
       submitUrl: `${base}/embed/${row.id}/submit`,
       embedUrl: `${base}/embed/${row.id}`,
       applessUrl: `${base}/embed/${row.id}/appless`,
-      fields: resolvedSchema.fields,
-      steps: s.steps ?? undefined,
+      fields: open ? publicConsentFields((resolvedSchema.fields ?? []) as FormField[]) : [],
+      steps: open ? s.steps ?? undefined : undefined,
       messages: formMessagesForLocale(row, locale),
       settings: {
         successTitle: s.successTitle,
@@ -146,24 +200,37 @@ function defaultLocaleOf(ctx: ExtensionServerCtx): string {
 async function embedPage(ctx: ExtensionServerCtx, req: Req, styled: boolean): Promise<Response> {
   let row: FormRecord
   try { row = await loadForm(ctx, req.params.formId!) } catch (e) { return new Response((e as Error).message ?? 'Form not found', { status: (e as { statusCode?: number }).statusCode ?? 404 }) }
+  // A draft answers what a typo answers (see assertPublished); this route
+  // renders HTML rather than throwing, so it says the same thing in kind.
+  if (!row.isLive) return new Response(`Form "${req.params.formId}" not found`, { status: 404 })
   if (requiresKey(row)) return new Response('This form requires an API key and cannot be embedded publicly', { status: 401 })
   const origin = originOf(ctx, req)
   const base = `${origin}/api/v1/ext/${EXT_ID}`
   const locale = localeOf(ctx, req.query?.locale)
   const resolved = localizeFormDefinition(await withResolvedOptions(ctx, row), locale)
   const csp = frameAncestorsHeader((row.settings as { embed?: { allowedDomains?: string[] } }).embed?.allowedDomains)
+  // The same public half the schema route serves, for the same reason: the
+  // embed cannot send a token it was never told to collect.
+  const app = await loadAppSettings(ctx) as FormAppSettings
   const workspaceQs = `workspace=${encodeURIComponent(ctx.workspaceId)}`
   const submitQs = embedSubmitQs(locale, undefined)
+  const availability = await availabilityOf(ctx, row, (resolved.settings ?? {}) as FormSettings & Record<string, unknown>)
   return new Response(renderPage({
     formName: row.name,
     formId: row.id,
-    fields: (resolved.fields ?? []) as FormField[],
+    // Closed: the message is the whole page, so the questions do not travel
+    // with it (the same rule the schema route follows).
+    fields: availability.state === 'open' ? publicConsentFields((resolved.fields ?? []) as FormField[]) : [],
     settings: (resolved.settings ?? {}) as FormSettings,
     messages: formMessagesForLocale(row, locale) as unknown as Record<string, string>,
     submitUrl: `${base}/embed/${row.id}/submit${submitQs ? `${submitQs}&` : '?'}${workspaceQs}`,
     runtimeUrl: `${base}/embed/runtime.js?v=${(await getEmbedRuntime()).hash}&${workspaceQs}`,
     styled,
     lang: locale ?? defaultLocaleOf(ctx),
+    // The same answer the schema route gives: an unpublished form, or one at
+    // its entry limit, renders its message instead of its fields.
+    availability,
+    captcha: app.captcha?.provider ? { provider: app.captcha.provider, siteKey: app.captcha.siteKey } : undefined,
   }), { headers: { 'Content-Type': 'text/html; charset=utf-8', ...(csp ? { 'Content-Security-Policy': csp } : {}) } })
 }
 
@@ -239,6 +306,7 @@ const publicRoutes: ExtensionAdminRoute[] = [
     method: 'GET', path: ':formId/schema', auth: 'public',
     handler: async (req, ctx) => {
       const row = await loadForm(ctx, req.params.formId!)
+      assertPublished(row, req.params.formId!)
       if (requiresKey(row)) refuseWithoutKey(row, 'read')
       return schemaPayload(ctx, req, row)
     },
@@ -256,6 +324,9 @@ const publicRoutes: ExtensionAdminRoute[] = [
     method: 'GET', path: 'keyed/:formId/schema', auth: 'key',
     handler: async (req, ctx) => {
       const row = await loadForm(ctx, req.params.formId!)
+      // A key grants reading a PUBLISHED form. A draft is the workspace's
+      // own, and the admin routes are where its definition is read.
+      assertPublished(row, req.params.formId!)
       if (requiresKey(row)) assertKey(req, row, 'read')
       return schemaPayload(ctx, req, row)
     },
@@ -265,7 +336,7 @@ const publicRoutes: ExtensionAdminRoute[] = [
     handler: async (req, ctx) => {
       const row = await loadForm(ctx, req.params.formId!)
       if (requiresKey(row)) assertKey(req, row, 'submit')
-      return { data: await submit(ctx, req, row, localeOf(ctx, req.query?.locale)) }
+      return { data: await submit(ctx, req, row, localeOf(ctx, req.query?.locale), true) }
     },
   },
 ]
@@ -359,7 +430,7 @@ const memberRoutes: ExtensionAdminRoute[] = [
       const base = `${origin}/api/v1/ext/${EXT_ID}`
       const ws = `?workspace=${encodeURIComponent(ctx.workspaceId)}`
       return { data: {
-        id: row.id, slug: row.slug, requireApiKey: requiresKey(row),
+        id: row.id, slug: row.slug, requireApiKey: requiresKey(row), isLive: row.isLive,
         styled: `${base}/embed/${row.id}${ws}`,
         appless: `${base}/embed/${row.id}/appless${ws}`,
         schema: `${base}/${row.id}/schema${ws}`,

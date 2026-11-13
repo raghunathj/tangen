@@ -14,6 +14,8 @@
 export type FormFieldType =
   | 'text' | 'textarea' | 'email' | 'phone' | 'number' | 'date'
   | 'select' | 'multiselect' | 'radio' | 'checkbox' | 'file' | 'hidden'
+  // A tickbox whose text is authored copy with links (terms, privacy policy):
+  | 'consent'
   // Presentational / layout fields — carry NO submission value:
   | 'html' | 'image'
   // Interaction field — the submit control; no value, rendered as the nav button.
@@ -50,6 +52,10 @@ export function defaultValueControlKind(type: FormFieldType): DefaultControlKind
     case 'radio': return 'option'
     case 'multiselect': return 'multiOption'
     case 'checkbox': return 'checkbox'
+    // Consent is deliberately absent from the default-value controls: a
+    // pre-ticked consent box is not consent, so the builder offers no way to
+    // ask for one.
+    case 'consent': return 'none'
     // no default for valueless (html/image/submit) or file uploads
     case 'html':
     case 'image':
@@ -188,7 +194,9 @@ export interface FormField {
   /** Shown as a column of the submissions list (with nothing flagged, the first three value fields are). */
   showInList?: boolean
   className?: string               // custom CSS classes applied to the field wrapper
-  /** Presentational HTML content (type 'html') — author-trusted, localizable. */
+  /** Inline content, localizable. Type 'html': the block, rendered as written.
+   *  Type 'consent': the copy beside the tickbox, narrowed to links and inline
+   *  formatting by `consentHtml` wherever it is rendered. */
   content?: string
   /** Image source URL (type 'image') — a media-asset URL or an external URL.
    *  Alt text uses the field `label` (already localizable). */

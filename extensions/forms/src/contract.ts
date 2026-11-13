@@ -13,5 +13,6 @@
 export * from './contract/types'
 export * from './contract/phone'
 export * from './contract/logic'
+export * from './contract/consent'
 export * from './contract/definition'
 export * from './contract/define'

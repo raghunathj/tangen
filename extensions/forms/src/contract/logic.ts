@@ -17,6 +17,7 @@ import type {
   FormSettings, FormNotification, FormConfirmation,
 } from './types'
 import { isValuelessField } from './types'
+import { isConsentGiven } from './consent'
 import { isPlausiblePhone } from './phone'
 
 // ─── Condition evaluation ─────────────────────────────────────────────────────
@@ -110,6 +111,8 @@ export interface FormMessages {
   min: string
   max: string
   patternInvalid: string
+  /** Not a field rule: the whole form is held back until the challenge is solved. */
+  captchaRequired: string
 }
 
 export const DEFAULT_FORM_MESSAGES: FormMessages = {
@@ -122,6 +125,7 @@ export const DEFAULT_FORM_MESSAGES: FormMessages = {
   min: '{label} must be at least {n}',
   max: '{label} must be at most {n}',
   patternInvalid: '{label} format is invalid',
+  captchaRequired: 'Please complete the verification challenge and submit again',
 }
 
 function msg(template: string, label: string, n?: number | string): string {
@@ -142,7 +146,18 @@ export function validateField(
   const v = field.validation
   // The field's own wording for a rule wins over the form-wide catalog.
   const own: Partial<Record<string, string>> = v?.messages ?? {}
-  const say = (key: Exclude<keyof FormMessages, 'patternInvalid'>, n?: number | string) => msg(own[key] ?? messages[key], field.label, n)
+  // `patternInvalid` takes a custom message per field, and `captchaRequired`
+  // is not a field rule at all: neither is reachable through `say`.
+  const say = (key: Exclude<keyof FormMessages, 'patternInvalid' | 'captchaRequired'>, n?: number | string) => msg(own[key] ?? messages[key], field.label, n)
+
+  // Consent is the one field whose value is judged, not measured: only an
+  // affirmative counts, so a direct API caller posting `false` or `'no'` into
+  // a required consent field is refused rather than recorded as agreement
+  // (an unticked box sends nothing at all). No length, pattern or range rule
+  // applies to a tickbox, so this branch is the whole of its validation.
+  if (field.type === 'consent') {
+    return field.required && !isConsentGiven(value) ? say('required') : null
+  }
 
   if (field.required && isEmpty) return say('required')
   if (isEmpty) return null // optional empty field always passes

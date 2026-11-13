@@ -1,5 +1,23 @@
 # @tangen/db
 
+## 0.1.59
+
+### Patch Changes
+
+- 0e97fb4: Record `canvas` as an event source.
+  
+  `TangenEvent.source` gains `'canvas'`, and the kernel's recorded-source set
+  gains it alongside. The set is the gate that decides whether an execution's
+  source survives into the recorded event: a source outside it silently becomes
+  the actor's default, which is how a new surface becomes `admin` in the
+  activity log without anyone noticing.
+  
+  Additive. The column is already `text`, so there is no migration, and a
+  consumer that switches on the old four values keeps compiling.
+- Updated dependencies [94f3d8d]
+- Updated dependencies [0e97fb4]
+  - @tangen/types@0.6.1
+
 ## 0.1.58
 
 ### Patch Changes

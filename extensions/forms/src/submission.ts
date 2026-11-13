@@ -58,6 +58,17 @@ export interface SubmissionOptions {
   requireLive?: boolean
   /** Localized validation strings (defaults to English). */
   messages?: FormMessages
+  /**
+   * The caller authenticated with a workspace API key (the `keyed/` routes).
+   *
+   * A captcha asks "is there a person here", and a credential has already
+   * answered something stronger. Requiring one of a server-to-server caller
+   * breaks every keyed integration the moment an operator turns a captcha on
+   * - there is no browser to solve it - so the REQUIREMENT is lifted here.
+   * A token sent anyway is still verified: a client that has a browser and
+   * chooses to send one keeps the protection it asked for.
+   */
+  credentialed?: boolean
 }
 
 export interface SubmissionResult {
@@ -160,8 +171,9 @@ export async function processFormSubmission(
     }
   }
 
-  // Captcha (workspace-level config)
-  if (appSettings.captcha?.provider) {
+  // Captcha (workspace-level config). Required of anonymous callers; lifted
+  // for a credentialed one, which has already proven more than a captcha can.
+  if (appSettings.captcha?.provider && (!opts.credentialed || _captchaToken)) {
     if (!_captchaToken) throw new RequestError('VALIDATION_ERROR', 'Captcha token required', 400)
     const result = await verifyCaptchaToken(
       appSettings.captcha.provider,

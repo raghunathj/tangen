@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button, Checkbox, ChoiceRow, Heading, Input, RadioGroup, RadioGroupItem, Select, SelectItem, Textarea, cx } from '@/kit'
 import type { FormField, FormSettings, FormStep } from '../../contract'
-import { fieldsByStep, isFieldVisible, isPresentationalField, isStepVisible, isValuelessField, resolveSubmitButton } from '../../contract'
+import { consentHtml, fieldsByStep, isFieldVisible, isPresentationalField, isStepVisible, isValuelessField, resolveSubmitButton } from '../../contract'
 import { offeredCountries, resolveDefaultDial, splitPhoneValue, joinPhoneValue, flagOf } from '../../contract/phone'
 
 /** The values a fresh render starts with: every default the author set. */
@@ -40,6 +40,25 @@ function PreviewField({ field, value, onChange }: { field: FormField; value: str
     )
   }
   const id = `pv_${field.id}`
+  if (field.type === 'consent') {
+    // The same markup the embed renders, through the same sanitizer - the
+    // preview is where an author sees a dropped link before a visitor does.
+    const html = consentHtml(field.content)
+    return (
+      <div className={cx(span, field.className)}>
+        <ChoiceRow htmlFor={id} help={field.helpText}
+          label={html
+            // A click on a link in the preview must not leave the builder, and
+            // preventing it also stops the label toggling the box, which is
+            // the behaviour the embed gets from stopPropagation.
+            ? <span className="[&_a]:text-accent-fg [&_a]:underline"
+                onClick={(e) => { if ((e.target as HTMLElement).closest('a')) e.preventDefault() }}
+                dangerouslySetInnerHTML={{ __html: html + (field.required ? '<span class="ml-0.5 text-danger">*</span>' : '') }} />
+            : <>{field.label}{field.required && <span className="ml-0.5 text-danger">*</span>}</>}
+          control={<Checkbox id={id} checked={value === 'true'} onCheckedChange={(c) => onChange(c === true ? 'true' : '')} />} />
+      </div>
+    )
+  }
   if (field.type === 'checkbox') {
     return (
       <div className={span}>

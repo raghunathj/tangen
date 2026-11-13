@@ -13,13 +13,13 @@
  * Dependencies/Notes: browser-only side effects are guarded so the module can
  *   also be imported in tests (conformance: bundle vs source fixtures).
  */
-import { fieldsByStep, isFieldVisible, isStepVisible, evaluateShowIf, validateField, isPresentationalField, resolveSubmitButton, safeRedirectTarget, DEFAULT_FORM_MESSAGES } from '../contract'
+import { fieldsByStep, isFieldVisible, isStepVisible, evaluateShowIf, validateField, isPresentationalField, resolveSubmitButton, safeRedirectTarget, DEFAULT_FORM_MESSAGES, consentHtml } from '../contract'
 import { offeredCountries, resolveDefaultDial, splitPhoneValue, joinPhoneValue, flagOf } from '../contract/phone'
 import type { FormField, FormStep, FormMessages } from '../contract'
 
 // Conformance surface — the bundle exports the shared logic so tests can prove
 // the embedded interpreter IS the server's implementation.
-export { evaluateShowIf, isFieldVisible, isStepVisible, validateField }
+export { evaluateShowIf, isFieldVisible, isStepVisible, validateField, consentHtml }
 
 export const HONEYPOT_FIELD = '_hp'
 
@@ -43,6 +43,8 @@ export interface EmbedPayload {
     validationPlacement?: 'inline' | 'summary'
     wrapperClass?: string
     honeypot?: boolean
+    /** The PUBLIC half of the workspace's captcha settings. Never the secret. */
+    captcha?: CaptchaConfig
   }
   /** Render an unavailable screen instead of the form. */
   availability?: { state: 'not_yet' | 'closed'; message: string }
@@ -51,6 +53,175 @@ export interface EmbedPayload {
 }
 
 type Data = Record<string, unknown>
+
+
+// ─── Captcha ──────────────────────────────────────────────────────────────────
+
+/**
+ * The public half of the workspace's captcha settings, as the embed payload
+ * carries it. The secret stays on the server and verifies the token there
+ * (pipeline.ts `verifyCaptchaToken`).
+ */
+export interface CaptchaConfig {
+  provider: 'recaptcha_v2' | 'recaptcha_v3' | 'hcaptcha' | 'turnstile'
+  siteKey: string
+}
+
+/**
+ * One provider, as data: the script to load, the global it defines, and
+ * whether it draws anything. Kept as a table rather than four branches so the
+ * tests can walk every provider and so adding a fifth is one entry.
+ */
+interface CaptchaProvider {
+  /** `{siteKey}` is substituted; reCAPTCHA v3 needs it in the URL. */
+  script: string
+  /** The global the script defines. */
+  global: 'grecaptcha' | 'hcaptcha' | 'turnstile'
+  /** v3 scores silently: no widget, and a token is fetched at submit time. */
+  invisible: boolean
+  /**
+   * Whether the global's `ready(cb)` actually calls back once the script has
+   * loaded, so the widget may wait for it.
+   *
+   * `grecaptcha.ready` does. `turnstile.ready` does NOT: Cloudflare's is for
+   * code that runs BEFORE api.js, it warns when called afterwards, and the
+   * callback never arrives - so waiting for it meant the widget was never
+   * rendered, `getResponse` was asked about a widget that did not exist, and
+   * the console said "[Cloudflare Turnstile] Could not find widget" while the
+   * visitor saw an empty space where the challenge should be. hCaptcha has no
+   * `ready` at all. The two APIs are not the same shape, and the table is
+   * where that is written down.
+   */
+  readyFires: boolean
+}
+
+const CAPTCHA_PROVIDERS: Record<CaptchaConfig['provider'], CaptchaProvider> = {
+  recaptcha_v2: { script: 'https://www.google.com/recaptcha/api.js?render=explicit', global: 'grecaptcha', invisible: false, readyFires: true },
+  recaptcha_v3: { script: 'https://www.google.com/recaptcha/api.js?render={siteKey}', global: 'grecaptcha', invisible: true, readyFires: true },
+  hcaptcha: { script: 'https://js.hcaptcha.com/1/api.js?render=explicit', global: 'hcaptcha', invisible: false, readyFires: false },
+  turnstile: { script: 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit', global: 'turnstile', invisible: false, readyFires: false },
+}
+
+/** The script URL for a provider, or null when the provider is not one we know. */
+export function captchaScriptUrl(config: CaptchaConfig): string | null {
+  const p = CAPTCHA_PROVIDERS[config.provider]
+  if (!p) return null
+  return p.script.replace('{siteKey}', encodeURIComponent(config.siteKey))
+}
+
+/** True when the provider draws no widget and is executed at submit time. */
+export function captchaIsInvisible(provider: string): boolean {
+  return CAPTCHA_PROVIDERS[provider as CaptchaConfig['provider']]?.invisible === true
+}
+
+/** The global name a provider's script defines, or null. */
+export function captchaGlobalName(provider: string): string | null {
+  return CAPTCHA_PROVIDERS[provider as CaptchaConfig['provider']]?.global ?? null
+}
+
+/** The widget API every provider exposes under its global, as this file uses it. */
+interface CaptchaApi {
+  ready?: (cb: () => void) => void
+  render?: (el: HTMLElement, opts: { sitekey: string }) => string | number
+  getResponse?: (id?: string | number) => string
+  reset?: (id?: string | number) => void
+  execute?: (siteKey: string, opts: { action: string }) => Promise<string>
+}
+
+/** How long a provider's `ready(cb)` may take before the widget is drawn anyway. */
+const READY_TIMEOUT_MS = 3000
+
+/** Loads a script once per URL; a second form on the page reuses the first. */
+function loadScript(url: string): Promise<void> {
+  const existing = document.querySelector<HTMLScriptElement>(`script[data-tf-captcha="${CSS.escape(url)}"]`)
+  if (existing) {
+    return existing.dataset.tfLoaded === '1'
+      ? Promise.resolve()
+      : new Promise((resolve, reject) => {
+        existing.addEventListener('load', () => resolve())
+        existing.addEventListener('error', () => reject(new Error('captcha script failed')))
+      })
+  }
+  return new Promise((resolve, reject) => {
+    const tag = document.createElement('script')
+    tag.src = url
+    tag.async = true
+    tag.defer = true
+    tag.dataset.tfCaptcha = url
+    tag.addEventListener('load', () => { tag.dataset.tfLoaded = '1'; resolve() })
+    tag.addEventListener('error', () => reject(new Error('captcha script failed')))
+    document.head.append(tag)
+  })
+}
+
+export interface CaptchaController {
+  /** The token to submit, or null when the visitor has not solved it yet. */
+  token(): Promise<string | null>
+  /**
+   * Forgets the solved challenge. A captcha token is SINGLE USE: after a
+   * refused submission the same token verifies as spent, so a second attempt
+   * without this is refused for a reason the visitor cannot see.
+   */
+  reset(): void
+  /** The element the widget draws into; empty for an invisible provider. */
+  element: HTMLElement
+}
+
+/**
+ * Mounts a captcha for one form. Failures are deliberate non-events here: if
+ * the provider's script cannot load, `token()` answers null and the submit
+ * path reports it, rather than this throwing during render and taking the
+ * whole form with it.
+ */
+export function mountCaptcha(config: CaptchaConfig, doc: Document = document): CaptchaController {
+  const provider = CAPTCHA_PROVIDERS[config.provider]
+  const box = doc.createElement('div')
+  box.className = 'tf-captcha'
+  if (!provider || !config.siteKey) {
+    return { element: box, token: async () => null, reset: () => {} }
+  }
+
+  const api = (): CaptchaApi | undefined => (window as unknown as Record<string, CaptchaApi>)[provider.global]
+  let widgetId: string | number | undefined
+  const ready = loadScript(captchaScriptUrl(config)!)
+    .then(() => new Promise<void>((resolve) => {
+      const a = api()
+      if (!provider.readyFires || !a?.ready) { resolve(); return }
+      // Even where it fires, it is a convenience and not a contract: a gate
+      // that can hang is a form with no challenge on it, so it is raced.
+      let done = false
+      const once = () => { if (!done) { done = true; resolve() } }
+      try { a.ready(once) } catch { once() }
+      setTimeout(once, READY_TIMEOUT_MS)
+    }))
+    .then(() => {
+      if (provider.invisible) return
+      try { widgetId = api()?.render?.(box, { sitekey: config.siteKey }) } catch { /* reported by token() */ }
+    })
+    .catch(() => { /* reported by token() */ })
+
+  return {
+    element: box,
+    async token() {
+      await ready
+      const a = api()
+      if (!a) return null
+      if (provider.invisible) {
+        try { return (await a.execute?.(config.siteKey, { action: 'submit' })) || null } catch { return null }
+      }
+      // Asking a provider about a widget it never drew is how the console
+      // ends up with "Could not find widget" - an error about our bookkeeping
+      // that reads like one about the visitor's challenge.
+      if (widgetId === undefined) return null
+      const value = a.getResponse?.(widgetId)
+      return typeof value === 'string' && value !== '' ? value : null
+    },
+    reset() {
+      if (widgetId === undefined) return
+      try { api()?.reset?.(widgetId) } catch { /* nothing to reset */ }
+    },
+  }
+}
 
 
 // ─── DOM rendering (browser only) ─────────────────────────────────────────────
@@ -140,6 +311,31 @@ function inputFor(field: FormField): HTMLElement {
       label.append(c, ` ${field.label}`)
       return label
     }
+    case 'consent': {
+      // The copy is the label, so it is the label element - the tickbox keeps
+      // its name from the text beside it for a screen reader, and a click on
+      // the words still toggles it.
+      const row = el('label', 'tf-consent')
+      const c = el('input')
+      c.type = 'checkbox'; c.name = field.name; c.id = `f_${field.id}`; c.value = 'true'
+      // No `dflt.checked`: a consent box is never pre-ticked (see
+      // defaultValueControlKind).
+      const copy = el('span', 'tf-consent-copy')
+      const html = consentHtml(field.content)
+      // An author who has not written the copy yet gets the field's own label
+      // rather than an unlabelled box.
+      if (html) copy.innerHTML = html
+      else copy.textContent = field.label
+      if (field.required) copy.append(Object.assign(el('span', 'tf-req'), { textContent: '*' }))
+      // A link inside a label toggles the control it labels, so the visitor
+      // reading the privacy policy would tick the box on the way out. The
+      // anchor's own click is stopped before the label sees it.
+      for (const a of Array.from(copy.querySelectorAll('a'))) {
+        a.addEventListener('click', (ev) => { ev.stopPropagation() })
+      }
+      row.append(c, copy)
+      return row
+    }
     case 'file': {
       const i = el('input')
       setCommon(i)
@@ -198,7 +394,7 @@ function fieldRow(
   const input = inputFor(field)
   const help = field.helpText && field.type !== 'hidden' ? el('p', 'tf-help', field.helpText) : null
 
-  if (field.type !== 'hidden' && field.type !== 'checkbox') {
+  if (field.type !== 'hidden' && field.type !== 'checkbox' && field.type !== 'consent') {
     if (placement.label === 'hidden') {
       input.setAttribute?.('aria-label', field.label)
     } else {
@@ -224,7 +420,7 @@ function readData(form: HTMLFormElement, fields: FormField[]): Data {
     if (isPresentationalField(f.type)) continue // no value - never collect from html content
     const inputs = form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`[name="${CSS.escape(f.name)}"]`)
     if (inputs.length === 0) continue
-    if (f.type === 'checkbox') {
+    if (f.type === 'checkbox' || f.type === 'consent') {
       data[f.name] = (inputs[0] as HTMLInputElement).checked ? 'true' : ''
     } else if (f.type === 'radio') {
       const checked = [...inputs].find((i) => (i as HTMLInputElement).checked)
@@ -301,6 +497,14 @@ export function initTangenForm(root: HTMLElement, payload: EmbedPayload): void {
   hp.setAttribute('aria-hidden', 'true')
   hp.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0'
   if (honeypotOn) form.append(hp)
+
+  // The captcha sits with the submit control, after the last field, which is
+  // where every provider's own guidance puts it and where a visitor looks
+  // once they have finished typing.
+  const captcha = payload.settings.captcha?.provider && payload.settings.captcha.siteKey
+    ? mountCaptcha(payload.settings.captcha)
+    : null
+  if (captcha) form.append(captcha.element)
 
   const globalErr = el('p', 'tf-form-error')
   globalErr.id = 'tf-form-error'
@@ -398,6 +602,10 @@ export function initTangenForm(root: HTMLElement, payload: EmbedPayload): void {
         for (const f of fields) {
           const val = saved[f.name]
           if (val == null) continue
+          // A draft is restored without the visitor doing anything, so
+          // restoring a tick would put a consent box back in the pre-ticked
+          // state the field exists to avoid. Every other field restores.
+          if (f.type === 'consent') continue
           const inputs = form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(`[name="${CSS.escape(f.name)}"]`)
           if (!inputs.length) continue
           const first = inputs[0]
@@ -441,9 +649,30 @@ export function initTangenForm(root: HTMLElement, payload: EmbedPayload): void {
 
     // Final step — full validation then submit
     if (!validateStep(null)) return
-    const payloadData: Data = { ...data(), ...(honeypotOn ? { [HONEYPOT_FIELD]: hp.value } : {}) }
     nextBtn.disabled = true
     nextBtn.textContent = 'Submitting…'
+
+    const finish = (): void => { nextBtn.disabled = false; nextBtn.textContent = btnText }
+
+    void (async () => {
+    let captchaToken: string | null = null
+    if (captcha) {
+      captchaToken = await captcha.token()
+      if (!captchaToken) {
+        // Say so here rather than posting: the server's refusal is a 400 the
+        // visitor cannot act on, and an unsolved checkbox is the likely cause.
+        globalErr.textContent = payload.messages?.captchaRequired
+          ?? 'Please complete the verification challenge and submit again.'
+        globalErr.style.display = 'block'
+        finish()
+        return
+      }
+    }
+    const payloadData: Data = {
+      ...data(),
+      ...(honeypotOn ? { [HONEYPOT_FIELD]: hp.value } : {}),
+      ...(captchaToken ? { _captchaToken: captchaToken } : {}),
+    }
 
     fetch(submitUrl, {
       method: 'POST',
@@ -481,6 +710,10 @@ export function initTangenForm(root: HTMLElement, payload: EmbedPayload): void {
         } else {
           nextBtn.disabled = false
           nextBtn.textContent = btnText
+          // The token the server just saw is spent, whatever refused the
+          // submission. Without this the retry sends it again and is refused
+          // for a reason the visitor cannot see.
+          captcha?.reset()
           const errObj = res.body.error ?? {}
           const fieldErrors: Record<string, string> = errObj.fieldErrors ?? {}
           for (const [name, msg] of Object.entries(fieldErrors)) {
@@ -495,9 +728,11 @@ export function initTangenForm(root: HTMLElement, payload: EmbedPayload): void {
       .catch(() => {
         nextBtn.disabled = false
         nextBtn.textContent = btnText
+        captcha?.reset()
         globalErr.textContent = 'Network error. Please try again.'
         globalErr.style.display = ''
       })
+    })()
   })
 
   backBtn.addEventListener('click', () => {
